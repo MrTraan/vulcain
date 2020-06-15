@@ -1,0 +1,18 @@
+﻿---
+AlignConsecutiveDeclarations: 'true'
+BinPackParameters: 'false'
+ColumnLimit: '120'
+Cpp11BracedListStyle: 'true'
+MaxEmptyLinesToKeep: '1'
+PointerAlignment: Middle
+SpaceBeforeRangeBasedForLoopColon: 'true'
+SpacesInAngles: 'true'
+SpacesInCStyleCastParentheses: 'true'
+SpacesInContainerLiterals: 'true'
+SpacesInParentheses: 'true'
+SpacesInSquareBrackets: 'true'
+TabWidth: 4
+IndentWidth: 4
+UseTab: ForIndentation
+
+...
