@@ -13,11 +13,32 @@ const char * ResourceTypeToString( PackerResource::Type type ) {
 		return "PackerResource::Type::FRAGMENT_SHADER";
 	case PackerResource::Type::FONT:
 		return "PackerResource::Type::FONT";
+	case PackerResource::Type::BLENDER_MODEL:
+		return "PackerResource::Type::BLENDER_MODEL";
 	case PackerResource::Type::INVALID:
 	default:
 		ng_assert( false );
 		return "PackerResource::Type::INVALID";
 	}
+}
+
+PackerResource::Type GuessTypeFromExtension( const std::string & ext ) {
+	if ( ext == ".png" ) {
+		return PackerResource::Type::PNG;
+	}
+	if ( ext == ".vert" ) {
+		return PackerResource::Type::VERTEX_SHADER;
+	}
+	if ( ext == ".frag" ) {
+		return PackerResource::Type::FRAGMENT_SHADER;
+	}
+	if ( ext == ".ttf" ) {
+		return PackerResource::Type::FONT;
+	}
+	if ( ext == ".blend" ) {
+		return PackerResource::Type::BLENDER_MODEL;
+	}
+	return PackerResource::Type::INVALID;
 }
 
 bool PackerReadArchive( const char * path, PackerPackage * package ) {
@@ -57,22 +78,6 @@ bool PackerReadArchive( const char * path, PackerPackage * package ) {
 
 	delete[] inBuffer;
 	return true;
-}
-
-PackerResource::Type GuessTypeFromExtension( const std::string & ext ) {
-	if ( ext == ".png" ) {
-		return PackerResource::Type::PNG;
-	}
-	if ( ext == ".vert" ) {
-		return PackerResource::Type::VERTEX_SHADER;
-	}
-	if ( ext == ".frag" ) {
-		return PackerResource::Type::FRAGMENT_SHADER;
-	}
-	if ( ext == ".ttf" ) {
-		return PackerResource::Type::FONT;
-	}
-	return PackerResource::Type::INVALID;
 }
 
 bool PackerCreateRuntimeArchive( const char * resourcesPath, PackerPackage * package ) {
@@ -144,7 +149,7 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 		return false;
 	}
 
-	std::string headerFileSource = "#pragma once\n\n#include \"packer.h\"\n\nnamespace PackerResources {";
+	std::string headerFileSource = "#pragma once\n\n#include \"packer.h\"\n\nnamespace PackerResources {\n";
 
 	u64 nextID = 0;
 	for ( const std::string & filePath : filesInFolder ) {

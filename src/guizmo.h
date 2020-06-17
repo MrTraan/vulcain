@@ -8,6 +8,8 @@ namespace Guizmo {
 constexpr glm::vec3 colWhite( 1.0f, 1.0f, 1.0f );
 constexpr glm::vec3 colYellow( 1.0f, 1.0f, 0.0f );
 constexpr glm::vec3 colRed( 1.0f, 0.0f, 0.0f );
+constexpr glm::vec3 colGreen( 0.0f, 1.0f, 0.0f );
+constexpr glm::vec3 colBlue( 0.0f, 0.0f, 1.0f );
 
 void Init();
 void NewFrame();

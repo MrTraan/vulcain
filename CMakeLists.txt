@@ -16,6 +16,7 @@ set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(lz4 REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 
 add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GL3W)
 
@@ -47,7 +48,7 @@ add_executable(vulcain
 	"./lib/imgui/imgui_draw.cpp"
 	"./lib/imgui/imgui_impl_sdl.cpp"
 	"./lib/imgui/imgui_impl_opengl3.cpp"
-  "src/shader.h" "src/shader.cpp" "src/renderer.h" "src/renderer.cpp")
+  "src/shader.h" "src/shader.cpp" "src/renderer.h" "src/renderer.cpp" "src/mesh.h" "src/mesh.cpp")
 
 target_include_directories(vulcain
 PRIVATE
@@ -62,6 +63,7 @@ target_link_libraries(vulcain PRIVATE
 	${OPENGL_gl_LIBRARY} # filled by "find_package(OpenGL REQUIRED)"
 	SDL2::SDL2main SDL2::SDL2-static
 	lz4::lz4
+	assimp::assimp
 	${TRACY_LIBRARY_PATH}
 )
 

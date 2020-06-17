@@ -1,6 +1,9 @@
 #include <GL/gl3w.h>
 
 #include <SDL.h>
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
 #include <chrono>
 #include <glm/glm.hpp>
 #include <imgui/imgui.h>
@@ -13,6 +16,7 @@
 #include "guizmo.h"
 #include "ngLib/nglib.h"
 #include "packer.h"
+#include "packer_resource_list.h"
 #include "renderer.h"
 #include "shader.h"
 #include "window.h"
@@ -26,8 +30,9 @@ NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #define STB_TRUETYPE_IMPLEMENTATION // force following include to generate implementation
 #include <stb_truetype.h>
 
-#include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/euler_angles.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/quaternion.hpp>
 
 Game * theGame;
@@ -72,7 +77,7 @@ int main( int ac, char ** av ) {
 	// Setup imgui
 	ImGui::CreateContext();
 	ImGuiIO &              imio = ImGui::GetIO();
-	constexpr const char * imguiSaveFilePath = "C:\\Users\\natha\\Desktop\\minecrouft_imgui.ini";
+	constexpr const char * imguiSaveFilePath = FS_BASE_PATH "imgui.ini";
 	imio.IniFilename = imguiSaveFilePath;
 	imio.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
 	imio.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
@@ -94,9 +99,10 @@ int main( int ac, char ** av ) {
 	auto  lastFrameTime = std::chrono::high_resolution_clock::now();
 	float fixedTimeStepAccumulator = 0.0f;
 
-	glm::mat4 view = glm::lookAt( glm::vec3( 0.0f, 0.0f, 0.0f ), glm::vec3( 0.0f, 0.0f, -1.0f ), glm::vec3( 0.0f, 1.0f, 0.0f ) );
-	glm::mat4 proj = glm::ortho( 0.0f, (float)window.width, (float)window.height, 0.0f, -100.0f, 100.0f );
-	glm::mat4 viewProj = view * proj;
+	glm::mat4 view = view =
+	    glm::lookAt( glm::vec3( 0.0f, 0.0f, 10.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ), glm::vec3( 0.0f, 1.0f, 0.0f ) );
+	glm::mat4 proj = glm::perspective( glm::radians( 60.0f ), ( float )window.width / window.height, 0.1f, 100.0f );
+	glm::mat4 viewProj = proj * view;
 	ViewProjUBOData uboData{};
 	uboData.view = view;
 	uboData.projection = proj;
@@ -104,12 +110,12 @@ int main( int ac, char ** av ) {
 
 	FillViewProjUBO( &uboData );
 
-	glm::mat4 transform(1.0f);
-	glm::vec3 scale;
-	glm::quat rotation;
-	glm::vec3 translation;
-	glm::vec3 skew;
-	glm::vec4 perspective;
+	Assimp::Importer importer;
+	auto             modelResource = theGame->package.GrabResource( PackerResources::MONK_BLEND );
+	const aiScene *  scene = importer.ReadFileFromMemory( theGame->package.GrabResourceData( *modelResource ), modelResource->size, aiProcess_Triangulate | aiProcess_FlipUVs );
+	if ( !scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode ) {
+		ng::Errorf("Assimp error: %s\n", importer.GetErrorString());
+	}
 
 	while ( !window.shouldClose ) {
 		ZoneScopedN( "MainLoop" );
@@ -129,6 +135,10 @@ int main( int ac, char ** av ) {
 			Guizmo::NewFrame();
 		}
 
+		if ( io.keyboard.IsKeyDown( KEY_ESCAPE ) ) {
+			window.shouldClose = true;
+		}
+
 		fixedTimeStepAccumulator += dt;
 		int numFixedSteps = floorf( fixedTimeStepAccumulator / FIXED_TIMESTEP );
 		if ( numFixedSteps > 0 ) {
@@ -139,28 +149,6 @@ int main( int ac, char ** av ) {
 		}
 		Update( dt );
 		Render();
-	
-		glm::decompose( transform, scale, rotation, translation, skew, perspective );
-		bool needRebuild = false;
-		needRebuild |= ImGui::DragFloat3("Translation", &translation.x);
-		needRebuild |= ImGui::DragFloat3("Scale", &scale.x);
-
-		if ( needRebuild ) {
-			transform = glm::mat4(1.0f);
-			transform = glm::translate(transform, translation);
-			transform = glm::scale( transform, scale );
-			transform = transform * glm::toMat4(rotation);
-		}
-
-		ImGui::DragFloat4("0", &transform[0].x );
-		ImGui::DragFloat4("1", &transform[1].x );
-		ImGui::DragFloat4("2", &transform[2].x );
-		ImGui::DragFloat4("3", &transform[3].x );
-
-		Guizmo::Line(glm::vec3(0, 0, -5), glm::vec3(100, 100, -5), Guizmo::colYellow);
-		float redZ = -6.0f;
-		ImGui::SliderFloat("z red", &redZ, -10.0f, 10.0f);
-		Guizmo::Line(glm::vec3(100, 0, redZ), glm::vec3(0, 100, redZ), Guizmo::colRed);
 
 		ng::GetConsole().Draw();
 		DrawDebugWindow();
@@ -208,7 +196,10 @@ void DrawDebugWindow() {
 
 	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
 	             ImGui::GetIO().Framerate );
-
+	if ( ImGui::TreeNode( "Window" ) ) {
+		theGame->window.DebugDraw();
+		ImGui::TreePop();
+	}
 	if ( ImGui::TreeNode( "IO" ) ) {
 		theGame->io.DebugDraw();
 		ImGui::TreePop();

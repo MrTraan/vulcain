@@ -1,13 +1,14 @@
 #pragma once
 #include "ngLib/logs.h"
-#include "tracy/Tracy.hpp"
 #include <GL/gl3w.h>
 #include <SDL2/SDL.h>
+#include <imgui/imgui.h>
 #include <stdexcept>
+#include <tracy/Tracy.hpp>
 
 constexpr char WINDOW_TITLE[] = "Vulcain";
-constexpr int  WINDOW_WIDTH = 1920;
-constexpr int  WINDOW_HEIGHT = 1080;
+constexpr int  WINDOW_WIDTH = 1280;
+constexpr int  WINDOW_HEIGHT = 720;
 
 class Window {
   public:
@@ -35,7 +36,7 @@ class Window {
 		}
 		glContext = SDL_GL_CreateContext( glWindow );
 		SDL_GL_MakeCurrent( glWindow, glContext );
-		SDL_GL_SetSwapInterval( 0 ); // Enable vsync
+		SDL_GL_SetSwapInterval( 1 ); // Enable vsync
 
 		// gl3w: load all OpenGL function pointers
 		if ( gl3wInit() )
@@ -55,8 +56,15 @@ class Window {
 		glEnable( GL_CULL_FACE );
 		glCullFace( GL_BACK );
 
-		//glEnable( GL_BLEND );
-		//glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+		// glEnable( GL_BLEND );
+		// glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+	}
+
+	void DebugDraw() {
+		static bool enableVsync = true;
+		if ( ImGui::Checkbox( "Vsync", &enableVsync ) ) {
+			SDL_GL_SetSwapInterval( enableVsync ? 1 : 0 );
+		}
 	}
 
 	void Shutdown() {

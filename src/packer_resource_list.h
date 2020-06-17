@@ -3,8 +3,8 @@
 #include "packer.h"
 
 namespace PackerResources {
-constexpr PackerResourceID BLOCKS_PIXEL_PERFECT_PNG = 0u;
-constexpr PackerResourceID FONTS_CONSOLAS_TTF = 1u;
+constexpr PackerResourceID FONTS_CONSOLAS_TTF = 0u;
+constexpr PackerResourceID MONK_BLEND = 1u;
 constexpr PackerResourceID SHADERS_COLORED_FRAG = 2u;
 constexpr PackerResourceID SHADERS_COLORED_VERT = 3u;
 constexpr PackerResourceID SHADERS_DEFAULT_FRAG = 4u;
@@ -25,4 +25,4 @@ constexpr PackerResourceID SKYBOX_FRONT_PNG = 18u;
 constexpr PackerResourceID SKYBOX_LEFT_PNG = 19u;
 constexpr PackerResourceID SKYBOX_RIGHT_PNG = 20u;
 constexpr PackerResourceID SKYBOX_TOP_PNG = 21u;
-}; // namespace PackerResource
+};

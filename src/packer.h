@@ -12,6 +12,7 @@ struct PackerResource {
 		VERTEX_SHADER,
 		FRAGMENT_SHADER,
 		FONT,
+		BLENDER_MODEL,
 		INVALID,
 	};
 
