@@ -16,6 +16,8 @@ void IO::Update( Window & window ) {
 	}
 	mouse.offset.x = 0;
 	mouse.offset.y = 0;
+	mouse.wheelMotion.x = 0;
+	mouse.wheelMotion.y = 0;
 
 	if ( mouse.leftClick == Mouse::ButtonState::PRESSED )
 		mouse.leftClick = Mouse::ButtonState::DOWN;
@@ -25,6 +27,9 @@ void IO::Update( Window & window ) {
 		mouse.rightClick = Mouse::ButtonState::DOWN;
 	if ( mouse.rightClick == Mouse::ButtonState::RELEASED )
 		mouse.rightClick = Mouse::ButtonState::UP;
+
+	static bool cursorIsInMainWindow = false;
+	u32         mainWindowID = SDL_GetWindowID( window.glWindow );
 
 	SDL_Event event;
 	while ( SDL_PollEvent( &event ) ) {
@@ -42,32 +47,49 @@ void IO::Update( Window & window ) {
 			glViewport( 0, 0, window.width, window.height );
 			// TODO: Refresh UI size
 		}
-		if ( event.type == SDL_KEYDOWN ) {
-			auto key = event.key.keysym.sym;
-			keyboard.RegisterKeyDown( key );
+		if ( event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_ENTER ) {
+			if ( event.window.windowID == mainWindowID ) {
+				cursorIsInMainWindow = true;
+			}
 		}
-		if ( event.type == SDL_KEYUP ) {
-			auto key = event.key.keysym.sym;
-			keyboard.RegisterKeyRelease( key );
+		if ( event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_LEAVE ) {
+			if ( event.window.windowID == mainWindowID ) {
+				cursorIsInMainWindow = false;
+			}
 		}
-		if ( event.type == SDL_MOUSEMOTION ) {
-			mouse.offset = glm::vec2( event.motion.xrel, event.motion.yrel );
-		}
+		if ( cursorIsInMainWindow ) {
+			if ( event.type == SDL_KEYDOWN ) {
+				auto key = event.key.keysym.sym;
+				keyboard.RegisterKeyDown( key );
+			}
+			if ( event.type == SDL_KEYUP ) {
+				auto key = event.key.keysym.sym;
+				keyboard.RegisterKeyRelease( key );
+			}
+			if ( event.type == SDL_MOUSEMOTION ) {
+				mouse.offset = glm::vec2( event.motion.xrel, event.motion.yrel );
+				SDL_GetMouseState( &mouse.position.x, &mouse.position.y );
+			}
+			if ( event.type == SDL_MOUSEWHEEL ) {
+				mouse.wheelMotion.x = event.wheel.x;
+				mouse.wheelMotion.y = event.wheel.y;
+			}
 
-		if ( event.type == SDL_MOUSEBUTTONUP ) {
-			if ( event.button.button == SDL_BUTTON_LEFT ) {
-				mouse.leftClick = Mouse::ButtonState::RELEASED;
+			if ( event.type == SDL_MOUSEBUTTONUP ) {
+				if ( event.button.button == SDL_BUTTON_LEFT ) {
+					mouse.leftClick = Mouse::ButtonState::RELEASED;
+				}
+				if ( event.button.button == SDL_BUTTON_RIGHT ) {
+					mouse.rightClick = Mouse::ButtonState::RELEASED;
+				}
 			}
-			if ( event.button.button == SDL_BUTTON_RIGHT ) {
-				mouse.rightClick = Mouse::ButtonState::RELEASED;
-			}
-		}
-		if ( event.type == SDL_MOUSEBUTTONDOWN ) {
-			if ( event.button.button == SDL_BUTTON_LEFT ) {
-				mouse.leftClick = Mouse::ButtonState::PRESSED;
-			}
-			if ( event.button.button == SDL_BUTTON_RIGHT ) {
-				mouse.rightClick = Mouse::ButtonState::PRESSED;
+			if ( event.type == SDL_MOUSEBUTTONDOWN ) {
+				if ( event.button.button == SDL_BUTTON_LEFT ) {
+					mouse.leftClick = Mouse::ButtonState::PRESSED;
+				}
+				if ( event.button.button == SDL_BUTTON_RIGHT ) {
+					mouse.rightClick = Mouse::ButtonState::PRESSED;
+				}
 			}
 		}
 	}
@@ -151,8 +173,8 @@ bool Keyboard::IsKeyPressed( eKey key ) const {
 }
 
 void Mouse::Init( Window & window ) {
-	SDL_SetRelativeMouseMode( SDL_TRUE );
-	SDL_SetWindowGrab( window.glWindow, SDL_TRUE );
+	// SDL_SetRelativeMouseMode( SDL_TRUE );
+	// SDL_SetWindowGrab( window.glWindow, SDL_TRUE );
 }
 
 bool Mouse::IsButtonDown( Button button ) const {

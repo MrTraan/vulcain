@@ -64,7 +64,9 @@ struct Mouse {
 	bool IsButtonDown( Button button ) const;
 	bool IsButtonPressed( Button button ) const;
 
+	glm::i32vec2 position;
 	glm::vec2 offset;
+	glm::i32vec2 wheelMotion;
 	bool debugMouse = false;
 };
 

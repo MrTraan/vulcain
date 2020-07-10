@@ -1,10 +1,10 @@
-#include <GL/gl3w.h>
 #include "guizmo.h"
 #include "packer_resource_list.h"
+#include "shader.h"
+#include <GL/gl3w.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <tracy/Tracy.hpp>
 #include <vector>
-#include "shader.h"
 
 namespace Guizmo {
 
@@ -18,7 +18,17 @@ struct LineData {
 	glm::vec3 colorB;
 };
 
-static std::vector< LineData > lineDrawList;
+struct TriangleData {
+	glm::vec3 a;
+	glm::vec3 colorA;
+	glm::vec3 b;
+	glm::vec3 colorB;
+	glm::vec3 c;
+	glm::vec3 colorC;
+};
+
+static std::vector< LineData >     lineDrawList;
+static std::vector< TriangleData > triangleDrawList;
 
 void Init() {
 	glGenVertexArrays( 1, &VAO );
@@ -36,11 +46,26 @@ void Init() {
 	glEnableVertexAttribArray( 1 );
 }
 
-void NewFrame() { lineDrawList.clear(); }
+void NewFrame() {
+	lineDrawList.clear();
+	triangleDrawList.clear();
+}
 
 void Line( glm::vec3 a, glm::vec3 b, glm::vec3 color ) {
 	LineData data = { a, color, b, color };
 	lineDrawList.push_back( data );
+}
+
+void Triangle( glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 color ) {
+	TriangleData data = { a, color, b, color, c, color };
+	triangleDrawList.push_back( data );
+}
+
+void Rectangle( glm::vec3 position, float width, float height, glm::vec3 color ) {
+	Triangle( position, glm::vec3( position.x + width, position.y, position.z + height ),
+	          glm::vec3( position.x + width, position.y, position.z ), color );
+	Triangle( position, glm::vec3( position.x, position.y, position.z + height ),
+	          glm::vec3( position.x + width, position.y, position.z + height ), color );
 }
 
 void LinesAroundCube( glm::vec3 cubePosition ) {
@@ -82,15 +107,26 @@ void Draw() {
 
 	g_shaderAtlas.colorShader.Use();
 
-	glBindVertexArray( VAO );
-	glBindBuffer( GL_ARRAY_BUFFER, VBO );
-	glBufferData( GL_ARRAY_BUFFER, lineDrawList.size() * sizeof( LineData ), &( lineDrawList[ 0 ] ), GL_STATIC_DRAW );
-
-	glLineWidth( 5.0f );
-	for ( int i = 0; i < lineDrawList.size(); i++ ) {
-		glDrawArrays( GL_LINE_STRIP, i * 2, 2 );
+	if ( lineDrawList.size() > 0 ) {
+		glBindVertexArray( VAO );
+		glBindBuffer( GL_ARRAY_BUFFER, VBO );
+		glBufferData( GL_ARRAY_BUFFER, lineDrawList.size() * sizeof( LineData ), lineDrawList.data(), GL_STATIC_DRAW );
+		glLineWidth( 1.0f );
+		for ( int i = 0; i < lineDrawList.size(); i++ ) {
+			glDrawArrays( GL_LINE_STRIP, i * 2, 2 );
+		}
+		glLineWidth( 1.0f );
 	}
-	glLineWidth( 1.0f );
+
+	if ( triangleDrawList.size() > 0 ) {
+		glBindVertexArray( VAO );
+		glBindBuffer( GL_ARRAY_BUFFER, VBO );
+		glBufferData( GL_ARRAY_BUFFER, triangleDrawList.size() * sizeof( TriangleData ), triangleDrawList.data(),
+		              GL_STATIC_DRAW );
+		for ( int i = 0; i < triangleDrawList.size(); i++ ) {
+			glDrawArrays( GL_TRIANGLES, i * 3, 3 );
+		}
+	}
 	glBindVertexArray( 0 );
 }
 

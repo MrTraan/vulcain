@@ -19,6 +19,9 @@ struct Shader {
 	void SetMatrix( const char * name, const glm::mat4x4 & mat ) const {
 		glUniformMatrix4fv( glGetUniformLocation( ID, name ), 1, GL_FALSE, glm::value_ptr( mat ) );
 	}
+	void SetMatrix3( const char * name, const glm::mat3x3 & mat ) const {
+		glUniformMatrix3fv( glGetUniformLocation( ID, name ), 1, GL_FALSE, glm::value_ptr( mat ) );
+	}
 };
 
 Shader CompileShaderFromCode( const char * vertexCode, int vertexSize, const char * fragmentCode, int fragmentSize );

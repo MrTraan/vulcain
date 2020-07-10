@@ -12,7 +12,8 @@ struct PackerResource {
 		VERTEX_SHADER,
 		FRAGMENT_SHADER,
 		FONT,
-		BLENDER_MODEL,
+		OBJ,
+		MATERIAL,
 		INVALID,
 	};
 
@@ -29,6 +30,7 @@ struct PackerPackage {
 	std::vector< PackerResource > resourceList;
 
 	PackerResource * GrabResource( PackerResourceID resourceID );
+	PackerResource * GrabResourceByName( const char * name );
 	u8 *             GrabResourceData( PackerResourceID resourceID );
 	u8 *             GrabResourceData( const PackerResource & resource );
 };

@@ -13,8 +13,10 @@ const char * ResourceTypeToString( PackerResource::Type type ) {
 		return "PackerResource::Type::FRAGMENT_SHADER";
 	case PackerResource::Type::FONT:
 		return "PackerResource::Type::FONT";
-	case PackerResource::Type::BLENDER_MODEL:
-		return "PackerResource::Type::BLENDER_MODEL";
+	case PackerResource::Type::OBJ:
+		return "PackerResource::Type::OBJ";
+	case PackerResource::Type::MATERIAL:
+		return "PackerResource::Type::MATERIAL";
 	case PackerResource::Type::INVALID:
 	default:
 		ng_assert( false );
@@ -35,8 +37,11 @@ PackerResource::Type GuessTypeFromExtension( const std::string & ext ) {
 	if ( ext == ".ttf" ) {
 		return PackerResource::Type::FONT;
 	}
-	if ( ext == ".blend" ) {
-		return PackerResource::Type::BLENDER_MODEL;
+	if ( ext == ".obj" ) {
+		return PackerResource::Type::OBJ;
+	}
+	if ( ext == ".mtl" ) {
+		return PackerResource::Type::MATERIAL;
 	}
 	return PackerResource::Type::INVALID;
 }
@@ -237,6 +242,16 @@ PackerResource * PackerPackage::GrabResource( PackerResourceID resourceID ) {
 			return &r;
 		}
 	}
+	return nullptr;
+}
+
+PackerResource * PackerPackage::GrabResourceByName( const char * name ) {
+	for ( auto & r : resourceList ) {
+		if ( strcmp( name, r.name ) == 0 ) {
+			return &r;
+		}
+	}
+	ng_assert( false );
 	return nullptr;
 }
 

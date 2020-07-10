@@ -1,21 +1,26 @@
 #version 420 core
-layout (location = 0) in vec3 aPos;   // the position variable has attribute position 0
-layout (location = 1) in vec2 aTexCoord;
-layout (location = 2) in float aTexIndex;
+layout (location = 0) in vec3 aPosition;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoord;
 
-out vec2 TexCoord;
-out float TexIndex;
+out vec3 fragPosition;
+out vec3 fragNormal;
+out vec2 fragTexCoord;
 
 layout (std140, binding = 0) uniform Matrices {
 	mat4 projection;
 	mat4 view;
 	mat4 viewProj;
+	vec4 viewPosition;
 };
-uniform mat4 model;
+
+uniform mat4 modelTransform;
+uniform mat3 normalTransform;
 
 void main()
 {
-    gl_Position = viewProj * model * vec4(aPos, 1.0);
-	TexCoord = aTexCoord;
-	TexIndex = aTexIndex;
+	fragPosition = vec3( modelTransform * vec4( aPosition, 1.0  ) );
+    gl_Position = viewProj * vec4( fragPosition, 1.0 );
+	fragTexCoord = aTexCoord;
+	fragNormal = normalTransform * aNormal;
 } 
