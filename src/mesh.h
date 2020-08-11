@@ -40,13 +40,33 @@ struct Mesh {
 	u32 ebo;
 };
 
-struct CpntRenderModel {
+struct Model {
 	std::map< std::string, Material > materials;
 	std::vector< Mesh >               meshes;
 	glm::vec3                         size;
+	glm::vec3                         minCoords;
+	glm::vec3                         maxCoords;
 	glm::i32vec3                      roundedSize;
 };
 
+struct ModelAtlas {
+	bool LoadAllModels();
+	void FreeAllModels();
+
+	Model * houseMesh = nullptr;
+	Model * farmMesh = nullptr;
+	Model * cubeMesh = nullptr;
+	Model * roadMesh = nullptr;
+	Model * storeHouseMesh = nullptr;
+};
+
+extern ModelAtlas g_modelAtlas;
+
+struct CpntRenderModel {
+	CpntRenderModel() = default;
+	CpntRenderModel( const Model * model ) : model( model ) {}
+	const Model * model = nullptr;
+};
 
 Texture CreateTextureFromResource( const PackerResource & resource );
 Texture CreateTextureFromData( const u8 * data, int width, int height, int channels );

@@ -40,6 +40,17 @@ struct ScopedChrono {
 	}
 };
 
+struct ScopedChronoUI {
+	std::chrono::steady_clock::time_point start;
+	const char *                          label;
+	ScopedChronoUI( const char * _label ) {
+		start = std::chrono::high_resolution_clock::now();
+		label = _label;
+	}
+
+	~ScopedChronoUI();
+};
+
 struct Console {
 	struct Log {
 		ngString    text;

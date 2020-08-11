@@ -134,8 +134,8 @@ size_t File::Read( void * dst, size_t size ) {
 	ng_assert( ModeCanRead() );
 #if defined( SYS_WIN )
 	DWORD bytesRead;
-	BOOL  success = ReadFile( handler, dst, size, &bytesRead, nullptr );
-	// ng_assert( success == 0 );
+	BOOL  success = ReadFile( handler, dst, ( DWORD )size, &bytesRead, nullptr );
+	ng_assert( success != 0 );
 	return ( size_t )bytesRead;
 #else
 	NG_UNSUPPORTED_PLATFORM
@@ -147,7 +147,7 @@ size_t File::Write( const void * src, size_t size ) {
 	ng_assert( ModeCanWrite() );
 #if defined( SYS_WIN )
 	DWORD bytesRead;
-	BOOL  success = WriteFile( handler, src, size, &bytesRead, nullptr );
+	BOOL  success = WriteFile( handler, src, ( DWORD )size, &bytesRead, nullptr );
 	ng_assert( success != 0 );
 	return ( size_t )bytesRead;
 #else

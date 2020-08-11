@@ -103,9 +103,10 @@ void ParseMaterialFile( const char * data, u64 size, std::map< std::string, Mate
 	}
 }
 
-bool ImportObjFile( PackerResourceID resourceID, CpntRenderModel & out ) {
+bool ImportObjFile( PackerResourceID resourceID, Model & out ) {
 	ng::ScopedChrono chrono( "Import obj file" );
 	auto             objResource = theGame->package.GrabResource( resourceID );
+	ng_assert(objResource->type == PackerResource::Type::OBJ );
 	const char *     data = ( const char * )theGame->package.GrabResourceData( *objResource );
 
 	out.materials.clear();
@@ -225,7 +226,7 @@ bool ImportObjFile( PackerResourceID resourceID, CpntRenderModel & out ) {
 			case 'f': {
 				// face
 				const char * line = data + i + 2;
-				u32          currentIndex = currentMesh->vertices.size();
+				u32          currentIndex = (u32)currentMesh->vertices.size();
 
 				for ( int face = 0; face < 3; face++ ) {
 					glm::vec3 position;
@@ -318,13 +319,13 @@ bool ImportObjFile( PackerResourceID resourceID, CpntRenderModel & out ) {
 			if ( vertex.position.z > maxZ ) maxZ = vertex.position.z;
 		}
 	}
-	out.size.x = maxX - minX;
-	out.size.y = maxY - minY;
-	out.size.z = maxZ - minZ;
+	out.minCoords = glm::vec3(minX, minY, minZ);
+	out.maxCoords = glm::vec3(maxX, maxY, maxZ);
+	out.size = out.maxCoords - out.minCoords;
 
-	out.roundedSize.x = ceilf( out.size.x );
-	out.roundedSize.y = ceilf( out.size.y );
-	out.roundedSize.z = ceilf( out.size.z );
+	out.roundedSize.x = (int)ceilf( out.size.x );
+	out.roundedSize.y = (int)ceilf( out.size.y );
+	out.roundedSize.z = (int)ceilf( out.size.z );
 
 	return true;
 }

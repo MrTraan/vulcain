@@ -3,12 +3,16 @@
 
 #include "Game.h"
 #include "mesh.h"
+#include "obj_parser.h"
+#include "packer_resource_list.h"
+
+ModelAtlas g_modelAtlas;
 
 Texture CreateTextureFromResource( const PackerResource & resource ) {
 	int       width;
 	int       height;
 	int       channels;
-	stbi_uc * data = stbi_load_from_memory( theGame->package.GrabResourceData( resource ), resource.size, &width,
+	stbi_uc * data = stbi_load_from_memory( theGame->package.GrabResourceData( resource ), ( int )resource.size, &width,
 	                                        &height, &channels, 0 );
 	Texture   texture = CreateTextureFromData( data, width, height, channels );
 	stbi_image_free( data );
@@ -90,3 +94,58 @@ void AllocateMeshGLBuffers( Mesh & mesh ) {
 
 	glBindVertexArray( 0 );
 }
+
+void FreeMeshGLBuffers( Mesh & mesh ) {
+	glDeleteBuffers( 1, &mesh.ebo );
+	glDeleteBuffers( 1, &mesh.vbo );
+	glDeleteVertexArrays( 1, &mesh.vao );
+}
+
+static bool SetupModelFromResource( Model & model, PackerResourceID resourceID ) {
+	bool success = ImportObjFile( resourceID, model );
+	if ( success == false ) {
+		return success;
+	}
+
+	for ( Mesh & mesh : model.meshes ) {
+		AllocateMeshGLBuffers( mesh );
+	}
+	return true;
+}
+
+static void FreeModelBuffers( Model & model ) {
+	for ( Mesh & mesh : model.meshes ) {
+		FreeMeshGLBuffers( mesh );
+	}
+}
+
+bool ModelAtlas::LoadAllModels() {
+	bool success = true;
+	houseMesh = new Model();
+	farmMesh = new Model();
+	cubeMesh = new Model();
+	roadMesh = new Model();
+	storeHouseMesh = new Model();
+	success &= SetupModelFromResource( *houseMesh, PackerResources::HOUSE_OBJ );
+	success &= SetupModelFromResource( *farmMesh, PackerResources::FARM_OBJ );
+	success &= SetupModelFromResource( *cubeMesh, PackerResources::CUBE_OBJ );
+	success &= SetupModelFromResource( *roadMesh, PackerResources::ROAD_OBJ );
+	success &= SetupModelFromResource( *storeHouseMesh, PackerResources::STOREHOUSE_OBJ );
+
+	return success;
+}
+
+void ModelAtlas::FreeAllModels() {
+	FreeModelBuffers( *houseMesh );
+	FreeModelBuffers( *farmMesh);
+	FreeModelBuffers( *cubeMesh );
+	FreeModelBuffers( *roadMesh );
+	FreeModelBuffers( *storeHouseMesh );
+
+	delete houseMesh;
+	delete farmMesh;
+	delete cubeMesh;
+	delete roadMesh;
+	delete storeHouseMesh;
+}
+

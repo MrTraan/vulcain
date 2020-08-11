@@ -31,6 +31,7 @@ struct ShaderAtlas {
 	void CompileAllShaders();
 	void FreeShaders();
 
+	Shader defaultShader;
 	Shader colorShader;
 };
 

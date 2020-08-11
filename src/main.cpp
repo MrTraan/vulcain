@@ -32,6 +32,8 @@ NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #define STB_IMAGE_IMPLEMENTATION // force following include to generate implementation
 #include <stb_image.h>
 #define STB_TRUETYPE_IMPLEMENTATION
+#include "collider.h"
+#include "navigation.h"
 #include <stb_truetype.h>
 
 Game * theGame;
@@ -47,15 +49,47 @@ static void FixedUpdate() {}
 
 static void Render() {}
 
-struct CpntTransform {
-	CpntTransform() {}
-	CpntTransform( const glm::mat4 & src ) : matrix( src ) {}
-	glm::mat4 matrix = glm::mat4( 1.0f );
-};
+void SpawnRoadBlock( Registery & reg, Map & map, Cell cell, const Model * model ) {
+	if ( map.GetTile( cell ) != MapTile::ROAD ) {
+		map.SetTile( cell, MapTile::ROAD );
 
-Entity CreateEntity() {
-	static Entity currentId = 0;
-	return currentId++;
+		Entity          e = reg.CreateEntity();
+		CpntTransform & t = reg.AssignComponent< CpntTransform >( e );
+		t.SetTranslation( GetPointInMiddleOfCell( cell ) );
+		reg.AssignComponent< CpntRenderModel >( e, model );
+		reg.AssignComponent< CpntBoxCollider >(
+		    e, CpntBoxCollider( ( model->maxCoords + model->minCoords ) / 2.0f, model->size ) );
+		CpntBuilding & buildingCpnt = reg.AssignComponent< CpntBuilding >( e );
+		buildingCpnt.cell = cell;
+		buildingCpnt.tileSizeX = 1;
+		buildingCpnt.tileSizeZ = 1;
+	}
+}
+
+Entity SpawnBuilding( Registery & reg, Map & map, Cell cell, u32 sizeX, u32 sizeZ, const Model * model ) {
+	Entity         newBuilding = reg.CreateEntity();
+	CpntBuilding & buildingCpnt = reg.AssignComponent< CpntBuilding >( newBuilding );
+	buildingCpnt.cell = cell;
+	buildingCpnt.tileSizeX = sizeX;
+	buildingCpnt.tileSizeZ = sizeZ;
+
+	reg.AssignComponent< CpntRenderModel >( newBuilding, model );
+
+	// Center render model in the middle of the tile size
+	CpntTransform & transform = reg.AssignComponent< CpntTransform >( newBuilding );
+	transform.SetTranslation(
+	    glm::vec3( cell.x + buildingCpnt.tileSizeX / 2.0f, 0, cell.z + buildingCpnt.tileSizeZ / 2.0f ) );
+
+	reg.AssignComponent< CpntBoxCollider >(
+	    newBuilding, CpntBoxCollider( ( model->maxCoords + model->minCoords ) / 2.0f, model->size ) );
+
+	for ( u32 x = cell.x; x < cell.x + sizeX; x++ ) {
+		for ( u32 z = cell.z; z < cell.z + sizeZ; z++ ) {
+			map.SetTile( x, z, MapTile::BLOCKED );
+		}
+	}
+
+	return newBuilding;
 }
 
 int main( int ac, char ** av ) {
@@ -113,25 +147,40 @@ int main( int ac, char ** av ) {
 	auto  lastFrameTime = std::chrono::high_resolution_clock::now();
 	float fixedTimeStepAccumulator = 0.0f;
 
-	CpntRenderModel houseMesh;
-	ImportObjFile( PackerResources::HOUSE_OBJ, houseMesh );
-	for ( Mesh & mesh : houseMesh.meshes ) {
-		AllocateMeshGLBuffers( mesh );
-	}
-	CpntRenderModel farmMesh;
-	ImportObjFile( PackerResources::FARM_OBJ, farmMesh );
-	for ( Mesh & mesh : farmMesh.meshes ) {
-		AllocateMeshGLBuffers( mesh );
-	}
+	g_modelAtlas.LoadAllModels();
 
-	Shader defaultShader =
-	    CompileShaderFromResource( PackerResources::SHADERS_DEFAULT_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
 	Texture pinkTexture = CreatePlaceholderPinkTexture();
 	Texture whiteTexture = CreateDefaultWhiteTexture();
 
 	// Register system
 	systemManager.CreateSystem< SystemHousing >();
 	systemManager.CreateSystem< SystemBuildingProducing >();
+	systemManager.CreateSystem< SystemNavAgent >();
+
+	Entity player = registery.CreateEntity();
+	{
+		registery.AssignComponent< CpntRenderModel >( player, g_modelAtlas.cubeMesh );
+		CpntTransform & transform = registery.AssignComponent< CpntTransform >( player );
+		transform.SetTranslation( { 0.5f, 0.0f, 0.5f } );
+		registery.AssignComponent< CpntNavAgent >( player );
+	}
+
+	Map & map = theGame->map;
+	map.AllocateGrid( 200, 200 );
+	SpawnRoadBlock( registery, map, Cell( 0, 0 ), g_modelAtlas.roadMesh );
+
+	Entity storageHouse = SpawnBuilding( registery, map, Cell( 10, 10 ), 3, 3, g_modelAtlas.storeHouseMesh );
+	registery.AssignComponent< CpntBuildingStorage >( storageHouse );
+
+	Entity                  wheatFarm = SpawnBuilding( registery, map, Cell( 10, 20 ), 4, 4, g_modelAtlas.farmMesh );
+	CpntBuildingProducing & producer = registery.AssignComponent< CpntBuildingProducing >( wheatFarm );
+	producer.batchSize = 4;
+	producer.timeToProduceBatch = ng::DurationInMs( 5000.0f );
+	producer.resource = GameResource::WHEAT;
+
+	for ( u32 z = 10; z < 24; z++ ) {
+		SpawnRoadBlock( registery, map, Cell( 9, z ), g_modelAtlas.roadMesh );
+	}
 
 	while ( !window.shouldClose ) {
 		ZoneScopedN( "MainLoop" );
@@ -156,7 +205,7 @@ int main( int ac, char ** av ) {
 		}
 
 		fixedTimeStepAccumulator += dt;
-		int numFixedSteps = floorf( fixedTimeStepAccumulator / FIXED_TIMESTEP );
+		int numFixedSteps = ( int )floorf( fixedTimeStepAccumulator / FIXED_TIMESTEP );
 		if ( numFixedSteps > 0 ) {
 			fixedTimeStepAccumulator -= numFixedSteps * FIXED_TIMESTEP;
 		}
@@ -165,7 +214,7 @@ int main( int ac, char ** av ) {
 		}
 		Update( dt );
 		{
-			static glm::vec3 cameraTarget( 20.0f, 0.0f, 20.0f );
+			static glm::vec3 cameraTarget( 0.0f, 0.0f, 0.0f );
 			static glm::vec3 cameraUp( 0.0f, 1.0f, 0.0f );
 			static float     cameraDistance = 50.0f;
 			static float     cameraRotationAngle = 45.0f;
@@ -233,11 +282,11 @@ int main( int ac, char ** av ) {
 			FillViewProjUBO( &uboData );
 
 			// draw grid
-			for ( int x = -100; x < 100; x += 1 ) {
-				Guizmo::Line( glm::vec3( x, 0.0f, -100.0f ), glm::vec3( x, 0.0f, 100.0f ), Guizmo::colWhite );
+			for ( int x = 0; x < 100; x += 1 ) {
+				Guizmo::Line( glm::vec3( x, 0.0f, 0.0f ), glm::vec3( x, 0.0f, 100.0f ), Guizmo::colWhite );
 			}
-			for ( int z = -100; z < 100; z += 1 ) {
-				Guizmo::Line( glm::vec3( -100.0f, 0.0f, z ), glm::vec3( 100.0f, 0.0f, z ), Guizmo::colWhite );
+			for ( int z = 0; z < 100; z += 1 ) {
+				Guizmo::Line( glm::vec3( 0.0f, 0.0f, z ), glm::vec3( 100.0f, 0.0f, z ), Guizmo::colWhite );
 			}
 
 			ImGui::Text( "Mouse position: %d %d", io.mouse.position.x, io.mouse.position.y );
@@ -246,6 +295,9 @@ int main( int ac, char ** av ) {
 			glm::vec4 viewport = glm::vec4( 0, window.height, window.width, -window.height );
 			glm::vec3 mousePositionWorldSpace = glm::unProject(
 			    glm::vec3( io.mouse.position.x, io.mouse.position.y, 0 ), glm::mat4( 1.0f ), viewProj, viewport );
+			Ray mouseRaycast;
+			mouseRaycast.origin = mousePositionWorldSpace;
+			mouseRaycast.direction = cameraFront;
 			float a = -mousePositionWorldSpace.y / cameraFront.y;
 			mousePositionWorldSpace = mousePositionWorldSpace + a * cameraFront;
 			ImGui::Text( "Mouse position world space : %f %f %f", mousePositionWorldSpace.x, mousePositionWorldSpace.y,
@@ -255,6 +307,13 @@ int main( int ac, char ** av ) {
 			                                          ( int )floorf( mousePositionWorldSpace.z ) );
 			Guizmo::Rectangle( mousePositionWorldSpaceFloored, 1.0f, 1.0f, Guizmo::colRed );
 
+			for ( auto const & [ e, box ] : registery.IterateOver< CpntBoxCollider >() ) {
+				const CpntTransform & transform = registery.GetComponent< CpntTransform >( e );
+				if ( RayCollidesWithBox( mouseRaycast, box, transform ) ) {
+					Guizmo::LinesAroundCube( transform.GetMatrix() * glm::vec4( box.center, 1.0f ), box.size,
+					                         Guizmo::colRed );
+				}
+			}
 			// Building debug
 			constexpr int numBuilding = 2;
 			const char *  buildingList[ numBuilding ] = {
@@ -276,32 +335,33 @@ int main( int ac, char ** av ) {
 				}
 				ImGui::EndCombo();
 			}
-			if ( io.mouse.IsButtonPressed( Mouse::Button::LEFT ) ) {
-				Entity newBuilding = CreateEntity();
-				if ( buildingCurrentlySelected == 0 ) {
-					// Build house
-					registery.AssignComponent< CpntRenderModel >( newBuilding, houseMesh );
-					registery.AssignComponent< CpntTransform >(
-					    newBuilding,
-					    glm::translate( glm::mat4( 1.0f ), mousePositionWorldSpaceFloored +
-					                                           glm::vec3( houseMesh.roundedSize.x / 2.0f, 0.0f,
-					                                                      houseMesh.roundedSize.z / 2.0f ) ) );
-					CpntHousing & housing = registery.AssignComponent< CpntHousing >( newBuilding, 0 );
-					housing.maxHabitants = 4;
-				} else if ( buildingCurrentlySelected == 1 ) {
-					// Build farm
-					registery.AssignComponent< CpntRenderModel >( newBuilding, farmMesh );
-					registery.AssignComponent< CpntTransform >(
-					    newBuilding,
-					    glm::translate( glm::mat4( 1.0f ), mousePositionWorldSpaceFloored +
-					                                           glm::vec3( farmMesh.roundedSize.x / 2.0f, 0.0f,
-					                                                      farmMesh.roundedSize.z / 2.0f ) ) );
-					CpntBuildingProducing & producer =
-					    registery.AssignComponent< CpntBuildingProducing >( newBuilding );
-					producer.batchSize = 4;
-					producer.maxStorageSize = 24;
-					producer.timeToProduceBatch = ng::DurationInMs( 5000.0f );
-					producer.resource = GameResource::WHEAT;
+
+			if ( io.mouse.IsButtonPressed( Mouse::Button::RIGHT ) ) {
+				// move player to cursor
+				glm::vec3 playerPosition = registery.GetComponent< CpntTransform >( player ).GetTranslation();
+				AStar( GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ),
+				       ASTAR_ALLOW_DIAGONALS, map,
+				       registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps );
+			}
+			if ( io.mouse.IsButtonDown( Mouse::Button::LEFT ) ) {
+				if ( mousePositionWorldSpaceFloored.x >= 0 && mousePositionWorldSpaceFloored.z >= 0 ) {
+					Cell buildCell = GetCellForPoint( mousePositionWorldSpaceFloored );
+					if ( io.keyboard.IsKeyDown( KEY_LEFT_SHIFT ) ) {
+						// delete cell
+						for ( auto const & [ e, building ] : registery.IterateOver< CpntBuilding >() ) {
+							if ( CellIsInsideBuilding( building, buildCell ) ) {
+								registery.MarkForDelete( e );
+								for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {
+									for ( u32 z = building.cell.z; z < building.cell.z + building.tileSizeZ; z++ ) {
+										map.SetTile( x, z, MapTile::EMPTY );
+									}
+								}
+							}
+						}
+					} else if ( map.GetTile( buildCell ) == MapTile::EMPTY ) {
+						// Build road cell
+						SpawnRoadBlock( registery, map, buildCell, g_modelAtlas.roadMesh );
+					}
 				}
 			}
 		}
@@ -316,6 +376,7 @@ int main( int ac, char ** av ) {
 			ImGui::SliderFloat( "light diffuse", &lightDiffuse, 0.0f, 1.0f );
 			ImGui::SliderFloat( "light specular", &lightSpecular, 0.0f, 1.0f );
 
+			Shader & defaultShader = g_shaderAtlas.defaultShader;
 			defaultShader.Use();
 			defaultShader.SetVector( "light.direction", glm::normalize( lightDirection ) );
 			defaultShader.SetVector( "light.ambient", glm::vec3( lightAmbiant ) );
@@ -323,26 +384,38 @@ int main( int ac, char ** av ) {
 			defaultShader.SetVector( "light.specular", glm::vec3( lightSpecular ) );
 
 			for ( auto const & [ e, renderModel ] : registery.IterateOver< CpntRenderModel >() ) {
-				for ( const Mesh & mesh : renderModel.meshes ) {
-					const CpntTransform & transform = registery.GetComponent< CpntTransform >( e );
-					defaultShader.SetMatrix( "modelTransform", transform.matrix );
-					glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform.matrix ) ) );
-					defaultShader.SetMatrix3( "normalTransform", normalMatrix );
-					defaultShader.SetVector( "material.ambient", mesh.material->ambiant );
-					defaultShader.SetVector( "material.diffuse", mesh.material->diffuse );
-					defaultShader.SetVector( "material.specular", mesh.material->specular );
-					defaultShader.SetFloat( "material.shininess", mesh.material->shininess );
+				if ( renderModel.model != nullptr ) {
+					for ( const Mesh & mesh : renderModel.model->meshes ) {
+						const CpntTransform & transform = registery.GetComponent< CpntTransform >( e );
+						defaultShader.SetMatrix( "modelTransform", transform.GetMatrix() );
+						glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform.GetMatrix() ) ) );
+						defaultShader.SetMatrix3( "normalTransform", normalMatrix );
+						defaultShader.SetVector( "material.ambient", mesh.material->ambiant );
+						defaultShader.SetVector( "material.diffuse", mesh.material->diffuse );
+						defaultShader.SetVector( "material.specular", mesh.material->specular );
+						defaultShader.SetFloat( "material.shininess", mesh.material->shininess );
 
-					glActiveTexture( GL_TEXTURE0 );
-					glBindVertexArray( mesh.vao );
-					glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
-					if ( mesh.material->mode == Material::MODE_TRANSPARENT ) {
-						glEnable( GL_BLEND );
-						glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+						glActiveTexture( GL_TEXTURE0 );
+						glBindVertexArray( mesh.vao );
+						glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
+						if ( mesh.material->mode == Material::MODE_TRANSPARENT ) {
+							glEnable( GL_BLEND );
+							glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+						}
+						glDrawElements( GL_TRIANGLES, ( GLsizei )mesh.indices.size(), GL_UNSIGNED_INT, nullptr );
+						glDisable( GL_BLEND );
+						glBindVertexArray( 0 );
 					}
-					glDrawElements( GL_TRIANGLES, mesh.indices.size(), GL_UNSIGNED_INT, nullptr );
-					glDisable( GL_BLEND );
-					glBindVertexArray( 0 );
+				}
+			}
+
+			static bool drawCollisionBoxes = false;
+			ImGui::Checkbox( "draw collision boxes", &drawCollisionBoxes );
+			if ( drawCollisionBoxes ) {
+				for ( auto const & [ e, box ] : registery.IterateOver< CpntBoxCollider >() ) {
+					const CpntTransform & transform = registery.GetComponent< CpntTransform >( e );
+					Guizmo::LinesAroundCube( transform.GetMatrix() * glm::vec4( box.center, 1.0f ), box.size,
+					                         Guizmo::colGreen );
 				}
 			}
 		}
@@ -376,6 +449,7 @@ int main( int ac, char ** av ) {
 
 	ShutdownRenderer();
 	g_shaderAtlas.FreeShaders();
+	g_modelAtlas.FreeAllModels();
 
 	window.Shutdown();
 	ng::Shutdown();
@@ -387,8 +461,8 @@ int main( int ac, char ** av ) {
 }
 
 void DrawDebugWindow() {
-	static bool opened = true;
-	ImGui::ShowDemoWindow( &opened );
+	// static bool opened = true;
+	// ImGui::ShowDemoWindow( &opened );
 	ImGui::Begin( "Debug" );
 
 	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,

@@ -37,10 +37,21 @@ void Console::Draw() {
 
 void Console::PrintLog( const char * text, LogSeverity severity ) {
 	mutex.lock();
-	Log newline{text, severity, SysGetTimeInMicro()};
+	Log newline{ text, severity, SysGetTimeInMicro() };
 	logs.push_back( newline );
 	shouldScrollDown = true;
 	mutex.unlock();
+}
+
+ScopedChronoUI::~ScopedChronoUI() {
+	auto end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast< std::chrono::milliseconds >( end - start ).count();
+	if ( duration > 5 ) {
+		ImGui::Text( "%s: %lldms\n", label, duration );
+	} else {
+		ImGui::Text( "%s: %lldus\n", label,
+		             std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() );
+	}
 }
 
 }; // namespace ng

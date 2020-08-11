@@ -3,6 +3,16 @@
 
 #include "entity.h"
 #include "ngLib/ngtime.h"
+#include <map>
+#include "navigation.h"
+
+struct CpntBuilding {
+	Cell cell;
+	u32 tileSizeX;
+	u32 tileSizeZ;
+};
+
+bool CellIsInsideBuilding( const CpntBuilding & building, Cell cell );
 
 struct CpntHousing {
 	CpntHousing() {}
@@ -21,8 +31,10 @@ struct CpntBuildingProducing {
 	ng::Duration timeToProduceBatch;
 	ng::Duration timeSinceLastProduction;
 	u32 batchSize = 1;
-	u32 currentlyStoring = 0;
-	u32 maxStorageSize = 1;
+};
+
+struct CpntBuildingStorage {
+	std::map< GameResource, u32 > storage;
 };
 
 struct SystemHousing : public ISystem {

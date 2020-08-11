@@ -68,6 +68,31 @@ void Rectangle( glm::vec3 position, float width, float height, glm::vec3 color )
 	          glm::vec3( position.x + width, position.y, position.z + height ), color );
 }
 
+void LinesAroundCube( glm::vec3 cubeCenter, glm::vec3 cubeSize, glm::vec3 color ) {
+	float x = cubeCenter.x;
+	float y = cubeCenter.y;
+	float z = cubeCenter.z;
+
+	float sx = cubeSize.x / 2.0f;
+	float sy = cubeSize.y / 2.0f;
+	float sz = cubeSize.z / 2.0f;
+
+	Guizmo::Line( glm::vec3( x - sx, y - sy, z - sz ), glm::vec3( x + sx, y - sy, z - sz ), color );
+	Guizmo::Line( glm::vec3( x - sx, y - sy, z - sz ), glm::vec3( x - sx, y - sy, z + sz ), color );
+	Guizmo::Line( glm::vec3( x - sx, y - sy, z + sz ), glm::vec3( x + sx, y - sy, z + sz ), color );
+	Guizmo::Line( glm::vec3( x + sx, y - sy, z - sz ), glm::vec3( x + sx, y - sy, z + sz ), color );
+
+	Guizmo::Line( glm::vec3( x - sx, y + sy, z - sz ), glm::vec3( x + sx, y + sy, z - sz ), color );
+	Guizmo::Line( glm::vec3( x - sx, y + sy, z - sz ), glm::vec3( x - sx, y + sy, z + sz ), color );
+	Guizmo::Line( glm::vec3( x - sx, y + sy, z + sz ), glm::vec3( x + sx, y + sy, z + sz ), color );
+	Guizmo::Line( glm::vec3( x + sx, y + sy, z - sz ), glm::vec3( x + sx, y + sy, z + sz ), color );
+
+	Guizmo::Line( glm::vec3( x - sx, y - sy, z - sz ), glm::vec3( x - sx, y + sy, z - sz ), color );
+	Guizmo::Line( glm::vec3( x + sx, y - sy, z - sz ), glm::vec3( x + sx, y + sy, z - sz ), color );
+	Guizmo::Line( glm::vec3( x - sx, y - sy, z + sz ), glm::vec3( x - sx, y + sy, z + sz ), color );
+	Guizmo::Line( glm::vec3( x + sx, y - sy, z + sz ), glm::vec3( x + sx, y + sy, z + sz ), color );
+}
+
 void LinesAroundCube( glm::vec3 cubePosition ) {
 	float     x = cubePosition.x;
 	float     y = cubePosition.y;

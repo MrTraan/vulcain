@@ -4,4 +4,4 @@
 #include "packer.h"
 #include "mesh.h"
 
-bool ImportObjFile( PackerResourceID resourceID, CpntRenderModel & out );
+bool ImportObjFile( PackerResourceID resourceID, Model & out );

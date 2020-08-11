@@ -16,5 +16,6 @@ void NewFrame();
 void Line( glm::vec3 a, glm::vec3 b, glm::vec3 color );
 void Rectangle( glm::vec3 position, float width, float height, glm::vec3 color );
 void LinesAroundCube( glm::vec3 cubePosition );
+void LinesAroundCube( glm::vec3 cubeCenter, glm::vec3 cubeSize, glm::vec3 color = Guizmo::colWhite );
 void Draw();
 }; // namespace Guizmo
