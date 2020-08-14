@@ -1,8 +1,10 @@
 #include "navigation.h"
+#include "message.h"
 #include "ngLib/logs.h"
 #include "ngLib/ngcontainers.h"
 #include "ngLib/nglib.h"
 #include "ngLib/types.h"
+#include "registery.h"
 #include <vector>
 
 struct AStarNode {
@@ -157,6 +159,10 @@ void SystemNavAgent::Update( Registery & reg, float dt ) {
 			} else {
 				transform.SetTranslation( nextCoord );
 				agent.pathfindingNextSteps.pop_back();
+				if ( agent.pathfindingNextSteps.empty() == true ) {
+					// we are at destination
+					reg.BroadcastMessage( e, MESSAGE_PATHFINDING_DESTINATION_REACHED );
+				}
 			}
 			remainingSpeed -= distance;
 		}

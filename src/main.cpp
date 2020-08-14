@@ -19,6 +19,7 @@
 #include "obj_parser.h"
 #include "packer.h"
 #include "packer_resource_list.h"
+#include "registery.h"
 #include "renderer.h"
 #include "shader.h"
 #include "window.h"
@@ -298,6 +299,7 @@ int main( int ac, char ** av ) {
 			Ray mouseRaycast;
 			mouseRaycast.origin = mousePositionWorldSpace;
 			mouseRaycast.direction = cameraFront;
+			ng_assert( cameraFront.y != 0.0f );
 			float a = -mousePositionWorldSpace.y / cameraFront.y;
 			mousePositionWorldSpace = mousePositionWorldSpace + a * cameraFront;
 			ImGui::Text( "Mouse position world space : %f %f %f", mousePositionWorldSpace.x, mousePositionWorldSpace.y,
@@ -349,7 +351,7 @@ int main( int ac, char ** av ) {
 					if ( io.keyboard.IsKeyDown( KEY_LEFT_SHIFT ) ) {
 						// delete cell
 						for ( auto const & [ e, building ] : registery.IterateOver< CpntBuilding >() ) {
-							if ( CellIsInsideBuilding( building, buildCell ) ) {
+							if ( IsCellInsideBuilding( building, buildCell ) ) {
 								registery.MarkForDelete( e );
 								for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {
 									for ( u32 z = building.cell.z; z < building.cell.z + building.tileSizeZ; z++ ) {
@@ -475,29 +477,29 @@ void DrawDebugWindow() {
 		theGame->io.DebugDraw();
 		ImGui::TreePop();
 	}
-	if ( ImGui::TreeNode( "Systems" ) ) {
-		std::vector< std::pair< const char *, ISystem * > > systemWithNames;
-		for ( auto & [ type, system ] : systemManager.systems ) {
-			systemWithNames.push_back( { type.name(), system } );
-		}
+	// if ( ImGui::TreeNode( "Systems" ) ) {
+	//	std::vector< std::pair< const char *, ISystem * > > systemWithNames;
+	//	for ( auto & [ type, system ] : systemManager.systems ) {
+	//		systemWithNames.push_back( { type.name(), system } );
+	//	}
 
-		static int currentlySelected = 0;
-		if ( ImGui::BeginCombo( "system selected", systemWithNames[ currentlySelected ].first ) ) {
-			for ( int i = 0; i < systemWithNames.size(); i++ ) {
-				bool isSelected = currentlySelected == i;
-				if ( ImGui::Selectable( systemWithNames[ i ].first, isSelected ) ) {
-					currentlySelected = i;
-				}
+	//	static int currentlySelected = 0;
+	//	if ( ImGui::BeginCombo( "system selected", systemWithNames[ currentlySelected ].first ) ) {
+	//		for ( int i = 0; i < systemWithNames.size(); i++ ) {
+	//			bool isSelected = currentlySelected == i;
+	//			if ( ImGui::Selectable( systemWithNames[ i ].first, isSelected ) ) {
+	//				currentlySelected = i;
+	//			}
 
-				if ( isSelected ) {
-					ImGui::SetItemDefaultFocus();
-				}
-			}
-			ImGui::EndCombo();
-		}
-		systemWithNames[ currentlySelected ].second->DebugDraw();
-		ImGui::TreePop();
-	}
+	//			if ( isSelected ) {
+	//				ImGui::SetItemDefaultFocus();
+	//			}
+	//		}
+	//		ImGui::EndCombo();
+	//	}
+	//	systemWithNames[ currentlySelected ].second->DebugDraw();
+	//	ImGui::TreePop();
+	//}
 
 	ImGui::End();
 }
