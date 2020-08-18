@@ -2,6 +2,7 @@
 #include <stb_image.h>
 
 #include "Game.h"
+#include "collada_parser.h"
 #include "mesh.h"
 #include "obj_parser.h"
 #include "packer_resource_list.h"
@@ -95,6 +96,29 @@ void AllocateMeshGLBuffers( Mesh & mesh ) {
 	glBindVertexArray( 0 );
 }
 
+void DrawModel( const Model & model, const CpntTransform & transform, Shader shader ) {
+	for ( const Mesh & mesh : model.meshes ) {
+		shader.SetMatrix( "modelTransform", transform.GetMatrix() );
+		glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform.GetMatrix() ) ) );
+		shader.SetMatrix3( "normalTransform", normalMatrix );
+		shader.SetVector( "material.ambient", mesh.material->ambiant );
+		shader.SetVector( "material.diffuse", mesh.material->diffuse );
+		shader.SetVector( "material.specular", mesh.material->specular );
+		shader.SetFloat( "material.shininess", mesh.material->shininess );
+
+		glActiveTexture( GL_TEXTURE0 );
+		glBindVertexArray( mesh.vao );
+		glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
+		if ( mesh.material->mode == Material::MODE_TRANSPARENT ) {
+			glEnable( GL_BLEND );
+			glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+		}
+		glDrawElements( GL_TRIANGLES, ( GLsizei )mesh.indices.size(), GL_UNSIGNED_INT, nullptr );
+		glDisable( GL_BLEND );
+		glBindVertexArray( 0 );
+	}
+}
+
 void FreeMeshGLBuffers( Mesh & mesh ) {
 	glDeleteBuffers( 1, &mesh.ebo );
 	glDeleteBuffers( 1, &mesh.vbo );
@@ -102,7 +126,15 @@ void FreeMeshGLBuffers( Mesh & mesh ) {
 }
 
 static bool SetupModelFromResource( Model & model, PackerResourceID resourceID ) {
-	bool success = ImportObjFile( resourceID, model );
+	bool success = false;
+	auto resource = theGame->package.GrabResource( resourceID );
+	if ( resource->type == PackerResource::Type::OBJ ) {
+		success = ImportObjFile( resourceID, model );
+	} else if ( resource->type == PackerResource::Type::COLLADA ) {
+		success = ImportColladaFile( resourceID, model );
+	} else {
+		ng_assert( false );
+	}
 	if ( success == false ) {
 		return success;
 	}
@@ -128,7 +160,7 @@ bool ModelAtlas::LoadAllModels() {
 	storeHouseMesh = new Model();
 	success &= SetupModelFromResource( *houseMesh, PackerResources::HOUSE_OBJ );
 	success &= SetupModelFromResource( *farmMesh, PackerResources::FARM_OBJ );
-	success &= SetupModelFromResource( *cubeMesh, PackerResources::CUBE_OBJ );
+	success &= SetupModelFromResource( *cubeMesh, PackerResources::CUBE_DAE );
 	success &= SetupModelFromResource( *roadMesh, PackerResources::ROAD_OBJ );
 	success &= SetupModelFromResource( *storeHouseMesh, PackerResources::STOREHOUSE_OBJ );
 
@@ -137,7 +169,7 @@ bool ModelAtlas::LoadAllModels() {
 
 void ModelAtlas::FreeAllModels() {
 	FreeModelBuffers( *houseMesh );
-	FreeModelBuffers( *farmMesh);
+	FreeModelBuffers( *farmMesh );
 	FreeModelBuffers( *cubeMesh );
 	FreeModelBuffers( *roadMesh );
 	FreeModelBuffers( *storeHouseMesh );
@@ -149,3 +181,35 @@ void ModelAtlas::FreeAllModels() {
 	delete storeHouseMesh;
 }
 
+void ComputeModelSize( Model & model ) {
+	float minX, minY, minZ, maxX, maxY, maxZ;
+	minX = model.meshes[ 0 ].vertices[ 0 ].position.x;
+	maxX = model.meshes[ 0 ].vertices[ 0 ].position.x;
+	minY = model.meshes[ 0 ].vertices[ 0 ].position.y;
+	maxY = model.meshes[ 0 ].vertices[ 0 ].position.y;
+	minZ = model.meshes[ 0 ].vertices[ 0 ].position.z;
+	maxZ = model.meshes[ 0 ].vertices[ 0 ].position.x;
+	for ( auto const & mesh : model.meshes ) {
+		for ( auto const & vertex : mesh.vertices ) {
+			if ( vertex.position.x < minX )
+				minX = vertex.position.x;
+			if ( vertex.position.y < minY )
+				minY = vertex.position.y;
+			if ( vertex.position.z < minZ )
+				minZ = vertex.position.z;
+			if ( vertex.position.x > maxX )
+				maxX = vertex.position.x;
+			if ( vertex.position.y > maxY )
+				maxY = vertex.position.y;
+			if ( vertex.position.z > maxZ )
+				maxZ = vertex.position.z;
+		}
+	}
+	model.minCoords = glm::vec3( minX, minY, minZ );
+	model.maxCoords = glm::vec3( maxX, maxY, maxZ );
+	model.size = model.maxCoords - model.minCoords;
+
+	model.roundedSize.x = ( int )ceilf( model.size.x );
+	model.roundedSize.y = ( int )ceilf( model.size.y );
+	model.roundedSize.z = ( int )ceilf( model.size.z );
+}

@@ -1,5 +1,6 @@
 #pragma once
 #include "ngLib/logs.h"
+#include "renderer.h"
 #include <GL/gl3w.h>
 #include <SDL2/SDL.h>
 #include <imgui/imgui.h>
@@ -16,8 +17,7 @@ class Window {
 	int height;
 
 	void Init( int width = WINDOW_WIDTH, int height = WINDOW_HEIGHT, char * title = ( char * )WINDOW_TITLE ) {
-		this->width = width;
-		this->height = height;
+		Resize( width, height );
 #if __APPLE__
 		SDL_GL_SetAttribute( SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG ); // Always required on Mac
 #else
@@ -57,6 +57,12 @@ class Window {
 		glCullFace( GL_BACK );
 	}
 
+	void Resize( int width, int height ) {
+		this->width = width;
+		this->height = height;
+		// TODO: Resize framebuffer
+	}
+
 	void DebugDraw() {
 		static bool enableVsync = true;
 		if ( ImGui::Checkbox( "Vsync", &enableVsync ) ) {
@@ -77,6 +83,11 @@ class Window {
 	void SwapBuffers() {
 		ZoneScoped;
 		SDL_GL_SwapWindow( glWindow );
+	}
+
+	void BindDefaultFramebuffer() {
+		glViewport( 0, 0, width, height );
+		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 	}
 
 	bool          shouldClose = false;

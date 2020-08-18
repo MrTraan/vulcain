@@ -14,6 +14,7 @@ struct PackerResource {
 		FONT,
 		OBJ,
 		MATERIAL,
+		COLLADA,
 		INVALID,
 	};
 

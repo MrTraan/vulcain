@@ -21,16 +21,23 @@ void SystemHousing::DebugDraw() { ImGui::Text( "Total population: %lu\n", totalP
 
 static Cell GetClosestRoadPoint( const CpntBuilding & building, const Map & map ) {
 	// TODO: This is really bad
-	for ( u32 x = building.cell.x - 1; x < building.cell.x + building.tileSizeX + 1; x++ ) {
-		for ( u32 z = building.cell.z - 1; z < building.cell.z + building.tileSizeZ + 1; z++ ) {
-			if ( x == building.cell.x - 1 || x == building.cell.x + building.tileSizeX || z == building.cell.z - 1 ||
-			     z == building.cell.z + building.tileSizeZ ) {
-				if ( map.GetTile( x, z ) == MapTile::ROAD ) {
-					return Cell( x, z );
-				}
-			}
+	for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {
+		if ( map.GetTile( x, building.cell.z - 1 ) == MapTile::ROAD ) {
+			return Cell( x, building.cell.z - 1 );
+		}
+		if ( map.GetTile( x, building.cell.z + building.tileSizeZ ) == MapTile::ROAD ) {
+			return Cell( x, building.cell.z + building.tileSizeZ );
 		}
 	}
+	for ( u32 z = building.cell.z; z < building.cell.z + building.tileSizeZ; z++ ) {
+		if ( map.GetTile( building.cell.x - 1, z ) == MapTile::ROAD ) {
+			return Cell( building.cell.x - 1, z );
+		}
+		if ( map.GetTile( building.cell.x + building.tileSizeX, z ) == MapTile::ROAD ) {
+			return Cell( building.cell.x + building.tileSizeX, z );
+		}
+	}
+
 	ng_assert( false );
 	return Cell( 0, 0 );
 }

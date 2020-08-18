@@ -4,8 +4,10 @@
 #include <map>
 #include <vector>
 
+#include "entity.h"
 #include "ngLib/types.h"
 #include "packer.h"
+#include "shader.h"
 
 struct Vertex {
 	glm::vec3 position;
@@ -73,3 +75,5 @@ Texture CreateTextureFromData( const u8 * data, int width, int height, int chann
 Texture CreatePlaceholderPinkTexture();
 Texture CreateDefaultWhiteTexture();
 void    AllocateMeshGLBuffers( Mesh & mesh );
+void    DrawModel( const Model & model, const CpntTransform & transform, Shader shader );
+void    ComputeModelSize( Model & model );

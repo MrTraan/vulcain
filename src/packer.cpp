@@ -17,6 +17,8 @@ const char * ResourceTypeToString( PackerResource::Type type ) {
 		return "PackerResource::Type::OBJ";
 	case PackerResource::Type::MATERIAL:
 		return "PackerResource::Type::MATERIAL";
+	case PackerResource::Type::COLLADA:
+		return "PackerResource::Type::COLLADA";
 	case PackerResource::Type::INVALID:
 	default:
 		ng_assert( false );
@@ -39,6 +41,9 @@ PackerResource::Type GuessTypeFromExtension( const std::string & ext ) {
 	}
 	if ( ext == ".obj" ) {
 		return PackerResource::Type::OBJ;
+	}
+	if ( ext == ".dae" ) {
+		return PackerResource::Type::COLLADA;
 	}
 	if ( ext == ".mtl" ) {
 		return PackerResource::Type::MATERIAL;

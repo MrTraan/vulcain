@@ -84,7 +84,7 @@ void ParseMaterialFile( const char * data, u64 size, std::map< std::string, Mate
 			ng_assert( currentMaterial != nullptr );
 			i += strlen( "Kd " );
 			i += EatVector3( data + i, currentMaterial->diffuse );
-			//currentMaterial->ambiant = currentMaterial->diffuse;
+			// currentMaterial->ambiant = currentMaterial->diffuse;
 		} else if ( strncmp( data + i, "Ks ", strlen( "Ks" ) ) == 0 ) {
 			ng_assert( currentMaterial != nullptr );
 			i += strlen( "Ks " );
@@ -106,8 +106,8 @@ void ParseMaterialFile( const char * data, u64 size, std::map< std::string, Mate
 bool ImportObjFile( PackerResourceID resourceID, Model & out ) {
 	ng::ScopedChrono chrono( "Import obj file" );
 	auto             objResource = theGame->package.GrabResource( resourceID );
-	ng_assert(objResource->type == PackerResource::Type::OBJ );
-	const char *     data = ( const char * )theGame->package.GrabResourceData( *objResource );
+	ng_assert( objResource->type == PackerResource::Type::OBJ );
+	const char * data = ( const char * )theGame->package.GrabResourceData( *objResource );
 
 	out.materials.clear();
 	out.meshes.clear();
@@ -226,7 +226,7 @@ bool ImportObjFile( PackerResourceID resourceID, Model & out ) {
 			case 'f': {
 				// face
 				const char * line = data + i + 2;
-				u32          currentIndex = (u32)currentMesh->vertices.size();
+				u32          currentIndex = ( u32 )currentMesh->vertices.size();
 
 				for ( int face = 0; face < 3; face++ ) {
 					glm::vec3 position;
@@ -301,31 +301,7 @@ bool ImportObjFile( PackerResourceID resourceID, Model & out ) {
 		i++;
 	}
 
-	// Compute model size
-	float minX, minY, minZ, maxX, maxY, maxZ;
-	minX = out.meshes[0].vertices[0].position.x;
-	maxX = out.meshes[0].vertices[0].position.x;
-	minY = out.meshes[0].vertices[0].position.y;
-	maxY = out.meshes[0].vertices[0].position.y;
-	minZ = out.meshes[0].vertices[0].position.z;
-	maxZ = out.meshes[0].vertices[0].position.x;
-	for ( auto const & mesh : out.meshes ) {
-		for ( auto const & vertex : mesh.vertices ) {
-			if ( vertex.position.x < minX ) minX = vertex.position.x;
-			if ( vertex.position.y < minY ) minY = vertex.position.y;
-			if ( vertex.position.z < minZ ) minZ = vertex.position.z;
-			if ( vertex.position.x > maxX ) maxX = vertex.position.x;
-			if ( vertex.position.y > maxY ) maxY = vertex.position.y;
-			if ( vertex.position.z > maxZ ) maxZ = vertex.position.z;
-		}
-	}
-	out.minCoords = glm::vec3(minX, minY, minZ);
-	out.maxCoords = glm::vec3(maxX, maxY, maxZ);
-	out.size = out.maxCoords - out.minCoords;
-
-	out.roundedSize.x = (int)ceilf( out.size.x );
-	out.roundedSize.y = (int)ceilf( out.size.y );
-	out.roundedSize.z = (int)ceilf( out.size.z );
+	ComputeModelSize( out );
 
 	return true;
 }

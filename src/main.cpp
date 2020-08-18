@@ -10,13 +10,14 @@
 #include <tracy/TracyOpenGL.hpp>
 #include <unordered_map>
 
+#include "collider.h"
 #include "entity.h"
 #include "game.h"
 #include "guizmo.h"
 #include "housing.h"
 #include "mesh.h"
+#include "navigation.h"
 #include "ngLib/nglib.h"
-#include "obj_parser.h"
 #include "packer.h"
 #include "packer_resource_list.h"
 #include "registery.h"
@@ -33,8 +34,6 @@ NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #define STB_IMAGE_IMPLEMENTATION // force following include to generate implementation
 #include <stb_image.h>
 #define STB_TRUETYPE_IMPLEMENTATION
-#include "collider.h"
-#include "navigation.h"
 #include <stb_truetype.h>
 
 Game * theGame;
@@ -43,6 +42,13 @@ static void DrawDebugWindow();
 
 SystemManager systemManager;
 Registery     registery;
+
+Camera mainCamera;
+Camera modelInspectorCamera;
+
+Framebuffer   modelInspectorFramebuffer;
+constexpr int modelInspectorWidth = 400;
+constexpr int modelInspectorHeight = 400;
 
 static void Update( float dt ) { systemManager.Update( registery, dt ); }
 
@@ -58,8 +64,6 @@ void SpawnRoadBlock( Registery & reg, Map & map, Cell cell, const Model * model 
 		CpntTransform & t = reg.AssignComponent< CpntTransform >( e );
 		t.SetTranslation( GetPointInMiddleOfCell( cell ) );
 		reg.AssignComponent< CpntRenderModel >( e, model );
-		reg.AssignComponent< CpntBoxCollider >(
-		    e, CpntBoxCollider( ( model->maxCoords + model->minCoords ) / 2.0f, model->size ) );
 		CpntBuilding & buildingCpnt = reg.AssignComponent< CpntBuilding >( e );
 		buildingCpnt.cell = cell;
 		buildingCpnt.tileSizeX = 1;
@@ -140,6 +144,7 @@ int main( int ac, char ** av ) {
 
 	InitRenderer();
 	g_shaderAtlas.CompileAllShaders();
+	modelInspectorFramebuffer.Allocate( modelInspectorWidth, modelInspectorHeight );
 
 	Guizmo::Init();
 
@@ -227,7 +232,7 @@ int main( int ac, char ** av ) {
 			auto cameraRotationMatrix =
 			    glm::rotate( glm::mat4( 1.0f ), glm::radians( cameraRotationAngle ), glm::vec3( 0.0f, 1.0f, 0.0f ) );
 
-			glm::vec3 cameraPosition( 0.0f, 0.0f, 0.0f );
+			glm::vec3 & cameraPosition = mainCamera.position;
 			cameraPosition = glm::vec3( 0.0f, cameraDistance, -cameraDistance );
 			ImGui::DragFloat3( "camera position before rotation", &cameraPosition.x );
 			cameraPosition = glm::vec3( cameraRotationMatrix * glm::vec4( cameraPosition, 1.0f ) );
@@ -242,7 +247,7 @@ int main( int ac, char ** av ) {
 			ImGui::DragFloat3( "Camera Right", &cameraRight.x );
 			ImGui::DragFloat3( "Camera up", &cameraUp.x );
 
-			glm::mat4       view = view = glm::lookAt( cameraPosition, cameraTarget, cameraUp );
+			mainCamera.view = glm::lookAt( cameraPosition, cameraTarget, cameraUp );
 			float           aspectRatio = ( float )window.width / window.height;
 			static float    cameraSize = 30.0f;
 			constexpr float scrollSpeed = 100.0f;
@@ -268,19 +273,11 @@ int main( int ac, char ** av ) {
 			// auto rotatedMovement = cameraTargetMovement;
 			cameraTarget += glm::vec3( rotatedMovement );
 
-			glm::mat4 proj = glm::ortho( aspectRatio * cameraSize / 2, -aspectRatio * cameraSize / 2, -cameraSize / 2,
-			                             cameraSize / 2, 0.3f, 1000.0f );
+			mainCamera.proj = glm::ortho( aspectRatio * cameraSize / 2, -aspectRatio * cameraSize / 2, -cameraSize / 2,
+			                              cameraSize / 2, 0.3f, 1000.0f );
 			Guizmo::Line( glm::vec3( 0.0f, 0.0f, 0.0f ), glm::vec3( 10.0f, 0.0f, 0.0f ), Guizmo::colRed );
 			// glm::mat4 proj = glm::perspective( glm::radians( 60.0f), (float)window.width / window.height, 0.3f,
 			// 1000.0f);
-			glm::mat4       viewProj = proj * view;
-			ViewProjUBOData uboData{};
-			uboData.view = view;
-			uboData.projection = proj;
-			uboData.viewProj = viewProj;
-			uboData.viewPosition = glm::vec4( cameraPosition, 1.0f );
-
-			FillViewProjUBO( &uboData );
 
 			// draw grid
 			for ( int x = 0; x < 100; x += 1 ) {
@@ -294,8 +291,9 @@ int main( int ac, char ** av ) {
 			ImGui::Text( "Mouse offset: %f %f", io.mouse.offset.x, io.mouse.offset.y );
 
 			glm::vec4 viewport = glm::vec4( 0, window.height, window.width, -window.height );
-			glm::vec3 mousePositionWorldSpace = glm::unProject(
-			    glm::vec3( io.mouse.position.x, io.mouse.position.y, 0 ), glm::mat4( 1.0f ), viewProj, viewport );
+			glm::vec3 mousePositionWorldSpace =
+			    glm::unProject( glm::vec3( io.mouse.position.x, io.mouse.position.y, 0 ), glm::mat4( 1.0f ),
+			                    mainCamera.proj * mainCamera.view, viewport );
 			Ray mouseRaycast;
 			mouseRaycast.origin = mousePositionWorldSpace;
 			mouseRaycast.direction = cameraFront;
@@ -368,6 +366,9 @@ int main( int ac, char ** av ) {
 			}
 		}
 		{
+			theGame->window.BindDefaultFramebuffer();
+			mainCamera.Bind();
+			Render();
 			static glm::vec3 lightDirection( -1.0f, -1.0f, 0.0f );
 			ImGui::DragFloat3( "lightDirection", &lightDirection[ 0 ] );
 
@@ -387,27 +388,7 @@ int main( int ac, char ** av ) {
 
 			for ( auto const & [ e, renderModel ] : registery.IterateOver< CpntRenderModel >() ) {
 				if ( renderModel.model != nullptr ) {
-					for ( const Mesh & mesh : renderModel.model->meshes ) {
-						const CpntTransform & transform = registery.GetComponent< CpntTransform >( e );
-						defaultShader.SetMatrix( "modelTransform", transform.GetMatrix() );
-						glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform.GetMatrix() ) ) );
-						defaultShader.SetMatrix3( "normalTransform", normalMatrix );
-						defaultShader.SetVector( "material.ambient", mesh.material->ambiant );
-						defaultShader.SetVector( "material.diffuse", mesh.material->diffuse );
-						defaultShader.SetVector( "material.specular", mesh.material->specular );
-						defaultShader.SetFloat( "material.shininess", mesh.material->shininess );
-
-						glActiveTexture( GL_TEXTURE0 );
-						glBindVertexArray( mesh.vao );
-						glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
-						if ( mesh.material->mode == Material::MODE_TRANSPARENT ) {
-							glEnable( GL_BLEND );
-							glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-						}
-						glDrawElements( GL_TRIANGLES, ( GLsizei )mesh.indices.size(), GL_UNSIGNED_INT, nullptr );
-						glDisable( GL_BLEND );
-						glBindVertexArray( 0 );
-					}
+					DrawModel( *renderModel.model, registery.GetComponent< CpntTransform >( e ), defaultShader );
 				}
 			}
 
@@ -421,7 +402,6 @@ int main( int ac, char ** av ) {
 				}
 			}
 		}
-		Render();
 
 		ng::GetConsole().Draw();
 		DrawDebugWindow();
@@ -449,6 +429,7 @@ int main( int ac, char ** av ) {
 	ImGui_ImplSDL2_Shutdown();
 	ImGui::DestroyContext();
 
+	modelInspectorFramebuffer.Destroy();
 	ShutdownRenderer();
 	g_shaderAtlas.FreeShaders();
 	g_modelAtlas.FreeAllModels();
@@ -475,6 +456,27 @@ void DrawDebugWindow() {
 	}
 	if ( ImGui::TreeNode( "IO" ) ) {
 		theGame->io.DebugDraw();
+		ImGui::TreePop();
+	}
+	if ( ImGui::TreeNode( "Model inspector" ) ) {
+		static glm::vec3 cameraPosition = glm::vec3( 5.0f, 5.0f, 5.0f );
+		ImGui::DragFloat3( "camera position", &cameraPosition.x );
+		modelInspectorCamera.position = cameraPosition;
+		modelInspectorCamera.proj =
+		    glm::perspective( 90.0f, ( float )modelInspectorWidth / modelInspectorHeight, 0.01f, 100.0f );
+		modelInspectorCamera.view =
+		    glm::lookAt( modelInspectorCamera.position, glm::vec3( 0.0f, 0.0f, 0.0f ), glm::vec3( 0.0f, 1.0f, 0.0f ) );
+
+		modelInspectorCamera.Bind();
+		modelInspectorFramebuffer.Bind();
+		modelInspectorFramebuffer.Clear();
+		CpntTransform localTransform;
+		DrawModel( *( g_modelAtlas.farmMesh ), localTransform, g_shaderAtlas.defaultShader );
+
+		ImGui::Image( ( ImTextureID )modelInspectorFramebuffer.textureID,
+		              ImVec2( modelInspectorWidth, modelInspectorHeight ), ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
+		theGame->window.BindDefaultFramebuffer();
+		mainCamera.Bind();
 		ImGui::TreePop();
 	}
 	// if ( ImGui::TreeNode( "Systems" ) ) {
