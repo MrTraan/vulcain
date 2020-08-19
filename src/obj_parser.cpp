@@ -8,7 +8,7 @@
 static inline bool isWhiteSpace( char c ) { return c == ' ' || c == '\t'; }
 static inline bool isDigit( char c ) { return c >= '0' && c <= '9'; }
 
-u64 EatVector2( const char * data, glm::vec2 & out ) {
+static u64 EatVector2( const char * data, glm::vec2 & out ) {
 	u64    offset = 0;
 	char * pEnd;
 	out.x = strtof( data + offset, &pEnd );
@@ -18,7 +18,7 @@ u64 EatVector2( const char * data, glm::vec2 & out ) {
 	return offset;
 }
 
-u64 EatVector3( const char * data, glm::vec3 & out ) {
+static u64 EatVector3( const char * data, glm::vec3 & out ) {
 	u64    offset = 0;
 	char * pEnd;
 	out.x = strtof( data + offset, &pEnd );
@@ -34,8 +34,6 @@ void ParseMaterialFile( const char * data, u64 size, std::map< std::string, Mate
 	u64 i = 0;
 
 	Material * currentMaterial = nullptr;
-
-	static Texture defaultWhiteTexture = CreateDefaultWhiteTexture();
 
 	while ( i < size ) {
 		while ( isWhiteSpace( data[ i ] ) ) {
@@ -55,7 +53,7 @@ void ParseMaterialFile( const char * data, u64 size, std::map< std::string, Mate
 			}
 			std::string materialName( data + i, materialNameLength );
 			currentMaterial = &out[ materialName ];
-			currentMaterial->diffuseTexture = defaultWhiteTexture;
+			currentMaterial->diffuseTexture = Texture::DefaultWhiteTexture();
 		} else if ( strncmp( data + i, "map_Kd ", strlen( "map_Kd" ) ) == 0 ) {
 			ng_assert( currentMaterial != nullptr );
 			i += strlen( "map_Kd " );

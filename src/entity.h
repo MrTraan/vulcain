@@ -2,14 +2,15 @@
 #include "ngLib/nglib.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <unordered_map>
+#include <glm/gtc/quaternion.hpp>
 #include <typeindex>
 #include <typeinfo>
+#include <unordered_map>
 
 struct Registery;
 
-typedef u32 Entity;
-constexpr u32 INVALID_ENTITY_INDEX = ( u32 )-1;
+typedef u32      Entity;
+constexpr u32    INVALID_ENTITY_INDEX = ( u32 )-1;
 constexpr Entity INVALID_ENTITY_ID = ( Entity )-1;
 
 struct CpntTransform {
@@ -29,10 +30,22 @@ struct CpntTransform {
 		ComputeMatrix();
 	}
 
+	void SetScale( const glm::vec3 & v ) {
+		scale = v;
+		ComputeMatrix();
+	}
+
+	void SetRotation( const glm::vec3 & v ) {
+		rotation = glm::quat( glm::radians( v ) );
+		ComputeMatrix();
+	}
+
 	glm::vec3 GetTranslation() const { return translation; }
+	glm::vec3 GetScale() const { return scale; }
 
 	void ComputeMatrix() {
 		matrix = glm::translate( glm::mat4( 1.0f ), translation );
+		matrix = matrix * glm::mat4_cast( rotation );
 		matrix = glm::scale( matrix, scale );
 	}
 
@@ -40,6 +53,7 @@ struct CpntTransform {
 	glm::mat4 matrix = glm::mat4( 1.0f );
 	glm::vec3 translation;
 	glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
+	glm::quat rotation;
 };
 
 constexpr u64 FNV_HASH_BASIS = 0xcbf29ce484222325;
@@ -53,7 +67,6 @@ inline constexpr u64 FnvHash( const u8 * data, u64 size ) {
 	}
 	return hash;
 }
-
 
 struct ISystem {
 	virtual ~ISystem() {}
@@ -72,7 +85,7 @@ struct SystemManager {
 
 	template < class T, class... Args > T & CreateSystem( Args &&... args ) {
 		auto system = new T( std::forward< Args >( args )... );
-		u64 typeIndex = std::type_index( typeid( T ) ).hash_code();
+		u64  typeIndex = std::type_index( typeid( T ) ).hash_code();
 		systems[ typeIndex ] = system;
 		return *system;
 	}

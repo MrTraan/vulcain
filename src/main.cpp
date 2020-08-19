@@ -183,6 +183,10 @@ int main( int ac, char ** av ) {
 	producer.batchSize = 4;
 	producer.timeToProduceBatch = ng::DurationInMs( 5000.0f );
 	producer.resource = GameResource::WHEAT;
+	{
+		CpntTransform & transform = registery.GetComponent< CpntTransform >( wheatFarm );
+		transform.SetScale( { 2.0f, 2.0f, 2.0f } );
+	}
 
 	for ( u32 z = 10; z < 24; z++ ) {
 		SpawnRoadBlock( registery, map, Cell( 9, z ), g_modelAtlas.roadMesh );
@@ -313,27 +317,6 @@ int main( int ac, char ** av ) {
 					Guizmo::LinesAroundCube( transform.GetMatrix() * glm::vec4( box.center, 1.0f ), box.size,
 					                         Guizmo::colRed );
 				}
-			}
-			// Building debug
-			constexpr int numBuilding = 2;
-			const char *  buildingList[ numBuilding ] = {
-                "house",
-                "wheat farm",
-            };
-
-			static int buildingCurrentlySelected = 0;
-			if ( ImGui::BeginCombo( "system selected", buildingList[ buildingCurrentlySelected ] ) ) {
-				for ( int i = 0; i < numBuilding; i++ ) {
-					bool isSelected = buildingCurrentlySelected == i;
-					if ( ImGui::Selectable( buildingList[ i ], isSelected ) ) {
-						buildingCurrentlySelected = i;
-					}
-
-					if ( isSelected ) {
-						ImGui::SetItemDefaultFocus();
-					}
-				}
-				ImGui::EndCombo();
 			}
 
 			if ( io.mouse.IsButtonPressed( Mouse::Button::RIGHT ) ) {

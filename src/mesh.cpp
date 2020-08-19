@@ -36,6 +36,7 @@ Texture CreateTextureFromData( const u8 * data, int width, int height, int chann
 	default:
 		ng_assert( false );
 	}
+	texture.hasTransparency = format == GL_RGBA ? true : false;
 	glGenTextures( 1, &texture.id );
 	glBindTexture( GL_TEXTURE_2D, texture.id );
 
@@ -51,14 +52,13 @@ Texture CreateTextureFromData( const u8 * data, int width, int height, int chann
 }
 
 Texture CreatePlaceholderPinkTexture() {
-	u8 data[ 4 * 4 * 4 ];
-	for ( int i = 0; i < 4 * 4 * 4; i += 4 ) {
+	u8 data[ 4 * 4 * 3 ];
+	for ( int i = 0; i < 4 * 4 * 3; i += 4 ) {
 		data[ i + 0 ] = 0xff;
 		data[ i + 1 ] = 0x00;
 		data[ i + 2 ] = 0xff;
-		data[ i + 3 ] = 0xff;
 	}
-	return CreateTextureFromData( data, 4, 4, 4 );
+	return CreateTextureFromData( data, 4, 4, 3 );
 }
 
 Texture CreateDefaultWhiteTexture() {
@@ -96,10 +96,11 @@ void AllocateMeshGLBuffers( Mesh & mesh ) {
 	glBindVertexArray( 0 );
 }
 
-void DrawModel( const Model & model, const CpntTransform & transform, Shader shader ) {
+void DrawModel( const Model & model, const CpntTransform & parentTransform, Shader shader ) {
 	for ( const Mesh & mesh : model.meshes ) {
-		shader.SetMatrix( "modelTransform", transform.GetMatrix() );
-		glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform.GetMatrix() ) ) );
+		glm::mat4 transform = parentTransform.GetMatrix() * mesh.transformation;
+		shader.SetMatrix( "modelTransform", transform );
+		glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform ) ) );
 		shader.SetMatrix3( "normalTransform", normalMatrix );
 		shader.SetVector( "material.ambient", mesh.material->ambiant );
 		shader.SetVector( "material.diffuse", mesh.material->diffuse );
@@ -159,7 +160,7 @@ bool ModelAtlas::LoadAllModels() {
 	roadMesh = new Model();
 	storeHouseMesh = new Model();
 	success &= SetupModelFromResource( *houseMesh, PackerResources::HOUSE_OBJ );
-	success &= SetupModelFromResource( *farmMesh, PackerResources::FARM_OBJ );
+	success &= SetupModelFromResource( *farmMesh, PackerResources::NICE_HOUSE_DAE );
 	success &= SetupModelFromResource( *cubeMesh, PackerResources::CUBE_DAE );
 	success &= SetupModelFromResource( *roadMesh, PackerResources::ROAD_OBJ );
 	success &= SetupModelFromResource( *storeHouseMesh, PackerResources::STOREHOUSE_OBJ );
@@ -182,27 +183,29 @@ void ModelAtlas::FreeAllModels() {
 }
 
 void ComputeModelSize( Model & model ) {
-	float minX, minY, minZ, maxX, maxY, maxZ;
-	minX = model.meshes[ 0 ].vertices[ 0 ].position.x;
-	maxX = model.meshes[ 0 ].vertices[ 0 ].position.x;
-	minY = model.meshes[ 0 ].vertices[ 0 ].position.y;
-	maxY = model.meshes[ 0 ].vertices[ 0 ].position.y;
-	minZ = model.meshes[ 0 ].vertices[ 0 ].position.z;
-	maxZ = model.meshes[ 0 ].vertices[ 0 ].position.x;
+	ng_assert( model.meshes.size() > 0 );
+	ng_assert( model.meshes[ 0 ].vertices.size() > 0 );
+	float minX = FLT_MAX;
+	float minY = FLT_MAX;
+	float minZ = FLT_MAX;
+	float maxX = FLT_MIN;
+	float maxY = FLT_MIN;
+	float maxZ = FLT_MIN;
 	for ( auto const & mesh : model.meshes ) {
 		for ( auto const & vertex : mesh.vertices ) {
-			if ( vertex.position.x < minX )
-				minX = vertex.position.x;
-			if ( vertex.position.y < minY )
-				minY = vertex.position.y;
-			if ( vertex.position.z < minZ )
-				minZ = vertex.position.z;
-			if ( vertex.position.x > maxX )
-				maxX = vertex.position.x;
-			if ( vertex.position.y > maxY )
-				maxY = vertex.position.y;
-			if ( vertex.position.z > maxZ )
-				maxZ = vertex.position.z;
+			auto position = mesh.transformation * glm::vec4( vertex.position, 1.0f );
+			if ( position.x < minX )
+				minX = position.x;
+			if ( position.y < minY )
+				minY = position.y;
+			if ( position.z < minZ )
+				minZ = position.z;
+			if ( position.x > maxX )
+				maxX = position.x;
+			if ( position.y > maxY )
+				maxY = position.y;
+			if ( position.z > maxZ )
+				maxZ = position.z;
 		}
 	}
 	model.minCoords = glm::vec3( minX, minY, minZ );
@@ -213,3 +216,9 @@ void ComputeModelSize( Model & model ) {
 	model.roundedSize.y = ( int )ceilf( model.size.y );
 	model.roundedSize.z = ( int )ceilf( model.size.z );
 }
+
+Texture Texture::DefaultWhiteTexture() {
+	static Texture defaultTexture = CreateDefaultWhiteTexture();
+	return defaultTexture;
+}
+

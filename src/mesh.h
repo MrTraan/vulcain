@@ -17,6 +17,9 @@ struct Vertex {
 
 struct Texture {
 	u32 id;
+	bool hasTransparency = false;
+
+	static Texture DefaultWhiteTexture();
 };
 
 struct Material {
@@ -26,9 +29,9 @@ struct Material {
 	};
 	RenderingMode mode = MODE_OPAQUE;
 	Texture       diffuseTexture;
-	glm::vec3     ambiant = { 1.0f, 1.0f, 1.0f };
-	glm::vec3     diffuse = { 0.8f, 0.8f, 0.8f };
-	glm::vec3     specular = { 0.5f, 0.5f, 0.5f };
+	glm::vec3     ambiant{ 1.0f, 1.0f, 1.0f };
+	glm::vec3     diffuse{ 0.8f, 0.8f, 0.8f };
+	glm::vec3     specular{ 0.5f, 0.5f, 0.5f };
 	float         shininess = 9.0f;
 };
 
@@ -36,6 +39,7 @@ struct Mesh {
 	std::vector< Vertex > vertices;
 	std::vector< u32 >    indices;
 	Material *            material;
+	glm::mat4             transformation{ 1.0f };
 
 	u32 vao;
 	u32 vbo;
