@@ -217,8 +217,33 @@ void ComputeModelSize( Model & model ) {
 	model.roundedSize.z = ( int )ceilf( model.size.z );
 }
 
+void CreateTexturedPlane( float sizeX, float sizeZ, float textureTiling, const PackerResource & textureResource, Model & modelOut ) {
+	Material & mat = modelOut.materials["default"];
+	mat.diffuseTexture = CreateTextureFromResource( textureResource );
+
+	modelOut.meshes.resize(1);
+	Mesh & mesh = modelOut.meshes[0];
+	mesh.material = &mat;
+
+	mesh.vertices.resize(4);
+	mesh.vertices[0] = Vertex{ { 0.0f, 0.0f, 0.0f },  { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } };
+	mesh.vertices[1] = Vertex{ { sizeX, 0.0f, 0.0f },  { 0.0f, 1.0f, 0.0f }, { textureTiling, 0.0f } };
+	mesh.vertices[2] = Vertex{ { sizeX, 0.0f, sizeZ },  { 0.0f, 1.0f, 0.0f }, { textureTiling, textureTiling } };
+	mesh.vertices[3] = Vertex{ { 0.0f, 0.0f, sizeZ },  { 0.0f, 1.0f, 0.0f }, { 0.0f, textureTiling } };
+
+	mesh.indices.resize(6);
+	mesh.indices[0] = 0;
+	mesh.indices[1] = 2;
+	mesh.indices[2] = 1;
+	mesh.indices[3] = 0;
+	mesh.indices[4] = 3;
+	mesh.indices[5] = 2;
+
+	ComputeModelSize(modelOut);
+	AllocateMeshGLBuffers(mesh);
+}
+
 Texture Texture::DefaultWhiteTexture() {
 	static Texture defaultTexture = CreateDefaultWhiteTexture();
 	return defaultTexture;
 }
-

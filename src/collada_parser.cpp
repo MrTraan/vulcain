@@ -58,6 +58,10 @@ bool ImportColladaFile( PackerResourceID resourceID, Model & outModel ) {
 	auto                  ret = doc.Parse( data, objResource->size );
 	ng_assert( ret == tinyxml2::XML_SUCCESS );
 	auto colladaDOM = doc.FirstChildElement( "COLLADA" );
+	std::string colladaVersion = colladaDOM->Attribute("version");
+	if( colladaVersion != "1.4.1") {
+		ng::Errorf("Loading collada file with version %s is not supported, only 1.4.1 has been tested for now\n", colladaVersion.c_str() );
+	}
 
 	std::map< std::string, PackerResource * > textureDictionnary;
 	std::map< std::string, Material >         effectsDictionnary;
@@ -225,6 +229,7 @@ bool ImportColladaFile( PackerResourceID resourceID, Model & outModel ) {
 		ng_assert( trianglesNode != nullptr );
 
 		int         numTriangles = strtol( trianglesNode->Attribute( "count" ), nullptr, 10 );
+		int numInputs = 0;
 		std::string vertexSourceId;
 		std::string normalSourceId;
 		std::string textureSourceId;
@@ -247,6 +252,7 @@ bool ImportColladaFile( PackerResourceID resourceID, Model & outModel ) {
 			} else {
 				ng_assert( "false" );
 			}
+			numInputs++;
 		}
 		auto verticesNode = meshNode->FirstChildElement( "vertices" );
 		if ( verticesNode != nullptr ) {
@@ -277,7 +283,7 @@ bool ImportColladaFile( PackerResourceID resourceID, Model & outModel ) {
 		while ( facesData != nullptr && facesData[ 0 ] != '\0' ) {
 			Vertex & vertex = mesh.vertices[ currentIndex ];
 
-			for ( int i = 0; i < 3; i++ ) {
+			for ( int i = 0; i < numInputs; i++ ) {
 				char * endPtr;
 				u64    index = strtoull( facesData, &endPtr, 10 );
 				if ( i == vertexOffset ) {

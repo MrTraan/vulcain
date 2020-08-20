@@ -16,7 +16,7 @@ struct Vertex {
 };
 
 struct Texture {
-	u32 id;
+	u32  id;
 	bool hasTransparency = false;
 
 	static Texture DefaultWhiteTexture();
@@ -81,3 +81,5 @@ Texture CreateDefaultWhiteTexture();
 void    AllocateMeshGLBuffers( Mesh & mesh );
 void    DrawModel( const Model & model, const CpntTransform & transform, Shader shader );
 void    ComputeModelSize( Model & model );
+
+void CreateTexturedPlane( float sizeX, float sizeZ, float textureTiling, const PackerResource & textureResource, Model & modelOut );

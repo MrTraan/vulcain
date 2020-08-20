@@ -14,9 +14,6 @@ constexpr u32    INVALID_ENTITY_INDEX = ( u32 )-1;
 constexpr Entity INVALID_ENTITY_ID = ( Entity )-1;
 
 struct CpntTransform {
-	CpntTransform() = default;
-	CpntTransform( const CpntTransform & ) = default;
-
   public:
 	const glm::mat4 & GetMatrix() const { return matrix; }
 
@@ -50,10 +47,10 @@ struct CpntTransform {
 	}
 
   private:
-	glm::mat4 matrix = glm::mat4( 1.0f );
-	glm::vec3 translation;
-	glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
-	glm::quat rotation;
+	glm::mat4 matrix{ 1.0f };
+	glm::vec3 translation{ 0.0f };
+	glm::vec3 scale{ 1.0f, 1.0f, 1.0f };
+	glm::quat rotation{0.0f, 0.0f, 0.0f, 0.0f};
 };
 
 constexpr u64 FNV_HASH_BASIS = 0xcbf29ce484222325;

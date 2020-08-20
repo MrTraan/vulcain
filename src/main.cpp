@@ -63,6 +63,7 @@ void SpawnRoadBlock( Registery & reg, Map & map, Cell cell, const Model * model 
 		Entity          e = reg.CreateEntity();
 		CpntTransform & t = reg.AssignComponent< CpntTransform >( e );
 		t.SetTranslation( GetPointInMiddleOfCell( cell ) );
+		t.Translate( { -0.5f, 0.0f, -0.5f } );
 		reg.AssignComponent< CpntRenderModel >( e, model );
 		CpntBuilding & buildingCpnt = reg.AssignComponent< CpntBuilding >( e );
 		buildingCpnt.cell = cell;
@@ -163,6 +164,13 @@ int main( int ac, char ** av ) {
 	systemManager.CreateSystem< SystemBuildingProducing >();
 	systemManager.CreateSystem< SystemNavAgent >();
 
+	Model groundModel;
+	CreateTexturedPlane( 200.0f, 200.0f, 64.0f,
+	                     *( theGame->package.GrabResource( PackerResources::GRASS_TEXTURE_PNG ) ), groundModel );
+	Model roadModel;
+	CreateTexturedPlane( 1.0f, 1.0f, 1.0f, *( theGame->package.GrabResource( PackerResources::ROAD_TEXTURE_PNG ) ),
+	                     roadModel );
+
 	Entity player = registery.CreateEntity();
 	{
 		registery.AssignComponent< CpntRenderModel >( player, g_modelAtlas.cubeMesh );
@@ -173,7 +181,7 @@ int main( int ac, char ** av ) {
 
 	Map & map = theGame->map;
 	map.AllocateGrid( 200, 200 );
-	SpawnRoadBlock( registery, map, Cell( 0, 0 ), g_modelAtlas.roadMesh );
+	SpawnRoadBlock( registery, map, Cell( 0, 0 ), &roadModel );
 
 	Entity storageHouse = SpawnBuilding( registery, map, Cell( 10, 10 ), 3, 3, g_modelAtlas.storeHouseMesh );
 	registery.AssignComponent< CpntBuildingStorage >( storageHouse );
@@ -189,7 +197,7 @@ int main( int ac, char ** av ) {
 	}
 
 	for ( u32 z = 10; z < 24; z++ ) {
-		SpawnRoadBlock( registery, map, Cell( 9, z ), g_modelAtlas.roadMesh );
+		SpawnRoadBlock( registery, map, Cell( 9, z ), &roadModel );
 	}
 
 	while ( !window.shouldClose ) {
@@ -279,17 +287,14 @@ int main( int ac, char ** av ) {
 
 			mainCamera.proj = glm::ortho( aspectRatio * cameraSize / 2, -aspectRatio * cameraSize / 2, -cameraSize / 2,
 			                              cameraSize / 2, 0.3f, 1000.0f );
-			Guizmo::Line( glm::vec3( 0.0f, 0.0f, 0.0f ), glm::vec3( 10.0f, 0.0f, 0.0f ), Guizmo::colRed );
-			// glm::mat4 proj = glm::perspective( glm::radians( 60.0f), (float)window.width / window.height, 0.3f,
-			// 1000.0f);
 
 			// draw grid
-			for ( int x = 0; x < 100; x += 1 ) {
-				Guizmo::Line( glm::vec3( x, 0.0f, 0.0f ), glm::vec3( x, 0.0f, 100.0f ), Guizmo::colWhite );
-			}
-			for ( int z = 0; z < 100; z += 1 ) {
-				Guizmo::Line( glm::vec3( 0.0f, 0.0f, z ), glm::vec3( 100.0f, 0.0f, z ), Guizmo::colWhite );
-			}
+			// for ( int x = 0; x < 100; x += 1 ) {
+			//	Guizmo::Line( glm::vec3( x, 0.0f, 0.0f ), glm::vec3( x, 0.0f, 100.0f ), Guizmo::colWhite );
+			//}
+			// for ( int z = 0; z < 100; z += 1 ) {
+			//	Guizmo::Line( glm::vec3( 0.0f, 0.0f, z ), glm::vec3( 100.0f, 0.0f, z ), Guizmo::colWhite );
+			//}
 
 			ImGui::Text( "Mouse position: %d %d", io.mouse.position.x, io.mouse.position.y );
 			ImGui::Text( "Mouse offset: %f %f", io.mouse.offset.x, io.mouse.offset.y );
@@ -343,7 +348,7 @@ int main( int ac, char ** av ) {
 						}
 					} else if ( map.GetTile( buildCell ) == MapTile::EMPTY ) {
 						// Build road cell
-						SpawnRoadBlock( registery, map, buildCell, g_modelAtlas.roadMesh );
+						SpawnRoadBlock( registery, map, buildCell, &roadModel );
 					}
 				}
 			}
@@ -368,6 +373,11 @@ int main( int ac, char ** av ) {
 			defaultShader.SetVector( "light.ambient", glm::vec3( lightAmbiant ) );
 			defaultShader.SetVector( "light.diffuse", glm::vec3( lightDiffuse ) );
 			defaultShader.SetVector( "light.specular", glm::vec3( lightSpecular ) );
+
+			// Just push the ground a tiny below y to avoid clipping
+			CpntTransform groundTransform;
+			groundTransform.SetTranslation({0.0f, -0.01f, 0.0f} );
+			DrawModel( groundModel, groundTransform, defaultShader );
 
 			for ( auto const & [ e, renderModel ] : registery.IterateOver< CpntRenderModel >() ) {
 				if ( renderModel.model != nullptr ) {
