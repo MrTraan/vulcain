@@ -71,6 +71,20 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 		ng_assert( HasComponent( e ) );
 		return components[ indexOfEntities[ e ] ];
 	}
+	
+	const T * TryGetComponent( Entity e ) const {
+		if ( HasComponent(e) ) {
+			return &components[ indexOfEntities[ e ] ];
+		}
+		return nullptr;
+	}
+
+	T * TryGetComponent( Entity e ) {
+		if ( HasComponent(e) ) {
+			return &components[ indexOfEntities[ e ] ];
+		}
+		return nullptr;
+	}
 
 	u64 GetSize() const { return numComponents; }
 
@@ -150,6 +164,7 @@ struct Registery {
 		return registery.AssignComponent( e, std::forward< Args >( args )... );
 	}
 
+	template < class T > T *  TryGetComponent( Entity e ) { return GetComponentRegistery< T >().TryGetComponent( e ); }
 	template < class T > T &  GetComponent( Entity e ) { return GetComponentRegistery< T >().GetComponent( e ); }
 	template < class T > bool HasComponent( Entity e ) const { return GetComponentRegistery< T >().HasComponent( e ); }
 

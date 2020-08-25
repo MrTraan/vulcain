@@ -1,5 +1,6 @@
 #include <imgui/imgui.h>
 
+#include "collider.h"
 #include "game.h"
 #include "housing.h"
 #include "mesh.h"
@@ -20,7 +21,6 @@ void SystemHousing::Update( Registery & reg, float dt ) {
 void SystemHousing::DebugDraw() { ImGui::Text( "Total population: %lu\n", totalPopulation ); }
 
 static Cell GetClosestRoadPoint( const CpntBuilding & building, const Map & map ) {
-	// TODO: This is really bad
 	for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {
 		if ( map.GetTile( x, building.cell.z - 1 ) == MapTile::ROAD ) {
 			return Cell( x, building.cell.z - 1 );
@@ -38,8 +38,44 @@ static Cell GetClosestRoadPoint( const CpntBuilding & building, const Map & map 
 		}
 	}
 
-	ng_assert( false );
-	return Cell( 0, 0 );
+	return INVALID_CELL;
+}
+
+static bool BuildPathFromBuilding( const CpntBuilding &  building,
+                                   const Cell            goal,
+                                   AStarMovementAllowed  movement,
+                                   const Map &           map,
+                                   std::vector< Cell > & outPath ) {
+	for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {
+		if ( map.GetTile( x, building.cell.z - 1 ) == MapTile::ROAD ) {
+			Cell start( x, building.cell.z - 1 );
+			if ( AStar( start, goal, movement, map, outPath ) == true ) {
+				return true;
+			}
+		}
+		if ( map.GetTile( x, building.cell.z + building.tileSizeZ ) == MapTile::ROAD ) {
+			Cell start( x, building.cell.z + building.tileSizeZ );
+			if ( AStar( start, goal, movement, map, outPath ) == true ) {
+				return true;
+			}
+		}
+	}
+	for ( u32 z = building.cell.z; z < building.cell.z + building.tileSizeZ; z++ ) {
+		if ( map.GetTile( building.cell.x - 1, z ) == MapTile::ROAD ) {
+			Cell start( building.cell.x - 1, z );
+			if ( AStar( start, goal, movement, map, outPath ) == true ) {
+				return true;
+			}
+		}
+		if ( map.GetTile( building.cell.x + building.tileSizeX, z ) == MapTile::ROAD ) {
+			Cell start( building.cell.x + building.tileSizeX, z );
+			if ( AStar( start, goal, movement, map, outPath ) == true ) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 bool IsCellConnectedToBuildingByRoad( Cell cell, const CpntBuilding & building, const Map & map ) {

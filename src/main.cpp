@@ -25,6 +25,11 @@
 #include "shader.h"
 #include "window.h"
 
+#if defined( ENABLE_TESTING )
+#define CATCH_CONFIG_RUNNER
+#include <catch.hpp>
+#endif
+
 #if defined( _WIN32 )
 #include <filesystem>
 #else
@@ -62,8 +67,7 @@ void SpawnRoadBlock( Registery & reg, Map & map, Cell cell, const Model * model 
 
 		Entity          e = reg.CreateEntity();
 		CpntTransform & t = reg.AssignComponent< CpntTransform >( e );
-		t.SetTranslation( GetPointInMiddleOfCell( cell ) );
-		t.Translate( { -0.5f, 0.0f, -0.5f } );
+		t.SetTranslation( GetPointInCornerOfCell(cell));
 		reg.AssignComponent< CpntRenderModel >( e, model );
 		CpntBuilding & buildingCpnt = reg.AssignComponent< CpntBuilding >( e );
 		buildingCpnt.cell = cell;
@@ -100,6 +104,11 @@ Entity SpawnBuilding( Registery & reg, Map & map, Cell cell, u32 sizeX, u32 size
 
 int main( int ac, char ** av ) {
 	ng::Init();
+
+#if defined( ENABLE_TESTING )
+	int result = Catch::Session().run( ac, av );
+	return result;
+#endif
 
 	if ( ac > 1 && strcmp( "--create-archive", av[ 1 ] ) == 0 ) {
 		bool success = PackerCreateArchive( FS_BASE_PATH, "resources.lz4" );
@@ -191,10 +200,6 @@ int main( int ac, char ** av ) {
 	producer.batchSize = 4;
 	producer.timeToProduceBatch = ng::DurationInMs( 5000.0f );
 	producer.resource = GameResource::WHEAT;
-	{
-		CpntTransform & transform = registery.GetComponent< CpntTransform >( wheatFarm );
-		transform.SetScale( { 2.0f, 2.0f, 2.0f } );
-	}
 
 	for ( u32 z = 10; z < 24; z++ ) {
 		SpawnRoadBlock( registery, map, Cell( 9, z ), &roadModel );
@@ -324,6 +329,15 @@ int main( int ac, char ** av ) {
 				}
 			}
 
+			Cell   mouseCellPosition = GetCellForPoint( mousePositionWorldSpaceFloored );
+			Entity hoveredEntity = INVALID_ENTITY_ID;
+			for ( auto const & [ e, building ] : registery.IterateOver< CpntBuilding >() ) {
+				if ( IsCellInsideBuilding( building, mouseCellPosition ) ) {
+					hoveredEntity = e;
+					break;
+				}
+			}
+
 			if ( io.mouse.IsButtonPressed( Mouse::Button::RIGHT ) ) {
 				// move player to cursor
 				glm::vec3 playerPosition = registery.GetComponent< CpntTransform >( player ).GetTranslation();
@@ -332,24 +346,22 @@ int main( int ac, char ** av ) {
 				       registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps );
 			}
 			if ( io.mouse.IsButtonDown( Mouse::Button::LEFT ) ) {
-				if ( mousePositionWorldSpaceFloored.x >= 0 && mousePositionWorldSpaceFloored.z >= 0 ) {
-					Cell buildCell = GetCellForPoint( mousePositionWorldSpaceFloored );
-					if ( io.keyboard.IsKeyDown( KEY_LEFT_SHIFT ) ) {
-						// delete cell
-						for ( auto const & [ e, building ] : registery.IterateOver< CpntBuilding >() ) {
-							if ( IsCellInsideBuilding( building, buildCell ) ) {
-								registery.MarkForDelete( e );
-								for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {
-									for ( u32 z = building.cell.z; z < building.cell.z + building.tileSizeZ; z++ ) {
-										map.SetTile( x, z, MapTile::EMPTY );
-									}
+				if ( io.keyboard.IsKeyDown( KEY_LEFT_SHIFT ) ) {
+					// delete cell
+					if ( hoveredEntity != INVALID_ENTITY_ID ) {
+						CpntBuilding * building = registery.TryGetComponent< CpntBuilding >( hoveredEntity );
+						if ( building != nullptr ) {
+							registery.MarkForDelete( hoveredEntity );
+							for ( u32 x = building->cell.x; x < building->cell.x + building->tileSizeX; x++ ) {
+								for ( u32 z = building->cell.z; z < building->cell.z + building->tileSizeZ; z++ ) {
+									map.SetTile( x, z, MapTile::EMPTY );
 								}
 							}
 						}
-					} else if ( map.GetTile( buildCell ) == MapTile::EMPTY ) {
-						// Build road cell
-						SpawnRoadBlock( registery, map, buildCell, &roadModel );
 					}
+				} else if ( map.GetTile( mouseCellPosition ) == MapTile::EMPTY ) {
+					// Build road cell
+					SpawnRoadBlock( registery, map, mouseCellPosition, &roadModel );
 				}
 			}
 		}
@@ -376,7 +388,7 @@ int main( int ac, char ** av ) {
 
 			// Just push the ground a tiny below y to avoid clipping
 			CpntTransform groundTransform;
-			groundTransform.SetTranslation({0.0f, -0.01f, 0.0f} );
+			groundTransform.SetTranslation( { 0.0f, -0.01f, 0.0f } );
 			DrawModel( groundModel, groundTransform, defaultShader );
 
 			for ( auto const & [ e, renderModel ] : registery.IterateOver< CpntRenderModel >() ) {
@@ -392,6 +404,14 @@ int main( int ac, char ** av ) {
 					const CpntTransform & transform = registery.GetComponent< CpntTransform >( e );
 					Guizmo::LinesAroundCube( transform.GetMatrix() * glm::vec4( box.center, 1.0f ), box.size,
 					                         Guizmo::colGreen );
+				}
+			}
+			
+			static bool drawRoadNodes = false;
+			ImGui::Checkbox( "draw road nodes", &drawRoadNodes);
+			if ( drawRoadNodes ) {
+				for ( auto & node : map.roadNetwork.nodes ) {
+					Guizmo::Rectangle( GetPointInCornerOfCell(node.position), 1.0f, 1.0f, Guizmo::colBlue );
 				}
 			}
 		}
