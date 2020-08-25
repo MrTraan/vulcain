@@ -27,13 +27,18 @@ else()
 	set( TRACY_LIBRARY_PATH "${CMAKE_SOURCE_DIR}/lib/tracy_client_phony.lib" )
 endif( ENABLE_PROFILING )
 
+if ( ENABLE_TESTING )
+	add_compile_definitions( ENABLE_TESTING=1 )
+	set( TEST_SOURCES "test/test_road_network.cpp" )
+else()
+	set( TEST_SOURCES "" )
+endif( ENABLE_TESTING)
+
 set(GLM_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/lib/glm/")
 
 add_executable(vulcain
 	"src/main.cpp"
-	"src/io.cpp"
-	"src/packer.cpp"
-	"src/guizmo.cpp"
+	${TEST_SOURCES}
 	
 	"src/ngLib/console.cpp"
 	"src/ngLib/logs.cpp"
@@ -48,7 +53,9 @@ add_executable(vulcain
 	"./lib/imgui/imgui_draw.cpp"
 	"./lib/imgui/imgui_impl_sdl.cpp"
 	"./lib/imgui/imgui_impl_opengl3.cpp"
-  "src/shader.h" "src/shader.cpp" "src/renderer.h" "src/renderer.cpp" "src/mesh.h" "src/mesh.cpp" "src/obj_parser.h" "src/obj_parser.cpp" "src/entity.h" "src/housing.h" "src/housing.cpp" "src/ngLib/ngtime.h" "src/collider.h" "src/collider.cpp" "src/navigation.h" "src/navigation.cpp" "src/ngLib/ngcontainers.h" "src/message.h" "src/registery.h" "src/entity.cpp" "src/collada_parser.h" "src/collada_parser.cpp")
+
+	"src/io.cpp" "src/packer.cpp" "src/guizmo.cpp" "src/shader.h" "src/shader.cpp" "src/renderer.h" "src/renderer.cpp" "src/mesh.h" "src/mesh.cpp" "src/obj_parser.h" "src/obj_parser.cpp" "src/entity.h" "src/housing.h" "src/housing.cpp" "src/ngLib/ngtime.h" "src/collider.h" "src/collider.cpp" "src/navigation.h" "src/navigation.cpp" "src/ngLib/ngcontainers.h" "src/message.h" "src/registery.h" "src/entity.cpp" "src/collada_parser.h" "src/collada_parser.cpp"
+)
 
 target_include_directories(vulcain
 PRIVATE
