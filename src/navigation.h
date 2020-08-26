@@ -41,18 +41,22 @@ struct Map;
 struct RoadNetwork {
 	struct Connection {
 		Connection() = default;
-		Connection( Cell connectedTo, u32 distance ) : connectedTo( connectedTo ), distance( distance ) {}
+		Connection( const Cell & connectedTo, u32 distance ) : connectedTo( connectedTo ), distance( distance ) {}
 		Cell connectedTo = INVALID_CELL;
 		u32  distance = 0;
 		bool IsValid() const { return connectedTo != INVALID_CELL; }
+		void Invalidate() {
+			connectedTo = INVALID_CELL;
+			distance = 0;
+		}
 	};
 	struct Node {
 		Cell       position;
 		Connection connections[ 4 ];
 
 		// Returns a pointer to a set connection, with offset
-		Connection * GetSetConnectionWithOffset( u32 offset ) {
-			ng_assert(offset < NumSetConnections() );
+		Connection * GetValidConnectionWithOffset( u32 offset ) {
+			ng_assert( offset < NumSetConnections() );
 			for ( size_t i = 0; i < 4; i++ ) {
 				if ( connections[ i ].IsValid() ) {
 					if ( offset == 0 ) {
@@ -74,7 +78,10 @@ struct RoadNetwork {
 			return count;
 		}
 
-		Connection * FindConnectionWith( Cell cell ) {
+		Connection * FindConnectionWith( const Cell & cell ) {
+			ng_assert_msg( HasMultipleConnectionsWith( cell ) == false,
+			               "FindConnectionWith will only return the first connection, which is unsafe if a node has "
+			               "multiple connections with the same node" );
 			for ( size_t i = 0; i < 4; i++ ) {
 				if ( connections[ i ].connectedTo == cell ) {
 					return &connections[ i ];
@@ -82,34 +89,72 @@ struct RoadNetwork {
 			}
 			return nullptr;
 		}
-
-		CardinalDirection GetDirectionOfConnection( Connection * connection ) {
-			int offset = ( int )( connection - connections );
-			ng_assert( offset >= 0 && offset < 4 );
-			return ( CardinalDirection )offset;
+		
+		Connection * FindShortestConnectionWith( const Cell & cell ) {
+			Connection * res = nullptr;
+			for ( size_t i = 0; i < 4; i++ ) {
+				if ( connections[ i ].connectedTo == cell ) {
+					if ( res == nullptr) {
+						res = connections + i;
+					} else if (connections[i].distance < res->distance) {
+						res = connections + i;
+					}
+				}
+			}
+			return res;
 		}
 
-		void ClearConnections() {
+		bool HasMultipleConnectionsWith( const Cell & cell ) {
+			u32 numConnections = 0;
 			for ( size_t i = 0; i < 4; i++ ) {
-				connections[ i ] = Connection{};
+				if ( connections[ i ].connectedTo == cell ) {
+					numConnections++;
+				}
 			}
+			return numConnections > 1;
+		}
+
+		bool IsConnectedToItself() const {
+			for ( size_t i = 0; i < 4; i++ ) {
+				if ( connections[ i ].IsValid() && connections[ i ].connectedTo == position ) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		CardinalDirection GetDirectionOfConnection(const Connection * connection) const {
+			int offset = (int)(connection - connections);
+			ng_assert(offset >= 0 && offset < 4 );
+			return (CardinalDirection)offset;
 		}
 	};
 
 	std::vector< Node > nodes;
 
 	Node * FindNodeWithPosition( Cell cell );
-	bool RemoveNodeByPosition(Cell cell);
-	void   AddRoadCellToNetwork( Cell cell, const Map & map );
+	Node * ResolveConnection( Connection * connection ) {
+		ng_assert( connection->IsValid() );
+		return FindNodeWithPosition( connection->connectedTo );
+	}
+	bool RemoveNodeByPosition( Cell cell );
+	void AddRoadCellToNetwork( Cell cellToAdd, const Map & map );
+	void RemoveRoadCellFromNetwork( Cell cellToRemove, const Map & map );
+	void DissolveNode( Node & nodeToDissolve );
+
 	// Returns true if the cell is connected to a road node
 	struct NodeSearchResult {
 		bool              found = false;
 		Node *            node = nullptr;
 		CardinalDirection directionFromStart;
+		CardinalDirection directionFromEnd;
 		u32               distance;
 	};
-	NodeSearchResult FindNearestRoadNode( Cell cell, const Map & map );
 	void FindNearestRoadNodes( Cell cell, const Map & map, NodeSearchResult & first, NodeSearchResult & second );
+
+	bool FindPath( Cell start, Cell goal, const Map & map, std::vector< Cell > & outPath );
+
+	bool CheckNetworkIntegrity();
 };
 
 struct Map {
@@ -134,12 +179,18 @@ struct Map {
 	MapTile GetTile( Cell coord ) const { return tiles[ coord.x * sizeZ + coord.z ]; }
 	MapTile GetTile( u32 x, u32 z ) const { return tiles[ x * sizeZ + z ]; }
 	void    SetTile( Cell coord, MapTile type ) {
+        if ( GetTile( coord ) == MapTile::ROAD ) {
+            roadNetwork.RemoveRoadCellFromNetwork( coord, *this );
+        }
         if ( type == MapTile::ROAD ) {
             roadNetwork.AddRoadCellToNetwork( coord, *this );
         }
         tiles[ coord.x * sizeZ + coord.z ] = type;
 	}
 	void SetTile( u32 x, u32 z, MapTile type ) {
+		if ( GetTile( x, z ) == MapTile::ROAD ) {
+			roadNetwork.RemoveRoadCellFromNetwork( Cell( x, z ), *this );
+		}
 		if ( type == MapTile::ROAD ) {
 			roadNetwork.AddRoadCellToNetwork( Cell( x, z ), *this );
 		}

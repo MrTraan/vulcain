@@ -127,8 +127,6 @@ void LinesAroundCube( glm::vec3 cubePosition ) {
 
 void Draw() {
 	ZoneScoped;
-	if ( lineDrawList.size() == 0 )
-		return;
 
 	g_shaderAtlas.colorShader.Use();
 

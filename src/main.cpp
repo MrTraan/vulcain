@@ -67,7 +67,7 @@ void SpawnRoadBlock( Registery & reg, Map & map, Cell cell, const Model * model 
 
 		Entity          e = reg.CreateEntity();
 		CpntTransform & t = reg.AssignComponent< CpntTransform >( e );
-		t.SetTranslation( GetPointInCornerOfCell(cell));
+		t.SetTranslation( GetPointInCornerOfCell( cell ) );
 		reg.AssignComponent< CpntRenderModel >( e, model );
 		CpntBuilding & buildingCpnt = reg.AssignComponent< CpntBuilding >( e );
 		buildingCpnt.cell = cell;
@@ -341,9 +341,14 @@ int main( int ac, char ** av ) {
 			if ( io.mouse.IsButtonPressed( Mouse::Button::RIGHT ) ) {
 				// move player to cursor
 				glm::vec3 playerPosition = registery.GetComponent< CpntTransform >( player ).GetTranslation();
+				bool      pathFound = map.roadNetwork.FindPath(
+                    GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ), map,
+                    registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps );
+				ng::Printf( "Path found %d\n", pathFound );
+				std::vector<Cell> foo;
 				AStar( GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ),
 				       ASTAR_ALLOW_DIAGONALS, map,
-				       registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps );
+				       foo );
 			}
 			if ( io.mouse.IsButtonDown( Mouse::Button::LEFT ) ) {
 				if ( io.keyboard.IsKeyDown( KEY_LEFT_SHIFT ) ) {
@@ -406,12 +411,19 @@ int main( int ac, char ** av ) {
 					                         Guizmo::colGreen );
 				}
 			}
-			
+
 			static bool drawRoadNodes = false;
-			ImGui::Checkbox( "draw road nodes", &drawRoadNodes);
+			ImGui::Checkbox( "draw road nodes", &drawRoadNodes );
 			if ( drawRoadNodes ) {
 				for ( auto & node : map.roadNetwork.nodes ) {
-					Guizmo::Rectangle( GetPointInCornerOfCell(node.position), 1.0f, 1.0f, Guizmo::colBlue );
+					Guizmo::Rectangle( GetPointInCornerOfCell( node.position ), 1.0f, 1.0f, Guizmo::colBlue );
+				}
+			}
+
+			if ( ImGui::Button( "Check road network integrity" ) ) {
+				bool ok = map.roadNetwork.CheckNetworkIntegrity();
+				if ( ok ) {
+					ng::Printf( "Road network looks fine!\n" );
 				}
 			}
 		}
