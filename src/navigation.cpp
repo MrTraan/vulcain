@@ -510,16 +510,18 @@ bool BuildPathInsideNodes( Cell                      start,
 	ng::StaticArray< Cell, 4 > roadNeighbors;
 	GetRoadNeighborsOfCell( start, map, roadNeighbors );
 	ng_assert( roadNeighbors.Size() == 2 );
-	Cell              currentCell[ 2 ] = { roadNeighbors[ 0 ], roadNeighbors[ 1 ] };
-	Cell              previousCell[ 2 ] = { start, start };
-	CardinalDirection previousDirection[ 2 ] = { GetDirectionFromCellTo( start, roadNeighbors[ 0 ] ),
-	                                             GetDirectionFromCellTo( start, roadNeighbors[ 1 ] ) };
-	int               skipIndex0 = 0;
-	int               skipIndex1 = 0;
+	Cell                currentCell[ 2 ] = { roadNeighbors[ 0 ], roadNeighbors[ 1 ] };
+	Cell                previousCell[ 2 ] = { start, start };
+	CardinalDirection   previousDirection[ 2 ] = { GetDirectionFromCellTo( start, roadNeighbors[ 0 ] ),
+                                                 GetDirectionFromCellTo( start, roadNeighbors[ 1 ] ) };
+	std::vector< Cell > paths[ 2 ];
+	int                 skipIndex0 = 0;
+	int                 skipIndex1 = 0;
 	while ( skipIndex0 == 0 || skipIndex1 == 0 ) {
 		for ( int i = skipIndex0; i < 2 - skipIndex1; i++ ) {
 			if ( currentCell[ i ] == goal ) {
-				outPath.push_back( goal );
+				paths[ i ].push_back( goal );
+				outPath.insert( outPath.end(), paths[ i ].begin(), paths[ i ].end() );
 				return true;
 			}
 
@@ -531,7 +533,7 @@ bool BuildPathInsideNodes( Cell                      start,
 					nextRoadIsFound = true;
 					CardinalDirection currentDirection = GetDirectionFromCellTo( currentCell[ i ], neighbor );
 					if ( currentDirection != previousDirection[ i ] ) {
-						outPath.push_back( currentCell[ i ] );
+						paths[ i ].push_back( currentCell[ i ] );
 					}
 					previousDirection[ i ] = currentDirection;
 					previousCell[ i ] = currentCell[ i ];
@@ -638,6 +640,10 @@ bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector<
 	ng::ScopedChrono chrono( "RoadNetwork::FindPath" );
 	outPath.clear();
 
+	if ( map.GetTile(start) != MapTile::ROAD || map.GetTile(goal) != MapTile::ROAD ) {
+		return false;
+	}
+
 	std::vector< AStarStep * > openSet;
 	std::vector< AStarStep * > closedSet;
 
@@ -670,23 +676,27 @@ bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector<
 	FindNearestRoadNodes( start, map, searchStartA, searchStartB );
 	ng_assert( searchStartA.found == true );
 
-	if ( searchStartA.node == searchGoalA.node && searchStartB.node == searchGoalB.node ) {
+	if ( (searchStartA.node == searchGoalA.node && searchStartB.node == searchGoalB.node ) ||
+	(searchStartA.node == searchGoalB.node && searchStartB.node == searchGoalA.node )) {
 		// Start and goal are between the same nodes
-		BuildPathInsideNodes( start, goal, *searchStartA.node, *searchStartB.node, map, outPath );
+		outPath.push_back( goal );
+		BuildPathInsideNodes( goal, start, *searchStartA.node, *searchStartB.node, map, outPath );
 		return true;
 	}
 	if ( Node * startNode = FindNodeWithPosition( start );
 	     startNode != nullptr && ( searchGoalA.node == startNode || searchGoalB.node == startNode ) ) {
-		BuildPathFromNodeToCell( *startNode, goal, map, outPath );
-		return true;
-	}
-	if ( Node * goalNode = FindNodeWithPosition( goal );
-	     goalNode != nullptr && ( searchStartA.node == goalNode || searchGoalB.node == goalNode ) ) {
 		std::vector< Cell > reversePath;
-		BuildPathFromNodeToCell( *goalNode, start, map, reversePath );
+		BuildPathFromNodeToCell( *startNode, goal, map, reversePath );
 		for ( int i = reversePath.size() - 1; i >= 0; i-- ) {
 			outPath.push_back( reversePath[ i ] );
 		}
+		outPath.push_back( start );
+		return true;
+	}
+	if ( Node * goalNode = FindNodeWithPosition( goal );
+	     goalNode != nullptr && ( searchStartA.node == goalNode || searchStartB.node == goalNode ) ) {
+		outPath.push_back( goal );
+		BuildPathFromNodeToCell( *goalNode, start, map, outPath );
 		return true;
 	}
 
@@ -710,6 +720,7 @@ bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector<
 		}
 
 		if ( current->coord == goal ) {
+			goalFound = true;
 			break;
 		}
 
@@ -728,9 +739,14 @@ bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector<
 			for ( u32 i = 0; i < node->NumSetConnections(); i++ ) {
 				Connection * connection = node->GetValidConnectionWithOffset( i );
 				int          totalCost = current->g + connection->distance;
-				pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, current );
+				if ( FindNodeInSet( closedSet, connection->connectedTo ) == nullptr ) {
+					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, current );
+				}
 			}
 		}
+	}
+	if ( goalFound == false ) {
+		return false;
 	}
 	if ( current == nullptr ) {
 		return false;

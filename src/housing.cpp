@@ -41,21 +41,18 @@ static Cell GetClosestRoadPoint( const CpntBuilding & building, const Map & map 
 	return INVALID_CELL;
 }
 
-static bool BuildPathFromBuilding( const CpntBuilding &  building,
-                                   const Cell            goal,
-                                   AStarMovementAllowed  movement,
-                                   const Map &           map,
-                                   std::vector< Cell > & outPath ) {
+static bool BuildPathFromBuilding( const CpntBuilding & building, const Cell goal, std::vector< Cell > & outPath ) {
+	Map & map = theGame->map;
 	for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {
 		if ( map.GetTile( x, building.cell.z - 1 ) == MapTile::ROAD ) {
 			Cell start( x, building.cell.z - 1 );
-			if ( AStar( start, goal, movement, map, outPath ) == true ) {
+			if ( map.FindPath( start, goal, outPath ) == true ) {
 				return true;
 			}
 		}
 		if ( map.GetTile( x, building.cell.z + building.tileSizeZ ) == MapTile::ROAD ) {
 			Cell start( x, building.cell.z + building.tileSizeZ );
-			if ( AStar( start, goal, movement, map, outPath ) == true ) {
+			if ( map.FindPath( start, goal, outPath ) == true ) {
 				return true;
 			}
 		}
@@ -63,13 +60,13 @@ static bool BuildPathFromBuilding( const CpntBuilding &  building,
 	for ( u32 z = building.cell.z; z < building.cell.z + building.tileSizeZ; z++ ) {
 		if ( map.GetTile( building.cell.x - 1, z ) == MapTile::ROAD ) {
 			Cell start( building.cell.x - 1, z );
-			if ( AStar( start, goal, movement, map, outPath ) == true ) {
+			if ( map.FindPath( start, goal, outPath ) == true ) {
 				return true;
 			}
 		}
 		if ( map.GetTile( building.cell.x + building.tileSizeX, z ) == MapTile::ROAD ) {
 			Cell start( building.cell.x + building.tileSizeX, z );
-			if ( AStar( start, goal, movement, map, outPath ) == true ) {
+			if ( map.FindPath( start, goal, outPath ) == true ) {
 				return true;
 			}
 		}
@@ -151,8 +148,7 @@ void SystemBuildingProducing::Update( Registery & reg, float dt ) {
 
 			Cell storageRoadPoint =
 			    GetClosestRoadPoint( reg.GetComponent< CpntBuilding >( closestStorage ), theGame->map );
-			bool pathFound = AStar( roadPoint, storageRoadPoint, ASTAR_FORBID_DIAGONALS, theGame->map,
-			                        navAgent.pathfindingNextSteps );
+			bool pathFound = theGame->map.FindPath( roadPoint, storageRoadPoint, navAgent.pathfindingNextSteps );
 			ng_assert( pathFound == true );
 			reg.messageBroker.AddListener( carrier, carrier, OnAgentArrived, MESSAGE_PATHFINDING_DESTINATION_REACHED );
 		}

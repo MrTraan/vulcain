@@ -200,6 +200,10 @@ struct Map {
 	bool IsTileWalkable( Cell coord ) const { return GetTile( coord ) == MapTile::ROAD; }
 	int  GetTileWeight( Cell coord ) const { return 1; }
 
+	bool FindPath(  Cell start, Cell goal,  std::vector< Cell > & outPath  ) {
+		return roadNetwork.FindPath( start, goal, *this, outPath );
+	}
+
 	u32         sizeX = 0;
 	u32         sizeZ = 0;
 	RoadNetwork roadNetwork;
