@@ -3,7 +3,7 @@
 #include "ngLib/types.h"
 
 namespace ng {
-template < class T, size_t N = 16 > struct ObjectPool {
+template < class T, size_t N = 64 > struct ObjectPool {
 	ObjectPool() {
 		pool.resize( N );
 		for ( u32 i = 0; i < N; i++ ) {
@@ -43,10 +43,12 @@ template < typename T > struct DynamicArray {
 	u32 count = 0;
 
   public:
-	u32 Size() const { return count; }
-	u32 Capacity() const { return capacity; }
+	u32  Size() const { return count; }
+	u32  Capacity() const { return capacity; }
+	bool Empty() const { return count == 0; }
 
 	DynamicArray() = default;
+	DynamicArray( u32 initialCapacity ) { Resize( initialCapacity ); }
 	DynamicArray( const DynamicArray< T > & src ) { *this = src; }
 
 	DynamicArray< T > & operator=( const DynamicArray< T > & rhs ) {
@@ -67,13 +69,14 @@ template < typename T > struct DynamicArray {
 
 	~DynamicArray() { delete[] data; }
 
+	// Resize never reduce the compact, use "shrink" for that
 	bool Resize( u32 newCapacity ) {
-		if ( newCapacity == 0 ) {
-			newCapacity = initialAllocSize;
+		if ( newCapacity <= capacity ) {
+			return false;
 		}
 		T * temp = new T[ newCapacity ];
 
-		for ( u32 i = 0; i < MIN( capacity, newCapacity ); i++ ) {
+		for ( u32 i = 0; i < count; i++ ) {
 			temp[ i ] = data[ i ];
 		}
 
@@ -81,10 +84,19 @@ template < typename T > struct DynamicArray {
 		data = temp;
 
 		capacity = newCapacity;
-		if ( count > newCapacity ) {
-			count = newCapacity;
-		}
 		return true;
+	}
+
+	void Shrink() {
+		capacity = size;
+		T * temp = new T[ capacity ];
+
+		for ( u32 i = 0; i < count; i++ ) {
+			temp[ i ] = data[ i ];
+		}
+
+		delete[] data;
+		data = temp;
 	}
 
 	bool DeleteIndexFast( u32 index ) {
@@ -100,9 +112,6 @@ template < typename T > struct DynamicArray {
 	}
 
 	void Clear() {
-		delete[] data;
-		data = nullptr;
-		capacity = 0;
 		count = 0;
 	}
 

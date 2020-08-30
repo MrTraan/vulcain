@@ -89,14 +89,14 @@ struct RoadNetwork {
 			}
 			return nullptr;
 		}
-		
+
 		Connection * FindShortestConnectionWith( const Cell & cell ) {
 			Connection * res = nullptr;
 			for ( size_t i = 0; i < 4; i++ ) {
 				if ( connections[ i ].connectedTo == cell ) {
-					if ( res == nullptr) {
+					if ( res == nullptr ) {
 						res = connections + i;
-					} else if (connections[i].distance < res->distance) {
+					} else if ( connections[ i ].distance < res->distance ) {
 						res = connections + i;
 					}
 				}
@@ -123,10 +123,10 @@ struct RoadNetwork {
 			return false;
 		}
 
-		CardinalDirection GetDirectionOfConnection(const Connection * connection) const {
-			int offset = (int)(connection - connections);
-			ng_assert(offset >= 0 && offset < 4 );
-			return (CardinalDirection)offset;
+		CardinalDirection GetDirectionOfConnection( const Connection * connection ) const {
+			int offset = ( int )( connection - connections );
+			ng_assert( offset >= 0 && offset < 4 );
+			return ( CardinalDirection )offset;
 		}
 	};
 
@@ -171,7 +171,7 @@ struct Map {
 		tiles = new MapTile[ ( u64 )sizeX * sizeZ ];
 		for ( u32 x = 0; x < sizeX; x++ ) {
 			for ( u32 z = 0; z < sizeZ; z++ ) {
-				SetTile( x, z, MapTile::EMPTY );
+				tiles[ x * sizeZ + z ] = MapTile::EMPTY;
 			}
 		}
 	}
@@ -200,7 +200,7 @@ struct Map {
 	bool IsTileWalkable( Cell coord ) const { return GetTile( coord ) == MapTile::ROAD; }
 	int  GetTileWeight( Cell coord ) const { return 1; }
 
-	bool FindPath(  Cell start, Cell goal,  std::vector< Cell > & outPath  ) {
+	bool FindPath( Cell start, Cell goal, std::vector< Cell > & outPath ) {
 		return roadNetwork.FindPath( start, goal, *this, outPath );
 	}
 

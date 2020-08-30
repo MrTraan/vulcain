@@ -19,12 +19,21 @@ find_package(lz4 REQUIRED)
 find_package(tinyxml2 CONFIG REQUIRED)
 
 add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GL3W)
+add_definitions(-DNOMINMAX)
+add_definitions(-DNG_ASSERT_ENABLED)
 
 if ( ENABLE_PROFILING )
 	add_compile_definitions( TRACY_ENABLE=1 )
-	set( TRACY_LIBRARY_PATH "${CMAKE_SOURCE_DIR}/lib/tracy_client.lib" )
+	add_definitions(-DBENCHMARK_ENABLED)
+	remove_definitions(-DNG_ASSERT_ENABLED)
+	set( TRACY_SOURCES "${CMAKE_SOURCE_DIR}/lib/tracy/TracyClient.cpp" )
+	find_package(benchmark CONFIG REQUIRED)
+	set(BENCHMARK_LIBRARY "benchmark::benchmark" )
+	set( BENCHMARK_SOURCES "test/benchmarks.cpp" )
 else()
-	set( TRACY_LIBRARY_PATH "${CMAKE_SOURCE_DIR}/lib/tracy_client_phony.lib" )
+	set( TRACY_SOURCES "" )
+	set( BENCHMARK_SOURCES "" )
+	set( BENCHMARK_LIBRARY "" )
 endif( ENABLE_PROFILING )
 
 if ( ENABLE_TESTING )
@@ -39,6 +48,8 @@ set(GLM_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/lib/glm/")
 add_executable(vulcain
 	"src/main.cpp"
 	${TEST_SOURCES}
+	${TRACY_SOURCES}
+	${BENCHMARK_SOURCES} 
 	
 	"src/ngLib/console.cpp"
 	"src/ngLib/logs.cpp"
@@ -71,6 +82,7 @@ target_link_libraries(vulcain PRIVATE
 	SDL2::SDL2main SDL2::SDL2-static
 	lz4::lz4
 	${TRACY_LIBRARY_PATH}
+	${BENCHMARK_LIBRARY}
     tinyxml2::tinyxml2
 )
 

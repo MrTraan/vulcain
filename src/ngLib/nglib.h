@@ -5,9 +5,6 @@
 #include "types.h"
 #include <stdlib.h>
 
-// TODO: Remove in retail
-#define NG_ASSERT_ENABLED
-
 #ifdef NG_ASSERT_ENABLED
 #define ng_assert( condition )                                                                                         \
 	if ( !( condition ) ) {                                                                                            \

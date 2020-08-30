@@ -36,6 +36,10 @@
 NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #endif
 
+#if defined( BENCHMARK_ENABLED )
+#include "../test/benchmarks.h"
+#endif
+
 #define STB_IMAGE_IMPLEMENTATION // force following include to generate implementation
 #include <stb_image.h>
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -108,6 +112,13 @@ int main( int ac, char ** av ) {
 #if defined( ENABLE_TESTING )
 	int result = Catch::Session().run( ac, av );
 	return result;
+#endif
+
+#if defined( BENCHMARK_ENABLED )
+	if ( ac > 1 && strcmp( "--run-benchmarks", av[ 1 ] ) == 0 ) {
+		RunBenchmarks(ac - 1, av + 1);
+		return 0;
+	}
 #endif
 
 	if ( ac > 1 && strcmp( "--create-archive", av[ 1 ] ) == 0 ) {
@@ -191,6 +202,13 @@ int main( int ac, char ** av ) {
 	Map & map = theGame->map;
 	map.AllocateGrid( 200, 200 );
 	SpawnRoadBlock( registery, map, Cell( 0, 0 ), &roadModel );
+	
+	for ( u32 x = 30; x <= 100; x++ ) {
+		for ( u32 z = 30; z <= 100; z++ ) {
+			if ( x % 10 == 0 || z % 10 == 0 )
+	SpawnRoadBlock( registery, map, Cell( x, z ), &roadModel );
+		}
+	}
 
 	Entity storageHouse = SpawnBuilding( registery, map, Cell( 10, 10 ), 3, 3, g_modelAtlas.storeHouseMesh );
 	registery.AssignComponent< CpntBuildingStorage >( storageHouse );
@@ -345,10 +363,9 @@ int main( int ac, char ** av ) {
                     GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ), map,
                     registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps );
 				ng::Printf( "Path found %d\n", pathFound );
-				std::vector<Cell> foo;
+				std::vector< Cell > foo;
 				AStar( GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ),
-				       ASTAR_ALLOW_DIAGONALS, map,
-				       foo );
+				       ASTAR_ALLOW_DIAGONALS, map, foo );
 			}
 			if ( io.mouse.IsButtonDown( Mouse::Button::LEFT ) ) {
 				if ( io.keyboard.IsKeyDown( KEY_LEFT_SHIFT ) ) {
