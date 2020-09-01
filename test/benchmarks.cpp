@@ -1,5 +1,7 @@
-#include <benchmark/benchmark.h>
 #include "navigation.h"
+#include "ngLib/ngcontainers.h"
+#include <benchmark/benchmark.h>
+#include <list>
 
 static void BM_NetworkFindPath( benchmark::State & state ) {
 	Map           map;
@@ -38,6 +40,138 @@ static void BM_AStar( benchmark::State & state ) {
 }
 
 BENCHMARK( BM_AStar );
+
+static void BM_ngBitfieldSet( benchmark::State & state ) {
+	ng::Bitfield64 field;
+	for ( auto _ : state ) {
+		for ( int i = 0; i < 64; i++ ) {
+			field.Set( i );
+		}
+	}
+	benchmark::DoNotOptimize( field );
+}
+
+BENCHMARK( BM_ngBitfieldSet );
+
+static void BM_stlBitfieldSet( benchmark::State & state ) {
+	std::bitset< 64 > field;
+	for ( auto _ : state ) {
+		for ( int i = 0; i < 64; i++ ) {
+			field.set( i );
+		}
+	}
+	benchmark::DoNotOptimize( field );
+}
+
+BENCHMARK( BM_stlBitfieldSet );
+
+static void BM_ngBitfieldTest( benchmark::State & state ) {
+	ng::Bitfield64 field;
+	for ( auto _ : state ) {
+		for ( int i = 0; i < 64; i++ ) {
+			bool ok = field.Test( i );
+			benchmark::DoNotOptimize( ok );
+		}
+	}
+	benchmark::DoNotOptimize( field );
+}
+
+BENCHMARK( BM_ngBitfieldTest );
+
+static void BM_stlBitfieldTest( benchmark::State & state ) {
+	std::bitset< 64 > field;
+	for ( auto _ : state ) {
+		for ( int i = 0; i < 64; i++ ) {
+			bool ok = field.test( i );
+			benchmark::DoNotOptimize( ok );
+		}
+	}
+	benchmark::DoNotOptimize( field );
+}
+
+BENCHMARK( BM_stlBitfieldTest );
+
+static void BM_objectPoolCreateOne( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		ng::ObjectPool< int > pool;
+		int * elem = pool.Pop();
+		benchmark::DoNotOptimize( elem );
+	}
+}
+
+BENCHMARK( BM_objectPoolCreateOne );
+
+static void BM_objectPoolCreateTwo( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		ng::ObjectPool< int > pool;
+		int * elem = pool.Pop();
+		benchmark::DoNotOptimize( elem );
+		elem = pool.Pop();
+		benchmark::DoNotOptimize( elem );
+	}
+}
+
+BENCHMARK( BM_objectPoolCreateTwo );
+
+static void BM_objectPoolCreation( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		ng::ObjectPool< int > pool;
+		for ( int i = 0; i < 64 * 20; i++ ) {
+			int * elem = pool.Pop();
+			benchmark::DoNotOptimize( elem );
+		}
+	}
+}
+
+BENCHMARK( BM_objectPoolCreation );
+
+static void BM_ngLinkedListInsertion( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		ng::LinkedList< int > list;
+		for ( int i = 0; i < 64 * 20; i++ ) {
+			list.PushFront( i );
+		}
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_ngLinkedListInsertion );
+
+static void BM_stlLinkedListInsertion( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		std::list< int > list;
+		for ( int i = 0; i < 64 * 20; i++ ) {
+			list.push_front( i );
+		}
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_stlLinkedListInsertion );
+
+static void BM_ngVectorInsertion( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		ng::DynamicArray< int > list;
+		for ( int i = 0; i < 64 * 20; i++ ) {
+			list.PushBack( i );
+		}
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_ngVectorInsertion );
+
+static void BM_stlVectorInsertion( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		std::vector< int > list;
+		for ( int i = 0; i < 64 * 20; i++ ) {
+			list.push_back( i );
+		}
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_stlVectorInsertion );
 
 int RunBenchmarks( int argc, char ** argv ) {
 	::benchmark::Initialize( &argc, argv );

@@ -15,7 +15,9 @@ struct AStarStep {
 	AStarStep *         parent = nullptr;
 	int                 f, g, h;
 
+	bool operator==( const AStarStep & rhs ) const { return f == rhs.f; }
 	bool operator<( const AStarStep & rhs ) const { return f < rhs.f; }
+	bool operator>( const AStarStep & rhs ) const { return f > rhs.f; }
 };
 
 static AStarStep * FindNodeInSet( std::vector< AStarStep * > & set, Cell coords ) {
@@ -34,6 +36,26 @@ static AStarStep * FindNodeInSet( ng::DynamicArray< AStarStep * > & set, Cell co
 		}
 	}
 	return nullptr;
+}
+
+static bool FindNodeInList( ng::LinkedList< AStarStep > & list, Cell coords ) {
+	for ( auto & node : list ) {
+		if ( node.coord == coords ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool PopNodeFromList( ng::LinkedList< AStarStep > & list, Cell coords, AStarStep & out ) {
+	for ( auto cursor = list.head; cursor != nullptr; cursor = cursor->next ) {
+		if ( cursor->data.coord == coords ) {
+			out = cursor->data;
+			list.DeleteNode( cursor );
+			return true;
+		}
+	}
+	return false;
 }
 
 static int Heuristic( Cell node, Cell goal, AStarMovementAllowed movement ) {
@@ -654,15 +676,17 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &   start,
 	}
 	return false;
 }
-
-thread_local ng::DynamicArray< AStarStep * > findPathOpenSet( 256 );
-thread_local ng::DynamicArray< AStarStep * > findPathClosedSet( 256 );
+	
+static ng::LinkedList< AStarStep > findPathOpenSet;
+static 	ng::LinkedList< AStarStep > findPathClosedSet;
 
 bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector< Cell > & outPath ) {
 	ZoneScopedN( "Find_Path" );
 	constexpr int infiniteWeight = INT_MAX;
+
 	findPathOpenSet.Clear();
 	findPathClosedSet.Clear();
+
 	outPath.clear();
 	outPath.reserve( 64 );
 
@@ -671,21 +695,22 @@ bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector<
 	}
 
 	auto pushOrUpdateStep = [ & ]( const Cell & position, Node * node, int totalCost, AStarStep * parent ) {
-		AStarStep * newStep = FindNodeInSet( findPathOpenSet, position );
-		if ( newStep == nullptr ) {
-			newStep = aStarStepPool.Pop();
-			newStep->coord = position;
-			newStep->node = node;
-			newStep->parent = parent;
-			newStep->g = totalCost;
-			newStep->h = Heuristic( position, goal, ASTAR_FORBID_DIAGONALS );
-			newStep->f = newStep->g + newStep->h;
-			findPathOpenSet.PushBack( newStep );
-		} else if ( newStep->g > totalCost ) {
-			newStep->parent = parent;
-			newStep->g = totalCost;
-			newStep->f = newStep->g + newStep->h;
+		AStarStep step;
+		bool found = PopNodeFromList(findPathOpenSet, position, step );
+		if ( found == false ) {
+			step.coord = position;
+			step.node = node;
+			step.parent = parent;
+			step.g = totalCost;
+			step.h = Heuristic( position, goal, ASTAR_FORBID_DIAGONALS );
+			step.f = step.g + step.h;
+		} else if ( step.g > totalCost ) {
+			step.parent = parent;
+			step.g = totalCost;
+			step.f = step.g + step.h;
 		}
+
+		LinkedListInsertSorted( findPathOpenSet, step, ng::SortOrder::ASCENDING );
 	};
 
 	NodeSearchResult searchGoalA;
@@ -725,40 +750,32 @@ bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector<
 	}
 
 	bool        goalFound = false;
-	AStarStep * current = nullptr;
+	AStarStep * lastStep = nullptr;
 	while ( findPathOpenSet.Empty() == false ) {
-		current = findPathOpenSet[ 0 ];
-		u32 currentIndex = 0;
-		for ( u32 i = 1; i < findPathOpenSet.Size(); i++ ) {
-			AStarStep * step = findPathOpenSet[ i ];
-			if ( step->f <= current->f ) {
-				current = step;
-				currentIndex = i;
-			}
-		}
-
-		if ( current->coord == goal ) {
+		AStarStep current = findPathOpenSet.Front();
+		if ( current.coord == goal ) {
+			lastStep = &(findPathOpenSet.Front());
 			goalFound = true;
 			break;
 		}
 
-		findPathClosedSet.PushBack( current );
-		findPathOpenSet.DeleteIndexFast( currentIndex );
+		AStarStep & parent = findPathClosedSet.PushFront( current );
+		findPathOpenSet.PopFront();
 
-		Node * node = current->node;
+		Node * node = current.node;
 		ng_assert( node != nullptr );
-		if ( current->coord == searchGoalA.node->position ) {
-			int totalCost = current->g + searchGoalA.distance;
-			pushOrUpdateStep( goal, nullptr, totalCost, current );
-		} else if ( searchGoalB.found == true && current->coord == searchGoalB.node->position ) {
-			int totalCost = current->g + searchGoalB.distance;
-			pushOrUpdateStep( goal, nullptr, totalCost, current );
+		if ( current.coord == searchGoalA.node->position ) {
+			int totalCost = current.g + searchGoalA.distance;
+			pushOrUpdateStep( goal, nullptr, totalCost, &parent );
+		} else if ( searchGoalB.found == true && current.coord == searchGoalB.node->position ) {
+			int totalCost = current.g + searchGoalB.distance;
+			pushOrUpdateStep( goal, nullptr, totalCost, &parent );
 		} else {
 			for ( u32 i = 0; i < node->NumSetConnections(); i++ ) {
 				Connection * connection = node->GetValidConnectionWithOffset( i );
-				int          totalCost = current->g + connection->distance;
-				if ( FindNodeInSet( findPathClosedSet, connection->connectedTo ) == nullptr ) {
-					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, current );
+				int          totalCost = current.g + connection->distance;
+				if ( FindNodeInList( findPathClosedSet, connection->connectedTo ) == false ) {
+					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, &parent );
 				}
 			}
 		}
@@ -766,13 +783,13 @@ bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector<
 	if ( goalFound == false ) {
 		return false;
 	}
-	if ( current == nullptr ) {
+	if ( lastStep == nullptr ) {
 		return false;
 	}
 
-	BuildPathFromNodeToCell( *current->parent->node, current->coord, map, outPath, true );
+	BuildPathFromNodeToCell( *lastStep->parent->node, lastStep->coord, map, outPath, true );
 
-	auto cursor = current->parent;
+	auto cursor = lastStep->parent;
 	while ( cursor != nullptr ) {
 		if ( outPath[ outPath.size() - 1 ] != cursor->coord ) {
 			outPath.push_back( cursor->coord );
@@ -785,14 +802,7 @@ bool RoadNetwork::FindPath( Cell start, Cell goal, const Map & map, std::vector<
 		cursor = cursor->parent;
 	}
 
-	for ( AStarStep * step : findPathOpenSet ) {
-		aStarStepPool.Push( step );
-	}
-	for ( AStarStep * step : findPathClosedSet ) {
-		aStarStepPool.Push( step );
-	}
-
-	return current->coord == goal;
+	return lastStep->coord == goal;
 }
 
 bool RoadNetwork::CheckNetworkIntegrity() {
