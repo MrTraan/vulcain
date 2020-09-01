@@ -7,14 +7,6 @@ in vec2 fragTexCoord;
 
 uniform sampler2D diffuseTexture;
 
-struct Light {
-	vec3 direction;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-};
-uniform Light light;
-
 struct Material {
     vec3 ambient;
     vec3 diffuse;
@@ -30,6 +22,13 @@ layout (std140, binding = 0) uniform Matrices {
 	vec4 viewPosition;
 };
 
+layout(std140, binding = 1) uniform Light {
+	vec4 light_direction;
+    vec4 light_ambient;
+    vec4 light_diffuse;
+    vec4 light_specular;
+};
+
 void main()
 {
 	vec4 textureColor = texture( diffuseTexture, fragTexCoord );
@@ -40,17 +39,17 @@ void main()
 
 	vec3 normal = normalize( fragNormal );
 	// diffuse
-	float dotLightNormal = -dot( normal, light.direction );
+	float dotLightNormal = -dot( normal, vec3(light_direction ) );
 	float diff = max( dotLightNormal, 0.0f );
-	vec3  diffuse = light.diffuse * ( diff * material.diffuse );
+	vec3  diffuse = vec3(light_diffuse ) * ( diff * material.diffuse );
 
 	// specular
 	vec3  viewDir = normalize( vec3( viewPosition ) - fragPosition );
-	vec3  reflectDir = reflect( light.direction, normal );
+	vec3  reflectDir = reflect( vec3(light_direction), normal );
 	float spec = pow( max( dot( viewDir, reflectDir ), 0.0 ), material.shininess );
-	vec3  specular = light.specular * ( spec * material.specular );
+	vec3  specular = vec3(light_specular )* ( spec * material.specular );
 
-	vec3 lighting = light.ambient + diffuse + specular;
+	vec3 lighting = vec3(light_ambient )+ diffuse + specular;
 
 	FragColor = textureColor * vec4( lighting, 1.0 );
 }

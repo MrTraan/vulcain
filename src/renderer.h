@@ -5,12 +5,20 @@
 #include <glm/glm.hpp>
 
 constexpr u32 viewProjUBOIndex = 0u;
+constexpr u32 lightUBOIndex = 1u;
 
 struct ViewProjUBOData {
 	glm::mat4 projection;
 	glm::mat4 view;
 	glm::mat4 viewProj;
 	glm::vec3 viewPosition;
+};
+
+struct LightUBOData {
+	glm::vec4 direction;
+	glm::vec4 ambient;
+	glm::vec4 diffuse;
+	glm::vec4 specular;
 };
 
 struct Camera {
@@ -44,4 +52,4 @@ void ShutdownRenderer();
 
 void CreateUBOBuffers();
 void FillViewProjUBO( const ViewProjUBOData * data );
-void BindDefaultFramebuffer();
+void FillLightUBO( const LightUBOData * data );

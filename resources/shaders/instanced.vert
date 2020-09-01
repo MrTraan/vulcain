@@ -1,0 +1,26 @@
+#version 420 core
+layout (location = 0) in vec3 aPosition;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoord;
+layout (location = 3) in vec3 translation;
+
+out vec3 fragPosition;
+out vec3 fragNormal;
+out vec2 fragTexCoord;
+
+layout (std140, binding = 0) uniform Matrices {
+	mat4 projection;
+	mat4 view;
+	mat4 viewProj;
+	vec4 viewPosition;
+};
+
+uniform mat3 normalTransform;
+
+void main()
+{
+	fragPosition = aPosition + translation;
+    gl_Position = viewProj * vec4( fragPosition, 1.0 );
+	fragTexCoord = aTexCoord;
+	fragNormal = normalTransform * aNormal;
+} 

@@ -65,17 +65,21 @@ Shader CompileShaderFromResource( const PackerResourceID & vertexID, const Packe
 	ng_assert( vertex->type == PackerResource::Type::VERTEX_SHADER );
 	ng_assert( frag->type == PackerResource::Type::FRAGMENT_SHADER );
 
-	return CompileShaderFromCode( ( char * )theGame->package.GrabResourceData( *vertex ), (int)vertex->size,
-	                        ( char * )theGame->package.GrabResourceData( *frag ), (int)frag->size );
+	return CompileShaderFromCode( ( char * )theGame->package.GrabResourceData( *vertex ), ( int )vertex->size,
+	                              ( char * )theGame->package.GrabResourceData( *frag ), ( int )frag->size );
 }
 
 void ShaderAtlas::CompileAllShaders() {
-	defaultShader = CompileShaderFromResource(  PackerResources::SHADERS_DEFAULT_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
-	colorShader = CompileShaderFromResource( PackerResources::SHADERS_COLORED_VERT, PackerResources::SHADERS_COLORED_FRAG );
+	defaultShader =
+	    CompileShaderFromResource( PackerResources::SHADERS_DEFAULT_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
+	colorShader =
+	    CompileShaderFromResource( PackerResources::SHADERS_COLORED_VERT, PackerResources::SHADERS_COLORED_FRAG );
+	instancedShader =
+	    CompileShaderFromResource( PackerResources::SHADERS_INSTANCED_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
 }
 
 void ShaderAtlas::FreeShaders() {
 	glDeleteShader( defaultShader.ID );
 	glDeleteShader( colorShader.ID );
+	glDeleteShader( instancedShader.ID );
 }
-

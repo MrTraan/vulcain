@@ -33,6 +33,7 @@ struct ShaderAtlas {
 
 	Shader defaultShader;
 	Shader colorShader;
+	Shader instancedShader;
 };
 
 extern ShaderAtlas g_shaderAtlas;

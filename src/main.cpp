@@ -17,6 +17,7 @@
 #include "housing.h"
 #include "mesh.h"
 #include "navigation.h"
+#include "ngLib/ngcontainers.h"
 #include "ngLib/nglib.h"
 #include "packer.h"
 #include "packer_resource_list.h"
@@ -32,6 +33,12 @@
 
 #if defined( _WIN32 )
 #include <filesystem>
+// Encourage drivers to use graphics cards over integrated graphics
+//extern "C" {
+//_declspec( dllexport ) DWORD NvOptimusEnablement = 0x00000001;
+//_declspec( dllexport ) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
+//}
+
 #else
 NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #endif
@@ -44,6 +51,19 @@ NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #include <stb_image.h>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
+
+void GLErrorCallback( GLenum         source,
+                      GLenum         type,
+                      GLuint         id,
+                      GLenum         severity,
+                      GLsizei        length,
+                      const GLchar * message,
+                      const void *   userParam ) {
+	if ( severity != GL_DEBUG_SEVERITY_NOTIFICATION ) {
+		ng::Errorf( "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+		            ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ), type, severity, message );
+	}
+}
 
 Game * theGame;
 
@@ -65,18 +85,71 @@ static void FixedUpdate() {}
 
 static void Render() {}
 
-void SpawnRoadBlock( Registery & reg, Map & map, Cell cell, const Model * model ) {
+struct InstancedModelBatch {
+	Model *                       model;
+	ng::DynamicArray< glm::vec3 > positions;
+	bool                          dirty = false;
+	u32                           arrayBuffer;
+
+	void Init( Model * model ) {
+		this->model = model;
+		glGenBuffers( 1, &arrayBuffer );
+		UpdateVAO();
+
+		for ( unsigned int i = 0; i < model->meshes.size(); i++ ) {
+			unsigned int VAO = model->meshes[ i ].vao;
+			glBindVertexArray( VAO );
+			glEnableVertexAttribArray( 3 );
+			glVertexAttribPointer( 3, 3, GL_FLOAT, GL_FALSE, sizeof( glm::vec3 ), ( void * )0 );
+			glVertexAttribDivisor( 3, 1 );
+
+			glBindVertexArray( 0 );
+		}
+	}
+
+	void UpdateVAO() {
+		glBindBuffer( GL_ARRAY_BUFFER, arrayBuffer );
+		glBufferData( GL_ARRAY_BUFFER, positions.Size() * sizeof( glm::vec3 ), positions.data, GL_STATIC_DRAW );
+	}
+
+	void Render() {
+		if ( dirty ) {
+			UpdateVAO();
+			dirty = false;
+		}
+		Shader & shader = g_shaderAtlas.instancedShader;
+		shader.Use();
+		for ( const Mesh & mesh : model->meshes ) {
+			glm::mat4 transform( 1.0f );
+			glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform ) ) );
+			shader.SetMatrix3( "normalTransform", normalMatrix );
+			shader.SetVector( "material.ambient", mesh.material->ambiant );
+			shader.SetVector( "material.diffuse", mesh.material->diffuse );
+			shader.SetVector( "material.specular", mesh.material->specular );
+			shader.SetFloat( "material.shininess", mesh.material->shininess );
+
+			glActiveTexture( GL_TEXTURE0 );
+			glBindVertexArray( mesh.vao );
+			glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
+			if ( mesh.material->mode == Material::MODE_TRANSPARENT ) {
+				glEnable( GL_BLEND );
+				glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+			}
+			glDrawElementsInstanced( GL_TRIANGLES, ( GLsizei )mesh.indices.size(), GL_UNSIGNED_INT, nullptr,
+			                         positions.Size() );
+			glDisable( GL_BLEND );
+			glBindVertexArray( 0 );
+		}
+	}
+};
+
+InstancedModelBatch roadModels;
+
+void SpawnRoadBlock( Registery & reg, Map & map, Cell cell ) {
 	if ( map.GetTile( cell ) != MapTile::ROAD ) {
 		map.SetTile( cell, MapTile::ROAD );
-
-		Entity          e = reg.CreateEntity();
-		CpntTransform & t = reg.AssignComponent< CpntTransform >( e );
-		t.SetTranslation( GetPointInCornerOfCell( cell ) );
-		reg.AssignComponent< CpntRenderModel >( e, model );
-		CpntBuilding & buildingCpnt = reg.AssignComponent< CpntBuilding >( e );
-		buildingCpnt.cell = cell;
-		buildingCpnt.tileSizeX = 1;
-		buildingCpnt.tileSizeZ = 1;
+		roadModels.positions.PushBack( GetPointInCornerOfCell( cell ) );
+		roadModels.dirty = true;
 	}
 }
 
@@ -116,7 +189,7 @@ int main( int ac, char ** av ) {
 
 #if defined( BENCHMARK_ENABLED )
 	if ( ac > 1 && strcmp( "--run-benchmarks", av[ 1 ] ) == 0 ) {
-		RunBenchmarks(ac - 1, av + 1);
+		RunBenchmarks( ac - 1, av + 1 );
 		return 0;
 	}
 #endif
@@ -147,6 +220,15 @@ int main( int ac, char ** av ) {
 	IO &     io = theGame->io;
 
 	window.Init();
+
+	glEnable( GL_DEBUG_OUTPUT );
+	glDebugMessageCallback( GLErrorCallback, 0 );
+
+	{
+		auto vendor = glGetString( GL_VENDOR );
+		auto renderer = glGetString( GL_RENDERER );
+		ng::Printf( "Using graphics card: %s %s\n ", vendor, renderer );
+	}
 
 	// Setup imgui
 	ImGui::CreateContext();
@@ -191,6 +273,8 @@ int main( int ac, char ** av ) {
 	CreateTexturedPlane( 1.0f, 1.0f, 1.0f, *( theGame->package.GrabResource( PackerResources::ROAD_TEXTURE_PNG ) ),
 	                     roadModel );
 
+	roadModels.Init( &roadModel );
+
 	Entity player = registery.CreateEntity();
 	{
 		registery.AssignComponent< CpntRenderModel >( player, g_modelAtlas.cubeMesh );
@@ -201,12 +285,12 @@ int main( int ac, char ** av ) {
 
 	Map & map = theGame->map;
 	map.AllocateGrid( 200, 200 );
-	SpawnRoadBlock( registery, map, Cell( 0, 0 ), &roadModel );
-	
+	SpawnRoadBlock( registery, map, Cell( 0, 0 ) );
+
 	for ( u32 x = 30; x <= 100; x++ ) {
 		for ( u32 z = 30; z <= 100; z++ ) {
 			if ( x % 10 == 0 || z % 10 == 0 )
-	SpawnRoadBlock( registery, map, Cell( x, z ), &roadModel );
+				SpawnRoadBlock( registery, map, Cell( x, z ) );
 		}
 	}
 
@@ -220,7 +304,7 @@ int main( int ac, char ** av ) {
 	producer.resource = GameResource::WHEAT;
 
 	for ( u32 z = 10; z < 24; z++ ) {
-		SpawnRoadBlock( registery, map, Cell( 9, z ), &roadModel );
+		SpawnRoadBlock( registery, map, Cell( 9, z ) );
 	}
 
 	while ( !window.shouldClose ) {
@@ -380,10 +464,14 @@ int main( int ac, char ** av ) {
 								}
 							}
 						}
+					} else if ( map.GetTile( mouseCellPosition ) == MapTile::ROAD ) {
+						roadModels.positions.DeleteValueFast( GetPointInCornerOfCell( mouseCellPosition ) );
+						roadModels.dirty = true;
+						map.SetTile( mouseCellPosition, MapTile::EMPTY );
 					}
 				} else if ( map.GetTile( mouseCellPosition ) == MapTile::EMPTY ) {
 					// Build road cell
-					SpawnRoadBlock( registery, map, mouseCellPosition, &roadModel );
+					SpawnRoadBlock( registery, map, mouseCellPosition );
 				}
 			}
 		}
@@ -401,18 +489,24 @@ int main( int ac, char ** av ) {
 			ImGui::SliderFloat( "light diffuse", &lightDiffuse, 0.0f, 1.0f );
 			ImGui::SliderFloat( "light specular", &lightSpecular, 0.0f, 1.0f );
 
+			LightUBOData lightUBOData{};
+			lightUBOData.direction = glm::vec4( glm::normalize( lightDirection ), 1.0f );
+			lightUBOData.ambient = glm::vec4( glm::vec3( lightAmbiant ), 1.0f );
+			lightUBOData.diffuse = glm::vec4( glm::vec3( lightDiffuse ), 1.0f );
+			lightUBOData.specular = glm::vec4( glm::vec3( lightSpecular ), 1.0f );
+			FillLightUBO( &lightUBOData );
+
 			Shader & defaultShader = g_shaderAtlas.defaultShader;
 			defaultShader.Use();
-			defaultShader.SetVector( "light.direction", glm::normalize( lightDirection ) );
-			defaultShader.SetVector( "light.ambient", glm::vec3( lightAmbiant ) );
-			defaultShader.SetVector( "light.diffuse", glm::vec3( lightDiffuse ) );
-			defaultShader.SetVector( "light.specular", glm::vec3( lightSpecular ) );
 
 			// Just push the ground a tiny below y to avoid clipping
 			CpntTransform groundTransform;
 			groundTransform.SetTranslation( { 0.0f, -0.01f, 0.0f } );
 			DrawModel( groundModel, groundTransform, defaultShader );
 
+			roadModels.Render();
+
+			defaultShader.Use();
 			for ( auto const & [ e, renderModel ] : registery.IterateOver< CpntRenderModel >() ) {
 				if ( renderModel.model != nullptr ) {
 					DrawModel( *renderModel.model, registery.GetComponent< CpntTransform >( e ), defaultShader );
@@ -437,18 +531,12 @@ int main( int ac, char ** av ) {
 				}
 			}
 
-			if ( ImGui::Button( "Check road network integrity" ) ) {
-				bool ok = map.roadNetwork.CheckNetworkIntegrity();
-				if ( ok ) {
-					ng::Printf( "Road network looks fine!\n" );
-				}
-			}
+			Guizmo::Draw();
 		}
 
 		ng::GetConsole().Draw();
 		DrawDebugWindow();
 
-		Guizmo::Draw();
 		{
 			ZoneScopedN( "Render_IMGUI" );
 			ImGui::Render();
@@ -544,6 +632,12 @@ void DrawDebugWindow() {
 	//	systemWithNames[ currentlySelected ].second->DebugDraw();
 	//	ImGui::TreePop();
 	//}
+	if ( ImGui::Button( "Check road network integrity" ) ) {
+		bool ok = theGame->map.roadNetwork.CheckNetworkIntegrity();
+		if ( ok ) {
+			ng::Printf( "Road network looks fine!\n" );
+		}
+	}
 
 	ImGui::End();
 }

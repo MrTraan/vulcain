@@ -621,7 +621,7 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &   start,
 			if ( currentCell == goal ) {
 				path.push_back( goal );
 				if ( insertReverse == true ) {
-					for ( int i = path.size() - 1; i >= 0; i-- ) {
+					for ( int64 i = path.size() - 1; i >= 0; i-- ) {
 						outPath.push_back( path[ i ] );
 					}
 				} else {

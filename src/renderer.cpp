@@ -2,23 +2,41 @@
 #include "ngLib/nglib.h"
 
 u32 viewProjUBO;
+u32 lightUBO;
 
 void InitRenderer() { CreateUBOBuffers(); }
 
-void ShutdownRenderer() { glDeleteBuffers( 1, &viewProjUBO ); }
+void ShutdownRenderer() {
+	glDeleteBuffers( 1, &viewProjUBO );
+	glDeleteBuffers( 1, &lightUBO );
+}
 
 void CreateUBOBuffers() {
 	glGenBuffers( 1, &viewProjUBO );
+	glGenBuffers( 1, &lightUBO );
 	glBindBuffer( GL_UNIFORM_BUFFER, viewProjUBO );
 	glBufferData( GL_UNIFORM_BUFFER, sizeof( ViewProjUBOData ), nullptr, GL_DYNAMIC_DRAW );
+	glBindBuffer( GL_UNIFORM_BUFFER, lightUBO );
+	glBufferData( GL_UNIFORM_BUFFER, sizeof( LightUBOData ), nullptr, GL_DYNAMIC_DRAW );
 	glBindBuffer( GL_UNIFORM_BUFFER, 0 );
 
 	glBindBufferRange( GL_UNIFORM_BUFFER, viewProjUBOIndex, viewProjUBO, 0, sizeof( ViewProjUBOData ) );
+	glBindBufferRange( GL_UNIFORM_BUFFER, lightUBOIndex, lightUBO, 0, sizeof( LightUBOData ) );
 }
 
 void FillViewProjUBO( const ViewProjUBOData * data ) {
 	glBindBuffer( GL_UNIFORM_BUFFER, viewProjUBO );
 	GLvoid * p = glMapBuffer( GL_UNIFORM_BUFFER, GL_WRITE_ONLY );
+	ng_assert(p != nullptr);
+	memcpy( p, data, sizeof( ViewProjUBOData ) );
+	glUnmapBuffer( GL_UNIFORM_BUFFER );
+	glBindBuffer( GL_UNIFORM_BUFFER, 0 );
+}
+
+void FillLightUBO( const LightUBOData * data ) {
+	glBindBuffer( GL_UNIFORM_BUFFER, lightUBO );
+	GLvoid * p = glMapBuffer( GL_UNIFORM_BUFFER, GL_WRITE_ONLY );
+	ng_assert(p != nullptr);
 	memcpy( p, data, sizeof( ViewProjUBOData ) );
 	glUnmapBuffer( GL_UNIFORM_BUFFER );
 	glBindBuffer( GL_UNIFORM_BUFFER, 0 );

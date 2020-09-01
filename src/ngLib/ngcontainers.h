@@ -37,8 +37,9 @@ template < class T, size_t N = 64 > struct ObjectPool {
 template < typename T > struct DynamicArray {
 	static constexpr u32 initialAllocSize = 32;
 
-  private:
 	T * data = nullptr;
+
+  private:
 	u32 capacity = 0;
 	u32 count = 0;
 
@@ -68,6 +69,15 @@ template < typename T > struct DynamicArray {
 	}
 
 	~DynamicArray() { delete[] data; }
+
+	void Grow() {
+		if ( capacity == 0 ) {
+			data = new T[ initialAllocSize ];
+			capacity = initialAllocSize;
+		} else {
+			Resize( capacity * 2 );
+		}
+	}
 
 	// Resize never reduce the compact, use "shrink" for that
 	bool Resize( u32 newCapacity ) {
@@ -111,20 +121,29 @@ template < typename T > struct DynamicArray {
 		return true;
 	}
 
-	void Clear() {
-		count = 0;
+	u32 DeleteValueFast( const T & value ) {
+		u32 numDeletions = 0;
+		for ( int64 i = count - 1; i >= 0; i-- ) {
+			if ( data[ i ] == value ) {
+				DeleteIndexFast( ( u32 )i );
+				numDeletions++;
+			}
+		}
+		return numDeletions;
 	}
+
+	void Clear() { count = 0; }
 
 	T & AllocateOne() {
 		if ( count == capacity ) {
-			Resize( capacity * 2 );
+			Grow();
 		}
 		return *( data + count++ );
 	}
 
 	T & PushBack( const T & newElem ) {
 		if ( count == capacity ) {
-			Resize( capacity * 2 );
+			Grow();
 		}
 		data[ count ] = newElem;
 		return *( data + count++ );
