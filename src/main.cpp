@@ -34,10 +34,10 @@
 #if defined( _WIN32 )
 #include <filesystem>
 // Encourage drivers to use graphics cards over integrated graphics
-//extern "C" {
-//_declspec( dllexport ) DWORD NvOptimusEnablement = 0x00000001;
-//_declspec( dllexport ) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
-//}
+extern "C" {
+_declspec( dllexport ) DWORD NvOptimusEnablement = 0x00000001;
+_declspec( dllexport ) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
+}
 
 #else
 NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
