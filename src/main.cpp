@@ -460,10 +460,12 @@ int main( int ac, char ** av ) {
 			if ( io.mouse.IsButtonPressed( Mouse::Button::RIGHT ) ) {
 				// move player to cursor
 				glm::vec3 playerPosition = registery.GetComponent< CpntTransform >( player ).GetTranslation();
+				u32 totalDistance = 0;
 				bool      pathFound = map.roadNetwork.FindPath(
                     GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ), map,
-                    registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps );
+                    registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps, &totalDistance );
 				ng::Printf( "Path found %d\n", pathFound );
+				ng::Printf("Total distance: %d\n", totalDistance);
 				std::vector< Cell > foo;
 				AStar( GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ),
 				       ASTAR_ALLOW_DIAGONALS, map, foo );

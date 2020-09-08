@@ -347,11 +347,13 @@ TEST_CASE( "Road network find path", "[FindPath]" ) {
 			map.SetTile( x, 0, MapTile::ROAD );
 		}
 		std::vector< Cell > path;
-		bool                ok = network.FindPath( Cell( 3, 0 ), Cell( 6, 0 ), map, path );
+		u32                 distance = 0;
+		bool                ok = network.FindPath( Cell( 3, 0 ), Cell( 6, 0 ), map, path, &distance );
 		REQUIRE( ok == true );
 		REQUIRE( path.size() == 2 );
 		REQUIRE( path[ 0 ] == Cell( 6, 0 ) );
 		REQUIRE( path[ 1 ] == Cell( 3, 0 ) );
+		REQUIRE( distance == 3 );
 	}
 
 	SECTION( "can find the path to a node on the same road" ) {
@@ -383,17 +385,20 @@ TEST_CASE( "Road network find path", "[FindPath]" ) {
 			map.SetTile( x, 0, MapTile::ROAD );
 		}
 		std::vector< Cell > path;
-		bool                ok = network.FindPath( Cell( 10, 0 ), Cell( 3, 0 ), map, path );
+		u32                 distance = 0;
+		bool                ok = network.FindPath( Cell( 10, 0 ), Cell( 3, 0 ), map, path, &distance );
 		REQUIRE( ok == true );
 		REQUIRE( path.size() == 2 );
 		REQUIRE( path[ 0 ] == Cell( 3, 0 ) );
 		REQUIRE( path[ 1 ] == Cell( 10, 0 ) );
+		REQUIRE( distance == 7 );
 
-		ok = network.FindPath( Cell( 0, 0 ), Cell( 3, 0 ), map, path );
+		ok = network.FindPath( Cell( 0, 0 ), Cell( 3, 0 ), map, path, &distance );
 		REQUIRE( ok == true );
 		REQUIRE( path.size() == 2 );
 		REQUIRE( path[ 0 ] == Cell( 3, 0 ) );
 		REQUIRE( path[ 1 ] == Cell( 0, 0 ) );
+		REQUIRE( distance == 3 );
 
 		map.SetTile( 10, 1, MapTile::ROAD );
 		map.SetTile( 11, 1, MapTile::ROAD );
@@ -433,13 +438,15 @@ TEST_CASE( "Road network find path", "[FindPath]" ) {
 		map.SetTile( 12, 2, MapTile::ROAD );
 
 		std::vector< Cell > path;
-		bool                ok = network.FindPath( Cell( 11, 2 ), Cell( 10, 0 ), map, path );
+		u32 distance = 0;
+		bool                ok = network.FindPath( Cell( 11, 2 ), Cell( 10, 0 ), map, path, &distance );
 		REQUIRE( ok == true );
 		REQUIRE( path.size() == 4 );
 		REQUIRE( path[ 0 ] == Cell( 10, 0 ) );
 		REQUIRE( path[ 1 ] == Cell( 10, 1 ) );
 		REQUIRE( path[ 2 ] == Cell( 11, 1 ) );
 		REQUIRE( path[ 3 ] == Cell( 11, 2 ) );
+		REQUIRE(distance == 3 );
 
 		ok = network.FindPath( Cell( 10, 0 ), Cell( 12, 2 ), map, path );
 		REQUIRE( ok == true );
@@ -482,9 +489,44 @@ TEST_CASE( "Road network find path", "[FindPath]" ) {
 		}
 
 		std::vector< Cell > out;
-		bool found = map.FindPath( Cell( 34, 30 ), Cell( 164, 90 ), out );
+		bool                found = map.FindPath( Cell( 34, 30 ), Cell( 164, 90 ), out );
 		REQUIRE( found == true );
-		REQUIRE(out.size() == 21 );
-		REQUIRE(out[0] == Cell(164, 90));
+		REQUIRE( out.size() == 21 );
+		REQUIRE( out[ 0 ] == Cell( 164, 90 ) );
+	}
+
+	SECTION( "can fail to find a path" ) {
+		Map           map;
+		RoadNetwork & network = map.roadNetwork;
+		map.AllocateGrid( 100, 100 );
+		for ( u32 x = 0; x < 10; x++ ) {
+			map.SetTile( x, 10, MapTile::ROAD );
+		}
+		for ( u32 x = 15; x < 25; x++ ) {
+			map.SetTile( x, 10, MapTile::ROAD );
+		}
+		std::vector< Cell > out;
+		bool                found = map.FindPath( Cell( 1, 10 ), Cell( 20, 10 ), out );
+		REQUIRE( found == false );
+	}
+}
+
+TEST_CASE( "A star", "[astar]" ) {
+	SECTION( "can find a path in a large network" ) {
+		Map           map;
+		RoadNetwork & network = map.roadNetwork;
+		map.AllocateGrid( 200, 200 );
+		for ( u32 x = 30; x <= 190; x++ ) {
+			for ( u32 z = 30; z <= 190; z++ ) {
+				if ( x % 10 == 0 || z % 10 == 0 )
+					map.SetTile( x, z, MapTile::ROAD );
+			}
+		}
+
+		std::vector< Cell > out;
+		bool                found = AStar( Cell( 34, 30 ), Cell( 164, 90 ), ASTAR_FORBID_DIAGONALS, map, out );
+		REQUIRE( found == true );
+		REQUIRE( out.size() == 191 );
+		REQUIRE( out[ 0 ] == Cell( 164, 90 ) );
 	}
 }

@@ -21,6 +21,13 @@ template < typename T > struct DynamicArray {
 
 	DynamicArray() = default;
 	DynamicArray( u32 initialCapacity ) { Resize( initialCapacity ); }
+	DynamicArray( u32 initialCapacity, const T & defaultValue ) {
+		Resize( initialCapacity );
+		count = initialCapacity;
+		for ( u32 i = 0; i < initialCapacity; i++ ) {
+			data[ i ] = defaultValue;
+		}
+	}
 	DynamicArray( const DynamicArray< T > & src ) { *this = src; }
 
 	DynamicArray< T > & operator=( const DynamicArray< T > & rhs ) {
@@ -263,6 +270,8 @@ template < class T > struct ObjectPool {
 			int64 offset = obj - bucket->content;
 			if ( offset >= 0 && offset < objectPoolBucketSize ) {
 				if ( bucket->indicesDistributed.Test( ( u32 )offset ) == true ) {
+					// default construct the object given back so it's clean for the next user
+					new ( bucket->content + offset ) T();
 					bucket->indicesDistributed.Reset( ( u32 )offset );
 					bucket->nextFreeIndex = ( u32 )offset;
 				} else {
@@ -277,9 +286,9 @@ template < class T > struct ObjectPool {
 
 	void Clear() {
 		for ( Bucket * bucket : buckets ) {
-			bucket->indicesDistributed.Clear();
-			bucket->nextFreeIndex = 0;
+			delete bucket;
 		}
+		buckets.Clear();
 	}
 };
 
@@ -457,6 +466,7 @@ template < typename T > void LinkedListInsertSorted( LinkedList< T > & list, con
 	if ( ( order == SortOrder::ASCENDING && elem < list.head->data ) ||
 	     ( order == SortOrder::DESCENDING && elem > list.head->data ) ) {
 		list.PushFront( elem );
+		return;
 	}
 
 	LinkedList< T >::Node * cursor = list.head;

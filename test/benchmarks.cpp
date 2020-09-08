@@ -35,7 +35,7 @@ static void BM_AStar( benchmark::State & state ) {
 
 	std::vector< Cell > out;
 	for ( auto _ : state ) {
-		AStar( Cell( 33, 30 ), Cell( 164, 90 ), ASTAR_FORBID_DIAGONALS, map, out );
+		AStar( Cell( 34, 30 ), Cell( 164, 90 ), ASTAR_FORBID_DIAGONALS, map, out );
 	}
 }
 
@@ -101,17 +101,17 @@ static void BM_objectPoolCreateOne( benchmark::State & state ) {
 
 BENCHMARK( BM_objectPoolCreateOne );
 
-static void BM_objectPoolCreateTwo( benchmark::State & state ) {
+static void BM_objectPoolCreate640( benchmark::State & state ) {
 	for ( auto _ : state ) {
 		ng::ObjectPool< int > pool;
-		int * elem = pool.Pop();
-		benchmark::DoNotOptimize( elem );
-		elem = pool.Pop();
-		benchmark::DoNotOptimize( elem );
+		for ( int i = 0; i < 640; i++ ) {
+			int * elem = pool.Pop();
+			benchmark::DoNotOptimize( elem );
+		}
 	}
 }
 
-BENCHMARK( BM_objectPoolCreateTwo );
+BENCHMARK( BM_objectPoolCreate640 );
 
 static void BM_objectPoolCreation( benchmark::State & state ) {
 	for ( auto _ : state ) {
@@ -125,18 +125,6 @@ static void BM_objectPoolCreation( benchmark::State & state ) {
 
 BENCHMARK( BM_objectPoolCreation );
 
-static void BM_ngLinkedListInsertion( benchmark::State & state ) {
-	for ( auto _ : state ) {
-		ng::LinkedList< int > list;
-		for ( int i = 0; i < 64 * 20; i++ ) {
-			list.PushFront( i );
-		}
-		benchmark::DoNotOptimize( list );
-	}
-}
-
-BENCHMARK( BM_ngLinkedListInsertion );
-
 static void BM_stlLinkedListInsertion( benchmark::State & state ) {
 	for ( auto _ : state ) {
 		std::list< int > list;
@@ -149,17 +137,60 @@ static void BM_stlLinkedListInsertion( benchmark::State & state ) {
 
 BENCHMARK( BM_stlLinkedListInsertion );
 
-static void BM_ngVectorInsertion( benchmark::State & state ) {
+
+static void BM_ngLinkedListInsertion( benchmark::State & state ) {
 	for ( auto _ : state ) {
-		ng::DynamicArray< int > list;
+		ng::LinkedList< int > list;
 		for ( int i = 0; i < 64 * 20; i++ ) {
-			list.PushBack( i );
+			list.PushFront( i );
 		}
 		benchmark::DoNotOptimize( list );
 	}
 }
 
-BENCHMARK( BM_ngVectorInsertion );
+BENCHMARK( BM_ngLinkedListInsertion );
+
+static void BM_stlLinkedListInsertTwo( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		std::list< int > list;
+		list.push_front( 1 );
+		list.push_front( 1 );
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_stlLinkedListInsertTwo );
+
+static void BM_ngLinkedListInsertTwo( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		ng::LinkedList< int > list;
+		list.PushFront( 1 );
+		list.PushFront( 1 );
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_ngLinkedListInsertTwo );
+
+static void BM_stlLinkedListInsertOne( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		std::list< int > list;
+		list.push_front( 1 );
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_stlLinkedListInsertOne );
+
+static void BM_ngLinkedListInsertOne( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		ng::LinkedList< int > list;
+		list.PushFront( 1 );
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_ngLinkedListInsertOne );
 
 static void BM_stlVectorInsertion( benchmark::State & state ) {
 	for ( auto _ : state ) {
@@ -172,6 +203,18 @@ static void BM_stlVectorInsertion( benchmark::State & state ) {
 }
 
 BENCHMARK( BM_stlVectorInsertion );
+
+static void BM_ngVectorInsertion( benchmark::State & state ) {
+	for ( auto _ : state ) {
+		ng::DynamicArray< int > list;
+		for ( int i = 0; i < 64 * 20; i++ ) {
+			list.PushBack( i );
+		}
+		benchmark::DoNotOptimize( list );
+	}
+}
+
+BENCHMARK( BM_ngVectorInsertion );
 
 int RunBenchmarks( int argc, char ** argv ) {
 	::benchmark::Initialize( &argc, argv );
