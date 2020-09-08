@@ -197,19 +197,15 @@ template < typename T, u32 N > struct StaticArray {
 };
 
 constexpr u64 objectPoolBucketSize = 64;
-static_assert(
-    objectPoolBucketSize <= 64,
-    "bucketSize must be less or equal than 64 so that we can use a 64bit bitfield for noting indices distributed" );
-constexpr u64 objectPoolBucketFullValue =
-    ( objectPoolBucketSize == 64 ) ? ULLONG_MAX : ( 1 << objectPoolBucketSize ) - 1;
 
 struct Bitfield64 {
 	u64 word = 0;
 
-	void Set( u32 index ) { word |= 1ULL << index; }
-	void Reset( u32 index ) { word &= ~( 1ULL << index ); }
-	bool Test( u32 index ) { return ( word >> index ) & 1ULL; }
-	void Clear() { word = 0; }
+	inline bool AllBitsAreSet() const { return word == ULLONG_MAX; }
+	inline void Set( u32 index ) { word |= 1ULL << index; }
+	inline void Reset( u32 index ) { word &= ~( 1ULL << index ); }
+	inline bool Test( u32 index ) { return ( word >> index ) & 1ULL; }
+	inline void Clear() { word = 0; }
 };
 
 template < class T > struct ObjectPool {
@@ -223,7 +219,7 @@ template < class T > struct ObjectPool {
 		u32        nextFreeIndex = 0;
 
 		void FindNextFreeIndex() {
-			if ( indicesDistributed.word != objectPoolBucketFullValue ) {
+			if ( indicesDistributed.AllBitsAreSet() == false ) {
 				for ( u32 i = nextFreeIndex + 1; i < 64; i++ ) {
 					if ( indicesDistributed.Test( i ) == false ) {
 						nextFreeIndex = i;
@@ -251,7 +247,7 @@ template < class T > struct ObjectPool {
 
 	T * Pop() {
 		for ( Bucket * bucket : buckets ) {
-			if ( bucket->indicesDistributed.word != objectPoolBucketFullValue ) {
+			if ( bucket->indicesDistributed.AllBitsAreSet() == false ) {
 				u32 i = bucket->nextFreeIndex;
 				bucket->indicesDistributed.Set( i );
 				bucket->FindNextFreeIndex();
@@ -301,13 +297,11 @@ template < typename T > struct LinkedList {
 			return *this;
 		}
 		head = nodePool.Pop();
-		size = 1;
 		head->data = rhs.head->data;
 		Node * thisCursor = head;
 		Node * rhsCursor = rhs.head->next;
 		while ( rhsCursor != nullptr ) {
 			thisCursor->next = nodePool.Pop();
-			size++;
 			thisCursor->next->data = rhsCursor->data;
 			thisCursor = thisCursor->next;
 			rhsCursor = rhsCursor->next;
@@ -322,7 +316,6 @@ template < typename T > struct LinkedList {
 	};
 
 	Node *             head = nullptr;
-	u32                size = 0;
 	ObjectPool< Node > nodePool;
 
 	T & PushFront( const T & elem ) {
@@ -333,7 +326,6 @@ template < typename T > struct LinkedList {
 			newNode->next = head;
 		}
 		head = newNode;
-		size++;
 		return head->data;
 	}
 
@@ -343,7 +335,6 @@ template < typename T > struct LinkedList {
 			if ( head != nullptr ) {
 				head->previous = nullptr;
 			}
-			size--;
 		}
 	}
 
@@ -358,7 +349,6 @@ template < typename T > struct LinkedList {
 			node->next->previous = node->previous;
 		}
 		nodePool.Push( node );
-		size--;
 	}
 
 	T & Front() {
@@ -376,7 +366,6 @@ template < typename T > struct LinkedList {
 	}
 
 	T & operator[]( u64 index ) {
-		ng_assert( index < size );
 		Node * cursor = head;
 		for ( u64 i = 0; i < index; i++ ) {
 			cursor = cursor->next;
@@ -395,7 +384,6 @@ template < typename T > struct LinkedList {
 
 	void Clear() {
 		head = nullptr;
-		size = 0;
 		nodePool.Clear();
 	}
 
@@ -427,36 +415,6 @@ enum class SortOrder {
 	DESCENDING,
 };
 
-template < typename T >
-void SortLinkedList( LinkedList< T > & list, SortOrder order, int64 left = 0, int64 right = -1 ) {
-	// QuickSort implementation
-	if ( right == -1 ) {
-		right = list.size - 1;
-	}
-	// Base case: No need to sort list with length <= 1
-	if ( left >= right ) {
-		return;
-	}
-
-	T &   pivot = list[ right ];
-	int64 cnt = left;
-
-	LinkedList< T >::Node * nodeI = list.GetNodeWithOffset( left );
-	LinkedList< T >::Node * nodeCnt = list.GetNodeWithOffset( cnt );
-	for ( u32 i = left; i <= right; i++ ) {
-		if ( ( nodeI->data <= pivot && order == SortOrder::ASCENDING ) ||
-		     ( nodeI->data >= pivot && order == SortOrder::DESCENDING ) ) {
-			std::swap( nodeCnt->data, nodeI->data );
-			cnt++;
-			nodeCnt = nodeCnt->next;
-		}
-		nodeI = nodeI->next;
-	}
-
-	SortLinkedList( list, order, left, cnt - 2 ); // Recursively sort the left side of pivot
-	SortLinkedList( list, order, cnt, right );    // Recursively sort the right side of pivot
-}
-
 template < typename T > void LinkedListInsertSorted( LinkedList< T > & list, const T & elem, SortOrder order ) {
 	if ( list.head == nullptr ) {
 		list.PushFront( elem );
@@ -485,7 +443,6 @@ template < typename T > void LinkedListInsertSorted( LinkedList< T > & list, con
 		newNode->next->previous = newNode;
 	}
 	cursor->next = newNode;
-	list.size++;
 }
 
 }; // namespace ng

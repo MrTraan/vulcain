@@ -3,6 +3,11 @@
 #include <benchmark/benchmark.h>
 #include <list>
 
+struct Texture {
+	char data[400];
+	int encoding[16];
+};
+
 static void BM_NetworkFindPath( benchmark::State & state ) {
 	Map           map;
 	RoadNetwork & network = map.roadNetwork;
@@ -127,9 +132,9 @@ BENCHMARK( BM_objectPoolCreation );
 
 static void BM_stlLinkedListInsertion( benchmark::State & state ) {
 	for ( auto _ : state ) {
-		std::list< int > list;
+		std::list< Texture > list;
 		for ( int i = 0; i < 64 * 20; i++ ) {
-			list.push_front( i );
+			list.push_front( Texture{} );
 		}
 		benchmark::DoNotOptimize( list );
 	}
@@ -140,9 +145,9 @@ BENCHMARK( BM_stlLinkedListInsertion );
 
 static void BM_ngLinkedListInsertion( benchmark::State & state ) {
 	for ( auto _ : state ) {
-		ng::LinkedList< int > list;
+		ng::LinkedList< Texture > list;
 		for ( int i = 0; i < 64 * 20; i++ ) {
-			list.PushFront( i );
+			list.PushFront( Texture{} );
 		}
 		benchmark::DoNotOptimize( list );
 	}

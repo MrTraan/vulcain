@@ -150,7 +150,6 @@ static thread_local ng::ObjectPool< AStarStep > aStarStepPool;
 
 bool AStar( Cell start, Cell goal, AStarMovementAllowed movement, const Map & map, std::vector< Cell > & outPath ) {
 	ZoneScoped;
-	constexpr int infiniteWeight = INT_MAX;
 
 	std::vector< AStarStep * > openSet;
 	openSet.reserve( 256 );
@@ -698,9 +697,6 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &   start,
 	return false;
 }
 
-thread_local ng::LinkedList< AStarStep > findPathOpenSet;
-thread_local ng::LinkedList< AStarStep > findPathClosedSet;
-
 bool RoadNetwork::FindPath( Cell                  start,
                             Cell                  goal,
                             const Map &           map,
@@ -708,12 +704,10 @@ bool RoadNetwork::FindPath( Cell                  start,
                             u32 *                 outTotalDistance /*= nullptr*/,
                             u32                   maxDistance /*= ULONG_MAX */ ) {
 	ZoneScoped;
-	constexpr int infiniteWeight = INT_MAX;
+	ng::DynamicArray< AStarStep * > findPathOpenSet( 64 );
+	ng::DynamicArray< AStarStep * > findPathClosedSet( 64 );
 
 	u32 totalDistance = 0;
-
-	findPathOpenSet.Clear();
-	findPathClosedSet.Clear();
 
 	outPath.clear();
 	outPath.reserve( 64 );
@@ -724,21 +718,21 @@ bool RoadNetwork::FindPath( Cell                  start,
 
 	auto pushOrUpdateStep = [ & ]( const Cell & position, Node * node, int totalCost, AStarStep * parent ) {
 		ZoneScopedN( "pushOrUpdateStep" );
-		AStarStep step;
-		bool      found = PopNodeFromList( findPathOpenSet, position, step );
-		if ( found == false ) {
-			step.coord = position;
-			step.node = node;
-			step.parent = parent;
-			step.g = totalCost;
-			step.h = Heuristic( position, goal, ASTAR_FORBID_DIAGONALS );
-			step.f = step.g + step.h;
-		} else if ( step.g > totalCost ) {
-			step.parent = parent;
-			step.g = totalCost;
-			step.f = step.g + step.h;
+		AStarStep * step = FindNodeInSet( findPathOpenSet, position );
+		if ( step == nullptr ) {
+			step = aStarStepPool.Pop();
+			step->coord = position;
+			step->node = node;
+			step->parent = parent;
+			step->g = totalCost;
+			step->h = Heuristic( position, goal, ASTAR_FORBID_DIAGONALS );
+			step->f = step->g + step->h;
+			findPathOpenSet.PushBack( step );
+		} else if ( step->g > totalCost ) {
+			step->parent = parent;
+			step->g = totalCost;
+			step->f = step->g + step->h;
 		}
-		LinkedListInsertSorted( findPathOpenSet, step, ng::SortOrder::ASCENDING );
 	};
 
 	NodeSearchResult searchGoalA;
@@ -790,39 +784,44 @@ bool RoadNetwork::FindPath( Cell                  start,
 	AStarStep * lastStep = nullptr;
 	while ( findPathOpenSet.Empty() == false ) {
 		ZoneScopedN( "FindSubPath" );
-		AStarStep current = findPathOpenSet.Front();
-		if ( current.coord == goal ) {
-			lastStep = &( findPathOpenSet.Front() );
+
+		u32 bestCandidateIndex = 0;
+		for ( u32 i = 0; i < findPathOpenSet.Size(); i++ ) {
+			if ( findPathOpenSet[ i ]->f < findPathOpenSet[ bestCandidateIndex ]->f ) {
+				bestCandidateIndex = i;
+			}
+		}
+
+		AStarStep * current = findPathOpenSet[ bestCandidateIndex ];
+
+		if ( current->coord == goal ) {
+			lastStep = current;
 			goalFound = true;
 			break;
 		}
 
-		AStarStep & parent = findPathClosedSet.PushFront( current );
-		findPathOpenSet.PopFront();
+		AStarStep * parent = findPathClosedSet.PushBack( current );
+		findPathOpenSet.DeleteIndexFast( bestCandidateIndex );
 
-		Node * node = current.node;
+		Node * node = current->node;
 		ng_assert( node != nullptr );
-		if ( current.coord == searchGoalA.node->position ) {
-			int totalCost = current.g + searchGoalA.distance;
-			pushOrUpdateStep( goal, nullptr, totalCost, &parent );
-		} else if ( searchGoalB.found == true && current.coord == searchGoalB.node->position ) {
-			int totalCost = current.g + searchGoalB.distance;
-			pushOrUpdateStep( goal, nullptr, totalCost, &parent );
+		if ( current->coord == searchGoalA.node->position ) {
+			int totalCost = current->g + searchGoalA.distance;
+			pushOrUpdateStep( goal, nullptr, totalCost, parent );
+		} else if ( searchGoalB.found == true && current->coord == searchGoalB.node->position ) {
+			int totalCost = current->g + searchGoalB.distance;
+			pushOrUpdateStep( goal, nullptr, totalCost, parent );
 		} else {
 			for ( u32 i = 0; i < node->NumSetConnections(); i++ ) {
 				Connection * connection = node->GetValidConnectionWithOffset( i );
-				int          totalCost = current.g + connection->distance;
-				if ( totalCost < maxDistance &&
-				     FindNodeInList( findPathClosedSet, connection->connectedTo ) == false ) {
-					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, &parent );
+				int          totalCost = current->g + connection->distance;
+				if ( totalCost < maxDistance && FindNodeInSet( findPathClosedSet, connection->connectedTo ) == false ) {
+					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, parent );
 				}
 			}
 		}
 	}
-	if ( goalFound == false ) {
-		return false;
-	}
-	if ( lastStep == nullptr ) {
+	if ( goalFound == false || lastStep == nullptr || lastStep->coord != goal ) {
 		return false;
 	}
 
@@ -847,21 +846,31 @@ bool RoadNetwork::FindPath( Cell                  start,
 		*outTotalDistance = totalDistance;
 	}
 
-	return lastStep->coord == goal;
+	for ( AStarStep * step : findPathOpenSet ) {
+		aStarStepPool.Push( step );
+	}
+	for ( AStarStep * step : findPathClosedSet ) {
+		aStarStepPool.Push( step );
+	}
+	findPathClosedSet.Clear();
+	findPathOpenSet.Clear();
+
+	return true;
 }
 
-bool Map::FindPathBetweenBuildings( const CpntBuilding & start,
-                                    const CpntBuilding & goal,
+bool Map::FindPathBetweenBuildings( const CpntBuilding &  start,
+                                    const CpntBuilding &  goal,
                                     std::vector< Cell > & outPath,
-                                    u32 maxDistance /*= ULONG_MAX*/ ,
-                                    u32 * outDistance /*= nullptr */ ) {
+                                    u32                   maxDistance /*= ULONG_MAX*/,
+                                    u32 *                 outDistance /*= nullptr */ ) {
 	ng::ScopedChrono         chrono( "FindPathBetweenBuildings" );
 	ng::DynamicArray< Cell > startingCells;
 	ng::DynamicArray< Cell > goalCells;
 
 	bool addNextCellToList = true;
 
-	auto lookForRoadConnectedToBuilding = [ & ]( const CpntBuilding & building, int64 shiftX, int64 shiftZ, ng::DynamicArray<Cell> & res ) {
+	auto lookForRoadConnectedToBuilding = [ & ]( const CpntBuilding & building, int64 shiftX, int64 shiftZ,
+	                                             ng::DynamicArray< Cell > & res ) {
 		int64 x = building.cell.x + shiftX;
 		int64 z = building.cell.z + shiftZ;
 		if ( x >= 0 && x < sizeX && z >= 0 && z < sizeZ ) {
@@ -891,30 +900,30 @@ bool Map::FindPathBetweenBuildings( const CpntBuilding & start,
 	// XXXXXXXXX
 	// We think there are two different roads connected to the top of the building, for a total of 3
 	for ( int64 z = 0; z < start.tileSizeZ; z++ ) {
-		lookForRoadConnectedToBuilding(start, -1, z , startingCells);
+		lookForRoadConnectedToBuilding( start, -1, z, startingCells );
 	}
 	for ( int64 x = 0; x < start.tileSizeX; x++ ) {
-		lookForRoadConnectedToBuilding(start, x, start.tileSizeZ , startingCells);
+		lookForRoadConnectedToBuilding( start, x, start.tileSizeZ, startingCells );
 	}
 	for ( int64 z = start.tileSizeZ - 1; z >= 0; z-- ) {
-		lookForRoadConnectedToBuilding(start, start.tileSizeZ, z , startingCells);
+		lookForRoadConnectedToBuilding( start, start.tileSizeZ, z, startingCells );
 	}
 	for ( int64 x = start.tileSizeX - 1; x >= 0; x-- ) {
-		lookForRoadConnectedToBuilding(start, x, -1 , startingCells);
+		lookForRoadConnectedToBuilding( start, x, -1, startingCells );
 	}
-	
+
 	addNextCellToList = true;
 	for ( int64 z = 0; z < start.tileSizeZ; z++ ) {
-		lookForRoadConnectedToBuilding(goal, -1, z , goalCells);
+		lookForRoadConnectedToBuilding( goal, -1, z, goalCells );
 	}
 	for ( int64 x = 0; x < goal.tileSizeX; x++ ) {
-		lookForRoadConnectedToBuilding(goal, x, goal.tileSizeZ , goalCells);
+		lookForRoadConnectedToBuilding( goal, x, goal.tileSizeZ, goalCells );
 	}
 	for ( int64 z = goal.tileSizeZ - 1; z >= 0; z-- ) {
-		lookForRoadConnectedToBuilding(goal, goal.tileSizeZ, z , goalCells);
+		lookForRoadConnectedToBuilding( goal, goal.tileSizeZ, z, goalCells );
 	}
 	for ( int64 x = goal.tileSizeX - 1; x >= 0; x-- ) {
-		lookForRoadConnectedToBuilding(goal, x, -1 , goalCells);
+		lookForRoadConnectedToBuilding( goal, x, -1, goalCells );
 	}
 
 	bool pathFound = false;
