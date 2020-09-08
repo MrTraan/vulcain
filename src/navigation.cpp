@@ -876,6 +876,20 @@ bool Map::FindPathBetweenBuildings( const CpntBuilding & start,
 		}
 	};
 
+	// This is a weird and unneficient way to figure out what unique roads are connected to a building
+	// It's not perfect, if B is Building and X road :
+	// XXXXXXX
+	//   BB
+	//   BB
+	// XXXXXXX
+	// This works, we only consider two cells
+	// But for this :
+	//    XXX
+	// XXXX XXX
+	//   BBBBB
+	//   BBBBB
+	// XXXXXXXXX
+	// We think there are two different roads connected to the top of the building, for a total of 3
 	for ( int64 z = 0; z < start.tileSizeZ; z++ ) {
 		lookForRoadConnectedToBuilding(start, -1, z , startingCells);
 	}
@@ -902,40 +916,6 @@ bool Map::FindPathBetweenBuildings( const CpntBuilding & start,
 	for ( int64 x = goal.tileSizeX - 1; x >= 0; x-- ) {
 		lookForRoadConnectedToBuilding(goal, x, -1 , goalCells);
 	}
-
-	//bool addNextCellToList = true;
-	//for ( int64 x = ( int64 )start.cell.x - 1; x <= start.cell.x + start.tileSizeX; x++ ) {
-	//	for ( int64 z = ( int64 )start.cell.z - 1; z <= start.cell.z + start.tileSizeZ; z++ ) {
-	//		if ( x >= 0 && x < sizeX && z >= 0 && z < sizeZ &&
-	//		     ( x == ( int64 )start.cell.x - 1 || x == start.cell.x + start.tileSizeX ||
-	//		       z == ( int64 )start.cell.z - 1 || z == start.cell.z + start.tileSizeZ ) ) {
-	//			if ( GetTile( x, z ) == MapTile::ROAD ) {
-	//				if ( addNextCellToList ) {
-	//					startingCells.PushBack( Cell( x, z ) );
-	//				}
-	//			} else {
-	//				addNextCellToList = true;
-	//			}
-	//		}
-	//	}
-	//}
-	//addNextCellToList = true;
-
-	//for ( int64 x = ( int64 )goal.cell.x - 1; x <= goal.cell.x + goal.tileSizeX; x++ ) {
-	//	for ( int64 z = ( int64 )goal.cell.z - 1; z <= goal.cell.z + goal.tileSizeZ; z++ ) {
-	//		if ( x >= 0 && x < sizeX && z >= 0 && z < sizeZ &&
-	//		     ( x == ( int64 )goal.cell.x - 1 || x == goal.cell.x + goal.tileSizeX ||
-	//		       z == ( int64 )goal.cell.z - 1 || z == goal.cell.z + goal.tileSizeZ ) ) {
-	//			if ( GetTile( x, z ) == MapTile::ROAD ) {
-	//				if ( addNextCellToList ) {
-	//					goalCells.PushBack( Cell( x, z ) );
-	//				}
-	//			} else {
-	//				addNextCellToList = true;
-	//			}
-	//		}
-	//	}
-	//}
 
 	bool pathFound = false;
 	u32  shortestDistance = maxDistance;
