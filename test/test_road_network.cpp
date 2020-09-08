@@ -122,70 +122,70 @@ TEST_CASE( "Road network creation", "[road network]" ) {
 		REQUIRE( network.nodes[ 1 ].GetValidConnectionWithOffset( 0 )->connectedTo == Cell( 10, 10 ) );
 		REQUIRE( network.nodes[ 1 ].GetValidConnectionWithOffset( 0 )->distance == 6 );
 	}
-	
+
 	SECTION( "can create a smal 2x2 circle section" ) {
-		Map map;
+		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
 		for ( u32 x = 0; x <= 10; x++ ) {
 			map.SetTile( x, 10, MapTile::ROAD );
 		}
-		map.SetTile(11, 10, MapTile::ROAD);
+		map.SetTile( 11, 10, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
-		map.SetTile(11, 11, MapTile::ROAD);
+		map.SetTile( 11, 11, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
-		map.SetTile(10, 11, MapTile::ROAD);
+		map.SetTile( 10, 11, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 2 );
 	}
-	
+
 	SECTION( "can create a large circle section" ) {
-		Map map;
+		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
-		map.SetTile(10, 10, MapTile::ROAD);
-		map.SetTile(11, 10, MapTile::ROAD);
-		map.SetTile(12, 10, MapTile::ROAD);
-		map.SetTile(13, 10, MapTile::ROAD);
-		map.SetTile(13, 11, MapTile::ROAD);
-		map.SetTile(13, 12, MapTile::ROAD);
-		map.SetTile(13, 13, MapTile::ROAD);
-		map.SetTile(12, 13, MapTile::ROAD);
-		map.SetTile(11, 13, MapTile::ROAD);
-		map.SetTile(10, 13, MapTile::ROAD);
-		map.SetTile(10, 12, MapTile::ROAD);
-		map.SetTile(10, 11, MapTile::ROAD);
+		map.SetTile( 10, 10, MapTile::ROAD );
+		map.SetTile( 11, 10, MapTile::ROAD );
+		map.SetTile( 12, 10, MapTile::ROAD );
+		map.SetTile( 13, 10, MapTile::ROAD );
+		map.SetTile( 13, 11, MapTile::ROAD );
+		map.SetTile( 13, 12, MapTile::ROAD );
+		map.SetTile( 13, 13, MapTile::ROAD );
+		map.SetTile( 12, 13, MapTile::ROAD );
+		map.SetTile( 11, 13, MapTile::ROAD );
+		map.SetTile( 10, 13, MapTile::ROAD );
+		map.SetTile( 10, 12, MapTile::ROAD );
+		map.SetTile( 10, 11, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 1 );
 	}
-	
+
 	SECTION( "can create a large circle section and connect a road to it" ) {
-		Map map;
+		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
-		map.SetTile(10, 10, MapTile::ROAD);
-		map.SetTile(11, 10, MapTile::ROAD);
-		map.SetTile(12, 10, MapTile::ROAD);
-		map.SetTile(13, 10, MapTile::ROAD);
-		map.SetTile(13, 11, MapTile::ROAD);
-		map.SetTile(13, 12, MapTile::ROAD);
-		map.SetTile(13, 13, MapTile::ROAD);
-		map.SetTile(12, 13, MapTile::ROAD);
-		map.SetTile(11, 13, MapTile::ROAD);
-		map.SetTile(10, 13, MapTile::ROAD);
-		map.SetTile(10, 12, MapTile::ROAD);
-		map.SetTile(10, 11, MapTile::ROAD);
+		map.SetTile( 10, 10, MapTile::ROAD );
+		map.SetTile( 11, 10, MapTile::ROAD );
+		map.SetTile( 12, 10, MapTile::ROAD );
+		map.SetTile( 13, 10, MapTile::ROAD );
+		map.SetTile( 13, 11, MapTile::ROAD );
+		map.SetTile( 13, 12, MapTile::ROAD );
+		map.SetTile( 13, 13, MapTile::ROAD );
+		map.SetTile( 12, 13, MapTile::ROAD );
+		map.SetTile( 11, 13, MapTile::ROAD );
+		map.SetTile( 10, 13, MapTile::ROAD );
+		map.SetTile( 10, 12, MapTile::ROAD );
+		map.SetTile( 10, 11, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 1 );
-		map.SetTile(16, 12, MapTile::ROAD);
-		map.SetTile(15, 12, MapTile::ROAD);
-		map.SetTile(14, 12, MapTile::ROAD);
+		map.SetTile( 16, 12, MapTile::ROAD );
+		map.SetTile( 15, 12, MapTile::ROAD );
+		map.SetTile( 14, 12, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 3 );
 	}
-	
+
 	SECTION( "can create two circle at once" ) {
-		Map map;
+		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
 		map.SetTile( 11, 10, MapTile::ROAD );
@@ -199,7 +199,7 @@ TEST_CASE( "Road network creation", "[road network]" ) {
 		map.SetTile( 10, 7, MapTile::ROAD );
 		map.SetTile( 10, 8, MapTile::ROAD );
 		map.SetTile( 10, 9, MapTile::ROAD );
-		
+
 		map.SetTile( 9, 10, MapTile::ROAD );
 		map.SetTile( 8, 10, MapTile::ROAD );
 		map.SetTile( 7, 10, MapTile::ROAD );
@@ -223,55 +223,55 @@ TEST_CASE( "Road network creation", "[road network]" ) {
 
 TEST_CASE( "Road network destruction", "[road network remove]" ) {
 	SECTION( "can split a small 2x2 circle section" ) {
-		Map map;
+		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
 		for ( u32 x = 0; x <= 10; x++ ) {
 			map.SetTile( x, 10, MapTile::ROAD );
 		}
-		map.SetTile(11, 10, MapTile::ROAD);
-		map.SetTile(11, 11, MapTile::ROAD);
-		map.SetTile(10, 11, MapTile::ROAD);
+		map.SetTile( 11, 10, MapTile::ROAD );
+		map.SetTile( 11, 11, MapTile::ROAD );
+		map.SetTile( 10, 11, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 2 );
-		map.SetTile(11, 11, MapTile::EMPTY);
+		map.SetTile( 11, 11, MapTile::EMPTY );
 		REQUIRE( network.nodes.size() == 4 );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 	}
-	
+
 	SECTION( "can delete a small section connected to a circle and then recreate it" ) {
-		Map map;
+		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
-		map.SetTile(10, 10, MapTile::ROAD);
-		map.SetTile(11, 10, MapTile::ROAD);
-		map.SetTile(12, 10, MapTile::ROAD);
-		map.SetTile(13, 10, MapTile::ROAD);
-		map.SetTile(13, 11, MapTile::ROAD);
-		map.SetTile(13, 12, MapTile::ROAD);
-		map.SetTile(13, 13, MapTile::ROAD);
-		map.SetTile(12, 13, MapTile::ROAD);
-		map.SetTile(11, 13, MapTile::ROAD);
-		map.SetTile(10, 13, MapTile::ROAD);
-		map.SetTile(10, 12, MapTile::ROAD);
-		map.SetTile(10, 11, MapTile::ROAD);
+		map.SetTile( 10, 10, MapTile::ROAD );
+		map.SetTile( 11, 10, MapTile::ROAD );
+		map.SetTile( 12, 10, MapTile::ROAD );
+		map.SetTile( 13, 10, MapTile::ROAD );
+		map.SetTile( 13, 11, MapTile::ROAD );
+		map.SetTile( 13, 12, MapTile::ROAD );
+		map.SetTile( 13, 13, MapTile::ROAD );
+		map.SetTile( 12, 13, MapTile::ROAD );
+		map.SetTile( 11, 13, MapTile::ROAD );
+		map.SetTile( 10, 13, MapTile::ROAD );
+		map.SetTile( 10, 12, MapTile::ROAD );
+		map.SetTile( 10, 11, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 1 );
-		map.SetTile(16, 12, MapTile::ROAD);
-		map.SetTile(15, 12, MapTile::ROAD);
-		map.SetTile(14, 12, MapTile::ROAD);
+		map.SetTile( 16, 12, MapTile::ROAD );
+		map.SetTile( 15, 12, MapTile::ROAD );
+		map.SetTile( 14, 12, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 3 );
-		map.SetTile(14, 12, MapTile::EMPTY);
+		map.SetTile( 14, 12, MapTile::EMPTY );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 3 );
-		map.SetTile(14, 12, MapTile::ROAD);
+		map.SetTile( 14, 12, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 3 );
 	}
-	
+
 	SECTION( "can delete the center of a double circle and then recreate it" ) {
-		Map map;
+		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
 		map.SetTile( 11, 10, MapTile::ROAD );
@@ -285,7 +285,7 @@ TEST_CASE( "Road network destruction", "[road network remove]" ) {
 		map.SetTile( 10, 7, MapTile::ROAD );
 		map.SetTile( 10, 8, MapTile::ROAD );
 		map.SetTile( 10, 9, MapTile::ROAD );
-		
+
 		map.SetTile( 9, 10, MapTile::ROAD );
 		map.SetTile( 8, 10, MapTile::ROAD );
 		map.SetTile( 7, 10, MapTile::ROAD );
@@ -304,11 +304,11 @@ TEST_CASE( "Road network destruction", "[road network remove]" ) {
 		map.SetTile( 10, 10, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 1 );
-		
+
 		map.SetTile( 10, 10, MapTile::EMPTY );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 4 );
-		
+
 		map.SetTile( 10, 10, MapTile::ROAD );
 		REQUIRE( network.CheckNetworkIntegrity() == true );
 		REQUIRE( network.nodes.size() == 1 );
@@ -338,120 +338,127 @@ TEST_CASE( "Road network lookup", "[road network]" ) {
 	}
 }
 
-TEST_CASE("Road network find path", "[FindPath]") {
-	SECTION("can find the path between two cells on the same road") {
+TEST_CASE( "Road network find path", "[FindPath]" ) {
+	SECTION( "can find the path between two cells on the same road" ) {
 		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
 		for ( u32 x = 0; x <= 10; x++ ) {
 			map.SetTile( x, 0, MapTile::ROAD );
 		}
-		std::vector<Cell> path;
-		bool ok = network.FindPath(Cell(3, 0), Cell(6, 0), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 2 );
-		REQUIRE(path[0] == Cell(6, 0));
-		REQUIRE(path[1] == Cell(3, 0));
+		std::vector< Cell > path;
+		u32                 distance = 0;
+		bool                ok = network.FindPath( Cell( 3, 0 ), Cell( 6, 0 ), map, path, &distance );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 2 );
+		REQUIRE( path[ 0 ] == Cell( 6, 0 ) );
+		REQUIRE( path[ 1 ] == Cell( 3, 0 ) );
+		REQUIRE( distance == 3 );
 	}
-	
-	SECTION("can find the path to a node on the same road") {
-		Map           map;
-		RoadNetwork & network = map.roadNetwork;
-		map.AllocateGrid( 100, 100 );
-		for ( u32 x = 0; x <= 10; x++ ) {
-			map.SetTile( x, 0, MapTile::ROAD );
-		}
-		std::vector<Cell> path;
-		bool ok = network.FindPath(Cell(3, 0), Cell(10, 0), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 2 );
-		REQUIRE(path[0] == Cell(10, 0));
-		REQUIRE(path[1] == Cell(3, 0));
-		
-		ok = network.FindPath(Cell(3, 0), Cell(0, 0), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 2 );
-		REQUIRE(path[0] == Cell(0, 0));
-		REQUIRE(path[1] == Cell(3, 0));
-	}
-	
-	SECTION("can find the path from a node to a cell on the same road") {
-		Map           map;
-		RoadNetwork & network = map.roadNetwork;
-		map.AllocateGrid( 100, 100 );
-		for ( u32 x = 0; x <= 10; x++ ) {
-			map.SetTile( x, 0, MapTile::ROAD );
-		}
-		std::vector<Cell> path;
-		bool ok = network.FindPath(Cell(10, 0), Cell(3, 0), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 2 );
-		REQUIRE(path[0] == Cell(3, 0));
-		REQUIRE(path[1] == Cell(10, 0));
-		
-		ok = network.FindPath(Cell(0, 0), Cell(3, 0), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 2 );
-		REQUIRE(path[0] == Cell(3, 0));
-		REQUIRE(path[1] == Cell(0, 0));
-			
-		map.SetTile( 10, 1, MapTile::ROAD );
-		map.SetTile( 11, 1, MapTile::ROAD );
-		map.SetTile( 11, 2, MapTile::ROAD );
-		map.SetTile( 12, 2, MapTile::ROAD );
-		
-		ok = network.FindPath(Cell(0, 0), Cell(11, 2), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 5 );
-		REQUIRE(path[0] == Cell(11, 2));
-		REQUIRE(path[1] == Cell(11, 1));
-		REQUIRE(path[2] == Cell(10, 1));
-		REQUIRE(path[3] == Cell(10, 0));
-		REQUIRE(path[4] == Cell(0, 0));
 
-		ok = network.FindPath(Cell(12, 2), Cell(10, 0), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 5 );
-		REQUIRE(path[0] == Cell(10, 0));
-		REQUIRE(path[1] == Cell(10, 1));
-		REQUIRE(path[2] == Cell(11, 1));
-		REQUIRE(path[3] == Cell(11, 2));
-		REQUIRE(path[4] == Cell(12, 2));
-	}
-	
-	SECTION("can find the path between two cells on the same non linear road") {
+	SECTION( "can find the path to a node on the same road" ) {
 		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
 		for ( u32 x = 0; x <= 10; x++ ) {
 			map.SetTile( x, 0, MapTile::ROAD );
 		}
-	
+		std::vector< Cell > path;
+		bool                ok = network.FindPath( Cell( 3, 0 ), Cell( 10, 0 ), map, path );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 2 );
+		REQUIRE( path[ 0 ] == Cell( 10, 0 ) );
+		REQUIRE( path[ 1 ] == Cell( 3, 0 ) );
+
+		ok = network.FindPath( Cell( 3, 0 ), Cell( 0, 0 ), map, path );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 2 );
+		REQUIRE( path[ 0 ] == Cell( 0, 0 ) );
+		REQUIRE( path[ 1 ] == Cell( 3, 0 ) );
+	}
+
+	SECTION( "can find the path from a node to a cell on the same road" ) {
+		Map           map;
+		RoadNetwork & network = map.roadNetwork;
+		map.AllocateGrid( 100, 100 );
+		for ( u32 x = 0; x <= 10; x++ ) {
+			map.SetTile( x, 0, MapTile::ROAD );
+		}
+		std::vector< Cell > path;
+		u32                 distance = 0;
+		bool                ok = network.FindPath( Cell( 10, 0 ), Cell( 3, 0 ), map, path, &distance );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 2 );
+		REQUIRE( path[ 0 ] == Cell( 3, 0 ) );
+		REQUIRE( path[ 1 ] == Cell( 10, 0 ) );
+		REQUIRE( distance == 7 );
+
+		ok = network.FindPath( Cell( 0, 0 ), Cell( 3, 0 ), map, path, &distance );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 2 );
+		REQUIRE( path[ 0 ] == Cell( 3, 0 ) );
+		REQUIRE( path[ 1 ] == Cell( 0, 0 ) );
+		REQUIRE( distance == 3 );
+
 		map.SetTile( 10, 1, MapTile::ROAD );
 		map.SetTile( 11, 1, MapTile::ROAD );
 		map.SetTile( 11, 2, MapTile::ROAD );
 		map.SetTile( 12, 2, MapTile::ROAD );
 
-		std::vector<Cell> path;
-		bool ok = network.FindPath(Cell(11, 2), Cell(10, 0), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 4 );
-		REQUIRE(path[0] == Cell(10, 0));
-		REQUIRE(path[1] == Cell(10, 1));
-		REQUIRE(path[2] == Cell(11, 1));
-		REQUIRE(path[3] == Cell(11, 2));
-		
-		ok = network.FindPath(Cell(10, 0), Cell(12, 2), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 5 );
-		REQUIRE(path[0] == Cell(12, 2));
-		REQUIRE(path[1] == Cell(11, 2));
-		REQUIRE(path[2] == Cell(11, 1));
-		REQUIRE(path[3] == Cell(10, 1));
-		REQUIRE(path[4] == Cell(10, 0));
+		ok = network.FindPath( Cell( 0, 0 ), Cell( 11, 2 ), map, path );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 5 );
+		REQUIRE( path[ 0 ] == Cell( 11, 2 ) );
+		REQUIRE( path[ 1 ] == Cell( 11, 1 ) );
+		REQUIRE( path[ 2 ] == Cell( 10, 1 ) );
+		REQUIRE( path[ 3 ] == Cell( 10, 0 ) );
+		REQUIRE( path[ 4 ] == Cell( 0, 0 ) );
+
+		ok = network.FindPath( Cell( 12, 2 ), Cell( 10, 0 ), map, path );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 5 );
+		REQUIRE( path[ 0 ] == Cell( 10, 0 ) );
+		REQUIRE( path[ 1 ] == Cell( 10, 1 ) );
+		REQUIRE( path[ 2 ] == Cell( 11, 1 ) );
+		REQUIRE( path[ 3 ] == Cell( 11, 2 ) );
+		REQUIRE( path[ 4 ] == Cell( 12, 2 ) );
 	}
-	
-	SECTION("can find the path between two cells on two different roads") {
+
+	SECTION( "can find the path between two cells on the same non linear road" ) {
+		Map           map;
+		RoadNetwork & network = map.roadNetwork;
+		map.AllocateGrid( 100, 100 );
+		for ( u32 x = 0; x <= 10; x++ ) {
+			map.SetTile( x, 0, MapTile::ROAD );
+		}
+
+		map.SetTile( 10, 1, MapTile::ROAD );
+		map.SetTile( 11, 1, MapTile::ROAD );
+		map.SetTile( 11, 2, MapTile::ROAD );
+		map.SetTile( 12, 2, MapTile::ROAD );
+
+		std::vector< Cell > path;
+		u32 distance = 0;
+		bool                ok = network.FindPath( Cell( 11, 2 ), Cell( 10, 0 ), map, path, &distance );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 4 );
+		REQUIRE( path[ 0 ] == Cell( 10, 0 ) );
+		REQUIRE( path[ 1 ] == Cell( 10, 1 ) );
+		REQUIRE( path[ 2 ] == Cell( 11, 1 ) );
+		REQUIRE( path[ 3 ] == Cell( 11, 2 ) );
+		REQUIRE(distance == 3 );
+
+		ok = network.FindPath( Cell( 10, 0 ), Cell( 12, 2 ), map, path );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 5 );
+		REQUIRE( path[ 0 ] == Cell( 12, 2 ) );
+		REQUIRE( path[ 1 ] == Cell( 11, 2 ) );
+		REQUIRE( path[ 2 ] == Cell( 11, 1 ) );
+		REQUIRE( path[ 3 ] == Cell( 10, 1 ) );
+		REQUIRE( path[ 4 ] == Cell( 10, 0 ) );
+	}
+
+	SECTION( "can find the path between two cells on two different roads" ) {
 		Map           map;
 		RoadNetwork & network = map.roadNetwork;
 		map.AllocateGrid( 100, 100 );
@@ -461,12 +468,65 @@ TEST_CASE("Road network find path", "[FindPath]") {
 		for ( u32 z = 1; z <= 10; z++ ) {
 			map.SetTile( 5, z, MapTile::ROAD );
 		}
-		std::vector<Cell> path;
-		bool ok = network.FindPath(Cell(3, 0), Cell(5, 6), map, path);
-		REQUIRE(ok == true);
-		REQUIRE(path.size() == 3 );
-		REQUIRE(path[0] == Cell(5, 6));
-		REQUIRE(path[1] == Cell(5, 0));
-		REQUIRE(path[2] == Cell(3, 0));
+		std::vector< Cell > path;
+		bool                ok = network.FindPath( Cell( 3, 0 ), Cell( 5, 6 ), map, path );
+		REQUIRE( ok == true );
+		REQUIRE( path.size() == 3 );
+		REQUIRE( path[ 0 ] == Cell( 5, 6 ) );
+		REQUIRE( path[ 1 ] == Cell( 5, 0 ) );
+		REQUIRE( path[ 2 ] == Cell( 3, 0 ) );
+	}
+
+	SECTION( "can find a path in a large network" ) {
+		Map           map;
+		RoadNetwork & network = map.roadNetwork;
+		map.AllocateGrid( 200, 200 );
+		for ( u32 x = 30; x <= 190; x++ ) {
+			for ( u32 z = 30; z <= 190; z++ ) {
+				if ( x % 10 == 0 || z % 10 == 0 )
+					map.SetTile( x, z, MapTile::ROAD );
+			}
+		}
+
+		std::vector< Cell > out;
+		bool                found = map.FindPath( Cell( 34, 30 ), Cell( 164, 90 ), out );
+		REQUIRE( found == true );
+		REQUIRE( out.size() == 21 );
+		REQUIRE( out[ 0 ] == Cell( 164, 90 ) );
+	}
+
+	SECTION( "can fail to find a path" ) {
+		Map           map;
+		RoadNetwork & network = map.roadNetwork;
+		map.AllocateGrid( 100, 100 );
+		for ( u32 x = 0; x < 10; x++ ) {
+			map.SetTile( x, 10, MapTile::ROAD );
+		}
+		for ( u32 x = 15; x < 25; x++ ) {
+			map.SetTile( x, 10, MapTile::ROAD );
+		}
+		std::vector< Cell > out;
+		bool                found = map.FindPath( Cell( 1, 10 ), Cell( 20, 10 ), out );
+		REQUIRE( found == false );
+	}
+}
+
+TEST_CASE( "A star", "[astar]" ) {
+	SECTION( "can find a path in a large network" ) {
+		Map           map;
+		RoadNetwork & network = map.roadNetwork;
+		map.AllocateGrid( 200, 200 );
+		for ( u32 x = 30; x <= 190; x++ ) {
+			for ( u32 z = 30; z <= 190; z++ ) {
+				if ( x % 10 == 0 || z % 10 == 0 )
+					map.SetTile( x, z, MapTile::ROAD );
+			}
+		}
+
+		std::vector< Cell > out;
+		bool                found = AStar( Cell( 34, 30 ), Cell( 164, 90 ), ASTAR_FORBID_DIAGONALS, map, out );
+		REQUIRE( found == true );
+		REQUIRE( out.size() == 191 );
+		REQUIRE( out[ 0 ] == Cell( 164, 90 ) );
 	}
 }

@@ -91,10 +91,24 @@ struct InstancedModelBatch {
 	bool                          dirty = false;
 	u32                           arrayBuffer;
 
+	void AddInstanceAtPosition( const glm::vec3 & position ) {
+		positions.PushBack( position );
+		dirty = true;
+	}
+
+	bool RemoveInstancesWithPosition( const glm::vec3 & position ) {
+		bool modified = positions.DeleteValueFast( position );
+		if ( modified ) {
+			dirty = true;
+			return true;
+		}
+		return false;
+	}
+
 	void Init( Model * model ) {
 		this->model = model;
 		glGenBuffers( 1, &arrayBuffer );
-		UpdateVAO();
+		UpdateArrayBuffer();
 
 		for ( unsigned int i = 0; i < model->meshes.size(); i++ ) {
 			unsigned int VAO = model->meshes[ i ].vao;
@@ -107,14 +121,14 @@ struct InstancedModelBatch {
 		}
 	}
 
-	void UpdateVAO() {
+	void UpdateArrayBuffer() {
 		glBindBuffer( GL_ARRAY_BUFFER, arrayBuffer );
 		glBufferData( GL_ARRAY_BUFFER, positions.Size() * sizeof( glm::vec3 ), positions.data, GL_STATIC_DRAW );
 	}
 
 	void Render() {
 		if ( dirty ) {
-			UpdateVAO();
+			UpdateArrayBuffer();
 			dirty = false;
 		}
 		Shader & shader = g_shaderAtlas.instancedShader;
@@ -143,13 +157,12 @@ struct InstancedModelBatch {
 	}
 };
 
-InstancedModelBatch roadModels;
+InstancedModelBatch roadBatchedTiles;
 
 void SpawnRoadBlock( Registery & reg, Map & map, Cell cell ) {
 	if ( map.GetTile( cell ) != MapTile::ROAD ) {
 		map.SetTile( cell, MapTile::ROAD );
-		roadModels.positions.PushBack( GetPointInCornerOfCell( cell ) );
-		roadModels.dirty = true;
+		roadBatchedTiles.AddInstanceAtPosition( GetPointInCornerOfCell( cell ) );
 	}
 }
 
@@ -252,6 +265,10 @@ int main( int ac, char ** av ) {
 	Guizmo::Init();
 
 	TracyGpuContext;
+	ng::LinkedList< int > list;
+	for ( int i = 0; i < 64; i++ ) {
+		list.PushFront( i );
+	}
 
 	auto  lastFrameTime = std::chrono::high_resolution_clock::now();
 	float fixedTimeStepAccumulator = 0.0f;
@@ -273,7 +290,7 @@ int main( int ac, char ** av ) {
 	CreateTexturedPlane( 1.0f, 1.0f, 1.0f, *( theGame->package.GrabResource( PackerResources::ROAD_TEXTURE_PNG ) ),
 	                     roadModel );
 
-	roadModels.Init( &roadModel );
+	roadBatchedTiles.Init( &roadModel );
 
 	Entity player = registery.CreateEntity();
 	{
@@ -443,10 +460,12 @@ int main( int ac, char ** av ) {
 			if ( io.mouse.IsButtonPressed( Mouse::Button::RIGHT ) ) {
 				// move player to cursor
 				glm::vec3 playerPosition = registery.GetComponent< CpntTransform >( player ).GetTranslation();
+				u32 totalDistance = 0;
 				bool      pathFound = map.roadNetwork.FindPath(
                     GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ), map,
-                    registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps );
+                    registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps, &totalDistance );
 				ng::Printf( "Path found %d\n", pathFound );
+				ng::Printf("Total distance: %d\n", totalDistance);
 				std::vector< Cell > foo;
 				AStar( GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ),
 				       ASTAR_ALLOW_DIAGONALS, map, foo );
@@ -465,8 +484,7 @@ int main( int ac, char ** av ) {
 							}
 						}
 					} else if ( map.GetTile( mouseCellPosition ) == MapTile::ROAD ) {
-						roadModels.positions.DeleteValueFast( GetPointInCornerOfCell( mouseCellPosition ) );
-						roadModels.dirty = true;
+						roadBatchedTiles.RemoveInstancesWithPosition( GetPointInCornerOfCell( mouseCellPosition ) );
 						map.SetTile( mouseCellPosition, MapTile::EMPTY );
 					}
 				} else if ( map.GetTile( mouseCellPosition ) == MapTile::EMPTY ) {
@@ -504,7 +522,7 @@ int main( int ac, char ** av ) {
 			groundTransform.SetTranslation( { 0.0f, -0.01f, 0.0f } );
 			DrawModel( groundModel, groundTransform, defaultShader );
 
-			roadModels.Render();
+			roadBatchedTiles.Render();
 
 			defaultShader.Use();
 			for ( auto const & [ e, renderModel ] : registery.IterateOver< CpntRenderModel >() ) {

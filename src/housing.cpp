@@ -122,35 +122,45 @@ void SystemBuildingProducing::Update( Registery & reg, float dt ) {
 	for ( auto & [ e, producer ] : reg.IterateOver< CpntBuildingProducing >() ) {
 		producer.timeSinceLastProduction += ng::DurationInSeconds( dt );
 		if ( producer.timeSinceLastProduction >= producer.timeToProduceBatch ) {
-			// Produce a batch
-			producer.timeSinceLastProduction -= producer.timeToProduceBatch;
-			// Spawn a dummy who will move the batch the nearest storage house
-			Entity carrier = reg.CreateEntity();
-			reg.AssignComponent< CpntRenderModel >( carrier, g_modelAtlas.cubeMesh );
-			CpntTransform &       transform = reg.AssignComponent< CpntTransform >( carrier );
-			CpntNavAgent &        navAgent = reg.AssignComponent< CpntNavAgent >( carrier );
-			CpntResourceCarrier & resourceCarrier = reg.AssignComponent< CpntResourceCarrier >( carrier );
-			resourceCarrier.amount = producer.batchSize;
-			resourceCarrier.resource = producer.resource;
-
 			const CpntBuilding & cpntBuilding = reg.GetComponent< CpntBuilding >( e );
-			Cell                 roadPoint = GetClosestRoadPoint( cpntBuilding, theGame->map );
-			transform.SetTranslation( GetPointInMiddleOfCell( roadPoint ) );
 
-			Entity closestStorage = INVALID_ENTITY_ID;
-			// TODO: We should find the closestStorage, not just any storage
-			// TODO: we should handle not finding a storage
+			// Find a path to store house
+			Entity              closestStorage = INVALID_ENTITY_ID;
+			u32                 closestStorageDistance = ULONG_MAX;
+			std::vector< Cell > currentPath;
+			currentPath.reserve( 32 );
 			for ( auto & [ e, storage ] : reg.IterateOver< CpntBuildingStorage >() ) {
-				closestStorage = e;
+				u32  distance = 0;
+				bool pathFound = theGame->map.FindPathBetweenBuildings(
+				    cpntBuilding, reg.GetComponent< CpntBuilding >( e  ), currentPath );
+				if ( pathFound && distance < closestStorageDistance ) {
+					closestStorage = e;
+					closestStorageDistance = distance;
+				}
 				break;
 			}
-			ng_assert( closestStorage != INVALID_ENTITY_ID );
 
-			Cell storageRoadPoint =
-			    GetClosestRoadPoint( reg.GetComponent< CpntBuilding >( closestStorage ), theGame->map );
-			bool pathFound = theGame->map.FindPath( roadPoint, storageRoadPoint, navAgent.pathfindingNextSteps );
-			ng_assert( pathFound == true );
-			reg.messageBroker.AddListener( carrier, carrier, OnAgentArrived, MESSAGE_PATHFINDING_DESTINATION_REACHED );
+			if ( closestStorageDistance == INVALID_ENTITY_ID ) {
+				ImGui::Text( "A producing building has no connection to a storage, stall for now" );
+				producer.timeSinceLastProduction = producer.timeToProduceBatch;
+			} else {
+				// Produce a batch
+				producer.timeSinceLastProduction -= producer.timeToProduceBatch;
+				// Spawn a dummy who will move the batch the nearest storage house
+				Entity carrier = reg.CreateEntity();
+				reg.AssignComponent< CpntRenderModel >( carrier, g_modelAtlas.cubeMesh );
+				CpntTransform & transform = reg.AssignComponent< CpntTransform >( carrier );
+				CpntNavAgent &  navAgent = reg.AssignComponent< CpntNavAgent >( carrier );
+				navAgent.pathfindingNextSteps = currentPath;
+				CpntResourceCarrier & resourceCarrier = reg.AssignComponent< CpntResourceCarrier >( carrier );
+				resourceCarrier.amount = producer.batchSize;
+				resourceCarrier.resource = producer.resource;
+
+				transform.SetTranslation( GetPointInMiddleOfCell(
+				    navAgent.pathfindingNextSteps[ navAgent.pathfindingNextSteps.size() - 1 ] ) );
+				reg.messageBroker.AddListener( carrier, carrier, OnAgentArrived,
+				                               MESSAGE_PATHFINDING_DESTINATION_REACHED );
+			}
 		}
 	}
 }

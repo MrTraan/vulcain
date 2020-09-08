@@ -1,39 +1,10 @@
 #pragma once
 
 #include "ngLib/types.h"
+#include "nglib.h"
+#include <bitset>
 
 namespace ng {
-template < class T, size_t N = 64 > struct ObjectPool {
-	ObjectPool() {
-		pool.resize( N );
-		for ( u32 i = 0; i < N; i++ ) {
-			pool[ i ] = new T();
-		}
-	}
-
-	~ObjectPool() {
-		for ( auto obj : pool ) {
-			if ( obj != nullptr ) {
-				delete obj;
-			}
-		}
-	}
-
-	std::vector< T * > pool;
-
-	T * Pop() {
-		if ( pool.size() == 0 ) {
-			return new T();
-		}
-		T * obj = pool.back();
-		obj = new ( obj ) T();
-		pool.pop_back();
-		return obj;
-	}
-
-	void Push( T * obj ) { pool.push_back( obj ); }
-};
-
 template < typename T > struct DynamicArray {
 	static constexpr u32 initialAllocSize = 32;
 
@@ -50,6 +21,13 @@ template < typename T > struct DynamicArray {
 
 	DynamicArray() = default;
 	DynamicArray( u32 initialCapacity ) { Resize( initialCapacity ); }
+	DynamicArray( u32 initialCapacity, const T & defaultValue ) {
+		Resize( initialCapacity );
+		count = initialCapacity;
+		for ( u32 i = 0; i < initialCapacity; i++ ) {
+			data[ i ] = defaultValue;
+		}
+	}
 	DynamicArray( const DynamicArray< T > & src ) { *this = src; }
 
 	DynamicArray< T > & operator=( const DynamicArray< T > & rhs ) {
@@ -217,5 +195,254 @@ template < typename T, u32 N > struct StaticArray {
 	const T * begin() const { return data == nullptr || count == 0 ? nullptr : data; }
 	const T * end() const { return data == nullptr || count == 0 ? nullptr : data + count; }
 };
+
+constexpr u64 objectPoolBucketSize = 64;
+
+struct Bitfield64 {
+	u64 word = 0;
+
+	inline bool AllBitsAreSet() const { return word == ULLONG_MAX; }
+	inline void Set( u32 index ) { word |= 1ULL << index; }
+	inline void Reset( u32 index ) { word &= ~( 1ULL << index ); }
+	inline bool Test( u32 index ) { return ( word >> index ) & 1ULL; }
+	inline void Clear() { word = 0; }
+};
+
+template < class T > struct ObjectPool {
+	ObjectPool() = default;
+	ObjectPool( const ObjectPool & ) = delete;             // non construction-copyable
+	ObjectPool & operator=( const ObjectPool & ) = delete; // non copyable
+
+	struct Bucket {
+		T          content[ objectPoolBucketSize ];
+		Bitfield64 indicesDistributed;
+		u32        nextFreeIndex = 0;
+
+		void FindNextFreeIndex() {
+			if ( indicesDistributed.AllBitsAreSet() == false ) {
+				for ( u32 i = nextFreeIndex + 1; i < 64; i++ ) {
+					if ( indicesDistributed.Test( i ) == false ) {
+						nextFreeIndex = i;
+						return;
+					}
+				}
+				for ( u32 i = 0; i < nextFreeIndex; i++ ) {
+					if ( indicesDistributed.Test( i ) == false ) {
+						nextFreeIndex = i;
+						return;
+					}
+				}
+				ng_assert( false );
+			}
+		}
+	};
+
+	ng::DynamicArray< Bucket * > buckets;
+
+	~ObjectPool() {
+		for ( Bucket * bucket : buckets ) {
+			delete bucket;
+		}
+	}
+
+	T * Pop() {
+		for ( Bucket * bucket : buckets ) {
+			if ( bucket->indicesDistributed.AllBitsAreSet() == false ) {
+				u32 i = bucket->nextFreeIndex;
+				bucket->indicesDistributed.Set( i );
+				bucket->FindNextFreeIndex();
+				return bucket->content + i;
+			}
+		}
+		Bucket * newBucket = new Bucket();
+		buckets.PushBack( newBucket );
+		newBucket->indicesDistributed.Set( 0 );
+		newBucket->nextFreeIndex = 1;
+		return newBucket->content;
+	}
+
+	void Push( T * obj ) {
+		for ( Bucket * bucket : buckets ) {
+			int64 offset = obj - bucket->content;
+			if ( offset >= 0 && offset < objectPoolBucketSize ) {
+				if ( bucket->indicesDistributed.Test( ( u32 )offset ) == true ) {
+					// default construct the object given back so it's clean for the next user
+					new ( bucket->content + offset ) T();
+					bucket->indicesDistributed.Reset( ( u32 )offset );
+					bucket->nextFreeIndex = ( u32 )offset;
+				} else {
+					ng_assert_msg( false, "An object was \"double freed\", ie pushed twice to an object pool\n" );
+				}
+				return;
+			}
+		}
+		ng_assert_msg(
+		    false, "An item was pushed to an object pool but it wasn't created by this pool. This is FOR-BI-DDEN\n" );
+	}
+
+	void Clear() {
+		for ( Bucket * bucket : buckets ) {
+			delete bucket;
+		}
+		buckets.Clear();
+	}
+};
+
+template < typename T > struct LinkedList {
+	LinkedList() = default;
+	LinkedList( const LinkedList & rhs ) { *this = rhs; }
+
+	LinkedList & operator=( const LinkedList & rhs ) {
+		if ( rhs.head == nullptr ) {
+			return *this;
+		}
+		head = nodePool.Pop();
+		head->data = rhs.head->data;
+		Node * thisCursor = head;
+		Node * rhsCursor = rhs.head->next;
+		while ( rhsCursor != nullptr ) {
+			thisCursor->next = nodePool.Pop();
+			thisCursor->next->data = rhsCursor->data;
+			thisCursor = thisCursor->next;
+			rhsCursor = rhsCursor->next;
+		}
+		return *this;
+	}
+
+	struct Node {
+		T      data{};
+		Node * next = nullptr;
+		Node * previous = nullptr;
+	};
+
+	Node *             head = nullptr;
+	ObjectPool< Node > nodePool;
+
+	T & PushFront( const T & elem ) {
+		Node * newNode = nodePool.Pop();
+		newNode->data = elem;
+		if ( head != nullptr ) {
+			head->previous = newNode;
+			newNode->next = head;
+		}
+		head = newNode;
+		return head->data;
+	}
+
+	void PopFront() {
+		if ( head != nullptr ) {
+			head = head->next;
+			if ( head != nullptr ) {
+				head->previous = nullptr;
+			}
+		}
+	}
+
+	void DeleteNode( Node * node ) {
+		if ( node == head ) {
+			head = node->next;
+		}
+		if ( node->previous != nullptr ) {
+			node->previous->next = node->next;
+		}
+		if ( node->next != nullptr ) {
+			node->next->previous = node->previous;
+		}
+		nodePool.Push( node );
+	}
+
+	T & Front() {
+		ng_assert( head != nullptr );
+		return head->data;
+	}
+
+	Node * GetNodeWithOffset( u64 offset ) {
+		ng_assert( offset < size );
+		Node * cursor = head;
+		for ( u64 i = 0; i < offset; i++ ) {
+			cursor = cursor->next;
+		}
+		return cursor;
+	}
+
+	T & operator[]( u64 index ) {
+		Node * cursor = head;
+		for ( u64 i = 0; i < index; i++ ) {
+			cursor = cursor->next;
+		}
+		return cursor->data;
+	}
+
+	const T & operator[]( u64 index ) const {
+		ng_assert( index < size );
+		const Node * cursor = head;
+		for ( u64 i = 0; i < index; i++ ) {
+			cursor = cursor->next;
+		}
+		return cursor->data;
+	}
+
+	void Clear() {
+		head = nullptr;
+		nodePool.Clear();
+	}
+
+	bool Empty() const { return head == nullptr; }
+
+	struct Iterator {
+		Iterator( Node * node ) : node( node ) {}
+		Iterator operator++() {
+			node = node->next;
+			return *this;
+		}
+
+		bool      operator!=( const Iterator & other ) const { return node != other.node; }
+		T &       operator*() { return node->data; }
+		const T & operator*() const { return node->data; }
+
+		Node * node;
+	};
+
+	// iterators
+	auto begin() { return Iterator( head ); }
+	auto begin() const { return Iterator( head ); }
+	auto end() { return Iterator( nullptr ); }
+	auto end() const { return Iterator( nullptr ); }
+};
+
+enum class SortOrder {
+	ASCENDING,
+	DESCENDING,
+};
+
+template < typename T > void LinkedListInsertSorted( LinkedList< T > & list, const T & elem, SortOrder order ) {
+	if ( list.head == nullptr ) {
+		list.PushFront( elem );
+		return;
+	}
+
+	if ( ( order == SortOrder::ASCENDING && elem < list.head->data ) ||
+	     ( order == SortOrder::DESCENDING && elem > list.head->data ) ) {
+		list.PushFront( elem );
+		return;
+	}
+
+	LinkedList< T >::Node * cursor = list.head;
+	while ( cursor->next != nullptr ) {
+		if ( ( order == SortOrder::ASCENDING && elem < cursor->next->data ) ||
+		     ( order == SortOrder::DESCENDING && elem > cursor->next->data ) ) {
+			break;
+		}
+		cursor = cursor->next;
+	}
+	LinkedList< T >::Node * newNode = list.nodePool.Pop();
+	newNode->data = elem;
+	newNode->next = cursor->next;
+	newNode->previous = cursor;
+	if ( newNode->next != nullptr ) {
+		newNode->next->previous = newNode;
+	}
+	cursor->next = newNode;
+}
 
 }; // namespace ng

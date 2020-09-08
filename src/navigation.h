@@ -2,6 +2,9 @@
 
 #include "entity.h"
 #include <vector>
+#include "ngLib/ngcontainers.h"
+
+struct CpntBuilding;
 
 enum AStarMovementAllowed {
 	ASTAR_ALLOW_DIAGONALS,
@@ -152,8 +155,8 @@ struct RoadNetwork {
 	};
 	void FindNearestRoadNodes( Cell cell, const Map & map, NodeSearchResult & first, NodeSearchResult & second );
 
-	bool FindPath( Cell start, Cell goal, const Map & map, std::vector< Cell > & outPath );
-
+	bool FindPath( Cell start, Cell goal, const Map & map, std::vector< Cell > & outPath, u32 * outTotalDistance = nullptr, u32 maxDistance = ULONG_MAX );
+	
 	bool CheckNetworkIntegrity();
 };
 
@@ -203,6 +206,9 @@ struct Map {
 	bool FindPath( Cell start, Cell goal, std::vector< Cell > & outPath ) {
 		return roadNetwork.FindPath( start, goal, *this, outPath );
 	}
+	
+	bool FindPathBetweenBuildings(  const CpntBuilding & start, const CpntBuilding & goal , std::vector< Cell > & outPath, u32 maxDistance = ULONG_MAX, u32 * outDistance = nullptr );
+
 
 	u32         sizeX = 0;
 	u32         sizeZ = 0;
