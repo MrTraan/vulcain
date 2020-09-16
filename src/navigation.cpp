@@ -1,5 +1,5 @@
 #include "navigation.h"
-#include "housing.h"
+#include "buildings/building.h"
 #include "message.h"
 #include "ngLib/logs.h"
 #include "ngLib/ngcontainers.h"
@@ -192,7 +192,7 @@ bool AStar( Cell start, Cell goal, AStarMovementAllowed movement, const Map & ma
 					continue;
 				}
 				Cell neighborCoords( x, z );
-				if ( map.IsTileWalkable( neighborCoords ) == false ||
+				if ( map.GetTile( neighborCoords ) != MapTile::ROAD ||
 				     ( movement == ASTAR_FORBID_DIAGONALS && x != current->coord.x && z != current->coord.z ) ) {
 					continue;
 				}
@@ -252,8 +252,8 @@ void SystemNavAgent::Update( Registery & reg, float dt ) {
 	for ( auto & [ e, agent ] : reg.IterateOver< CpntNavAgent >() ) {
 		CpntTransform & transform = reg.GetComponent< CpntTransform >( e );
 		float           remainingSpeed = agent.movementSpeed * dt;
-		while ( agent.pathfindingNextSteps.empty() == false && remainingSpeed > 0.0f ) {
-			Cell      nextStep = agent.pathfindingNextSteps.back();
+		while ( agent.pathfindingNextSteps.Empty() == false && remainingSpeed > 0.0f ) {
+			Cell      nextStep = agent.pathfindingNextSteps.Last();
 			glm::vec3 nextCoord = GetPointInMiddleOfCell( nextStep );
 			float     distance = glm::distance( transform.GetTranslation(), nextCoord );
 			if ( distance > agent.movementSpeed * dt ) {
@@ -261,8 +261,8 @@ void SystemNavAgent::Update( Registery & reg, float dt ) {
 				transform.Translate( direction * agent.movementSpeed * dt );
 			} else {
 				transform.SetTranslation( nextCoord );
-				agent.pathfindingNextSteps.pop_back();
-				if ( agent.pathfindingNextSteps.empty() == true ) {
+				agent.pathfindingNextSteps.PopBack();
+				if ( agent.pathfindingNextSteps.Empty() == true ) {
 					// we are at destination
 					reg.BroadcastMessage( e, MESSAGE_PATHFINDING_DESTINATION_REACHED );
 				}
@@ -324,6 +324,11 @@ RoadNetwork::Node * RoadNetwork::FindNodeWithPosition( Cell cell ) {
 		}
 	}
 	return nullptr;
+}
+
+RoadNetwork::Node * RoadNetwork::ResolveConnection( Connection * connection ) {
+	ng_assert( connection->IsValid() );
+	return FindNodeWithPosition( connection->connectedTo );
 }
 
 bool RoadNetwork::RemoveNodeByPosition( Cell cell ) {
@@ -538,15 +543,15 @@ void RoadNetwork::FindNearestRoadNodes( Cell               cell,
 
 // WARNING: This assumes that start and goal are actually connected and on a single road
 // It can not follow multiple paths
-bool BuildPathInsideNodes( Cell                      start,
-                           Cell                      goal,
-                           const RoadNetwork::Node & nodeA,
-                           const RoadNetwork::Node & nodeB,
-                           const Map &               map,
-                           std::vector< Cell > &     outPath,
-                           u32 &                     outTotalDistance ) {
+bool BuildPathInsideNodes( Cell                       start,
+                           Cell                       goal,
+                           const RoadNetwork::Node &  nodeA,
+                           const RoadNetwork::Node &  nodeB,
+                           const Map &                map,
+                           ng::DynamicArray< Cell > & outPath,
+                           u32 &                      outTotalDistance ) {
 	if ( start == goal ) {
-		outPath.push_back( start );
+		outPath.PushBack( start );
 		outTotalDistance = 0;
 		return true;
 	}
@@ -554,19 +559,19 @@ bool BuildPathInsideNodes( Cell                      start,
 	ng::StaticArray< Cell, 4 > roadNeighbors;
 	GetRoadNeighborsOfCell( start, map, roadNeighbors );
 	ng_assert( roadNeighbors.Size() == 2 );
-	Cell                currentCell[ 2 ] = { roadNeighbors[ 0 ], roadNeighbors[ 1 ] };
-	Cell                previousCell[ 2 ] = { start, start };
-	CardinalDirection   previousDirection[ 2 ] = { GetDirectionFromCellTo( start, roadNeighbors[ 0 ] ),
+	Cell                     currentCell[ 2 ] = { roadNeighbors[ 0 ], roadNeighbors[ 1 ] };
+	Cell                     previousCell[ 2 ] = { start, start };
+	CardinalDirection        previousDirection[ 2 ] = { GetDirectionFromCellTo( start, roadNeighbors[ 0 ] ),
                                                  GetDirectionFromCellTo( start, roadNeighbors[ 1 ] ) };
-	u32                 totalDistances[ 2 ] = { 1, 1 };
-	std::vector< Cell > paths[ 2 ];
-	int                 skipIndex0 = 0;
-	int                 skipIndex1 = 0;
+	u32                      totalDistances[ 2 ] = { 1, 1 };
+	ng::DynamicArray< Cell > paths[ 2 ];
+	int                      skipIndex0 = 0;
+	int                      skipIndex1 = 0;
 	while ( skipIndex0 == 0 || skipIndex1 == 0 ) {
 		for ( int i = skipIndex0; i < 2 - skipIndex1; i++ ) {
 			if ( currentCell[ i ] == goal ) {
-				paths[ i ].push_back( goal );
-				outPath.insert( outPath.end(), paths[ i ].begin(), paths[ i ].end() );
+				paths[ i ].PushBack( goal );
+				outPath.Append( paths[ i ] );
 				outTotalDistance = totalDistances[ i ];
 				return true;
 			}
@@ -579,7 +584,7 @@ bool BuildPathInsideNodes( Cell                      start,
 					nextRoadIsFound = true;
 					CardinalDirection currentDirection = GetDirectionFromCellTo( currentCell[ i ], neighbor );
 					if ( currentDirection != previousDirection[ i ] ) {
-						paths[ i ].push_back( currentCell[ i ] );
+						paths[ i ].PushBack( currentCell[ i ] );
 					}
 					previousDirection[ i ] = currentDirection;
 					previousCell[ i ] = currentCell[ i ];
@@ -604,7 +609,7 @@ bool BuildPathInsideNodes( Cell                      start,
 bool BuildPathBetweenNodes( RoadNetwork::Node &   start,
                             RoadNetwork::Node &   goal,
                             const Map &           map,
-                            std::vector< Cell > & outPath,
+                            ng::DynamicArray< Cell > & outPath,
                             u32 &                 outTotalDistance ) {
 	RoadNetwork::Connection * connection = start.FindShortestConnectionWith( goal.position );
 	CardinalDirection         direction = start.GetDirectionOfConnection( connection );
@@ -615,7 +620,7 @@ bool BuildPathBetweenNodes( RoadNetwork::Node &   start,
 	outTotalDistance = 1;
 	while ( true ) {
 		if ( currentCell == goal.position ) {
-			outPath.push_back( goal.position );
+			outPath.PushBack( goal.position );
 			return true;
 		}
 
@@ -627,7 +632,7 @@ bool BuildPathBetweenNodes( RoadNetwork::Node &   start,
 				nextRoadIsFound = true;
 				CardinalDirection currentDirection = GetDirectionFromCellTo( currentCell, neighbor );
 				if ( currentDirection != previousDirection ) {
-					outPath.push_back( currentCell );
+					outPath.PushBack( currentCell );
 				}
 				previousDirection = currentDirection;
 				previousCell = currentCell;
@@ -641,15 +646,14 @@ bool BuildPathBetweenNodes( RoadNetwork::Node &   start,
 	return false;
 }
 
-bool BuildPathFromNodeToCell( RoadNetwork::Node &   start,
-                              const Cell &          goal,
-                              const Map &           map,
-                              std::vector< Cell > & outPath,
-                              u32 &                 outTotalDistance,
-                              bool                  insertReverse = false ) {
+bool BuildPathFromNodeToCell( RoadNetwork::Node &        start,
+                              const Cell &               goal,
+                              const Map &                map,
+                              ng::DynamicArray< Cell > & outPath,
+                              u32 &                      outTotalDistance,
+                              bool                       insertReverse = false ) {
 	for ( u32 i = 0; i < start.NumSetConnections(); i++ ) {
-		std::vector< Cell > path;
-		path.reserve( 16 );
+		ng::DynamicArray< Cell >  path( 16 );
 		RoadNetwork::Connection * connection = start.GetValidConnectionWithOffset( i );
 		CardinalDirection         direction = start.GetDirectionOfConnection( connection );
 
@@ -659,13 +663,13 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &   start,
 		u32               currentPathDistance = 1;
 		while ( true ) {
 			if ( currentCell == goal ) {
-				path.push_back( goal );
+				path.PushBack( goal );
 				if ( insertReverse == true ) {
-					for ( int64 i = path.size() - 1; i >= 0; i-- ) {
-						outPath.push_back( path[ i ] );
+					for ( int64 i = path.Size() - 1; i >= 0; i-- ) {
+						outPath.PushBack( path[ (u32)i ] );
 					}
 				} else {
-					outPath.insert( outPath.end(), path.begin(), path.end() );
+					outPath.Append( path );
 				}
 				outTotalDistance = currentPathDistance;
 				return true;
@@ -682,7 +686,7 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &   start,
 					nextRoadIsFound = true;
 					CardinalDirection currentDirection = GetDirectionFromCellTo( currentCell, neighbor );
 					if ( currentDirection != previousDirection ) {
-						path.push_back( currentCell );
+						path.PushBack( currentCell );
 					}
 					previousDirection = currentDirection;
 					previousCell = currentCell;
@@ -697,20 +701,20 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &   start,
 	return false;
 }
 
-bool RoadNetwork::FindPath( Cell                  start,
-                            Cell                  goal,
-                            const Map &           map,
-                            std::vector< Cell > & outPath,
-                            u32 *                 outTotalDistance /*= nullptr*/,
-                            u32                   maxDistance /*= ULONG_MAX */ ) {
+bool RoadNetwork::FindPath( Cell                       start,
+                            Cell                       goal,
+                            const Map &                map,
+                            ng::DynamicArray< Cell > & outPath,
+                            u32 *                      outTotalDistance /*= nullptr*/,
+                            u32                        maxDistance /*= ULONG_MAX */ ) {
 	ZoneScoped;
 	ng::DynamicArray< AStarStep * > findPathOpenSet( 64 );
 	ng::DynamicArray< AStarStep * > findPathClosedSet( 64 );
 
 	u32 totalDistance = 0;
 
-	outPath.clear();
-	outPath.reserve( 64 );
+	outPath.Clear();
+	outPath.Reserve( 64 );
 
 	if ( map.GetTile( start ) != MapTile::ROAD || map.GetTile( goal ) != MapTile::ROAD ) {
 		return false;
@@ -749,7 +753,7 @@ bool RoadNetwork::FindPath( Cell                  start,
 	if ( ( searchStartA.node == searchGoalA.node && searchStartB.node == searchGoalB.node ) ||
 	     ( searchStartA.node == searchGoalB.node && searchStartB.node == searchGoalA.node ) ) {
 		// Start and goal are between the same nodes
-		outPath.push_back( goal );
+		outPath.PushBack( goal );
 		BuildPathInsideNodes( goal, start, *searchStartA.node, *searchStartB.node, map, outPath, totalDistance );
 		if ( outTotalDistance != nullptr ) {
 			*outTotalDistance = totalDistance;
@@ -759,7 +763,7 @@ bool RoadNetwork::FindPath( Cell                  start,
 	if ( Node * startNode = FindNodeWithPosition( start );
 	     startNode != nullptr && ( searchGoalA.node == startNode || searchGoalB.node == startNode ) ) {
 		BuildPathFromNodeToCell( *startNode, goal, map, outPath, totalDistance, true );
-		outPath.push_back( start );
+		outPath.PushBack( start );
 		if ( outTotalDistance != nullptr ) {
 			*outTotalDistance = totalDistance;
 		}
@@ -767,7 +771,7 @@ bool RoadNetwork::FindPath( Cell                  start,
 	}
 	if ( Node * goalNode = FindNodeWithPosition( goal );
 	     goalNode != nullptr && ( searchStartA.node == goalNode || searchStartB.node == goalNode ) ) {
-		outPath.push_back( goal );
+		outPath.PushBack( goal );
 		BuildPathFromNodeToCell( *goalNode, start, map, outPath, totalDistance );
 		if ( outTotalDistance != nullptr ) {
 			*outTotalDistance = totalDistance;
@@ -815,7 +819,7 @@ bool RoadNetwork::FindPath( Cell                  start,
 			for ( u32 i = 0; i < node->NumSetConnections(); i++ ) {
 				Connection * connection = node->GetValidConnectionWithOffset( i );
 				int          totalCost = current->g + connection->distance;
-				if ( totalCost < maxDistance && FindNodeInSet( findPathClosedSet, connection->connectedTo ) == false ) {
+				if ( (u32)totalCost < maxDistance && FindNodeInSet( findPathClosedSet, connection->connectedTo ) == false ) {
 					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, parent );
 				}
 			}
@@ -830,8 +834,8 @@ bool RoadNetwork::FindPath( Cell                  start,
 	auto cursor = lastStep->parent;
 	while ( cursor != nullptr ) {
 		u32 stepDistance = 0;
-		if ( outPath[ outPath.size() - 1 ] != cursor->coord ) {
-			outPath.push_back( cursor->coord );
+		if ( outPath.Last() != cursor->coord ) {
+			outPath.PushBack( cursor->coord );
 		}
 		if ( cursor->parent != nullptr ) {
 			BuildPathBetweenNodes( *cursor->node, *cursor->parent->node, map, outPath, stepDistance );
@@ -858,11 +862,14 @@ bool RoadNetwork::FindPath( Cell                  start,
 	return true;
 }
 
-bool Map::FindPathBetweenBuildings( const CpntBuilding &  start,
-                                    const CpntBuilding &  goal,
-                                    std::vector< Cell > & outPath,
-                                    u32                   maxDistance /*= ULONG_MAX*/,
-                                    u32 *                 outDistance /*= nullptr */ ) {
+bool FindPathBetweenBuildings( const CpntBuilding &       start,
+                               const CpntBuilding &       goal,
+                               Map &                      map,
+                               RoadNetwork &              roadNetwork,
+                               ng::DynamicArray< Cell > & outPath,
+                               u32                        maxDistance /*= ULONG_MAX*/,
+                               u32 *                      outDistance /*= nullptr */ ) {
+	ZoneScoped;
 	ng::ScopedChrono         chrono( "FindPathBetweenBuildings" );
 	ng::DynamicArray< Cell > startingCells;
 	ng::DynamicArray< Cell > goalCells;
@@ -873,10 +880,10 @@ bool Map::FindPathBetweenBuildings( const CpntBuilding &  start,
 	                                             ng::DynamicArray< Cell > & res ) {
 		int64 x = building.cell.x + shiftX;
 		int64 z = building.cell.z + shiftZ;
-		if ( x >= 0 && x < sizeX && z >= 0 && z < sizeZ ) {
-			if ( GetTile( x, z ) == MapTile::ROAD ) {
+		if ( x >= 0 && x < map.sizeX && z >= 0 && z < map.sizeZ ) {
+			if ( map.GetTile( (u32)x, (u32)z ) == MapTile::ROAD ) {
 				if ( addNextCellToList ) {
-					res.PushBack( Cell( x, z ) );
+					res.PushBack( Cell( (u32)x, (u32)z ) );
 					addNextCellToList = false;
 				}
 			} else {
@@ -930,10 +937,10 @@ bool Map::FindPathBetweenBuildings( const CpntBuilding &  start,
 	u32  shortestDistance = maxDistance;
 	for ( u32 i = 0; i < startingCells.Size(); i++ ) {
 		for ( u32 j = 0; j < goalCells.Size(); j++ ) {
-			std::vector< Cell > path;
+			ng::DynamicArray< Cell > path;
 			u32                 distance = 0;
 			bool                subPathFound =
-			    roadNetwork.FindPath( startingCells[ i ], goalCells[ j ], *this, path, &distance, shortestDistance );
+			    roadNetwork.FindPath( startingCells[ i ], goalCells[ j ], map, path, &distance, shortestDistance );
 			pathFound |= subPathFound;
 			if ( subPathFound && distance < shortestDistance ) {
 				outPath = path;
@@ -948,7 +955,7 @@ bool Map::FindPathBetweenBuildings( const CpntBuilding &  start,
 }
 
 bool RoadNetwork::CheckNetworkIntegrity() {
-	// Let's check if each link is mutual
+	// This is just a debug utility to find weird data inside road network
 	bool ok = true;
 	for ( Node & node : nodes ) {
 		for ( u32 i = 0; i < node.NumSetConnections(); i++ ) {
@@ -980,4 +987,78 @@ bool RoadNetwork::CheckNetworkIntegrity() {
 		}
 	}
 	return ok;
+}
+
+RoadNetwork::Connection * RoadNetwork::Node::GetValidConnectionWithOffset( u32 offset ) {
+	ng_assert( offset < NumSetConnections() );
+	for ( size_t i = 0; i < 4; i++ ) {
+		if ( connections[ i ].IsValid() ) {
+			if ( offset == 0 ) {
+				return connections + i;
+			}
+			offset--;
+		}
+	}
+	return nullptr;
+}
+
+u32 RoadNetwork::Node::NumSetConnections() const {
+	u32 count = 0;
+	for ( size_t i = 0; i < 4; i++ ) {
+		if ( connections[ i ].IsValid() ) {
+			count++;
+		}
+	}
+	return count;
+}
+
+RoadNetwork::Connection * RoadNetwork::Node::FindConnectionWith( const Cell & cell ) {
+	ng_assert_msg( HasMultipleConnectionsWith( cell ) == false,
+	               "FindConnectionWith will only return the first connection, which is unsafe if a node has "
+	               "multiple connections with the same node" );
+	for ( size_t i = 0; i < 4; i++ ) {
+		if ( connections[ i ].connectedTo == cell ) {
+			return &connections[ i ];
+		}
+	}
+	return nullptr;
+}
+
+RoadNetwork::Connection * RoadNetwork::Node::FindShortestConnectionWith( const Cell & cell ) {
+	Connection * res = nullptr;
+	for ( size_t i = 0; i < 4; i++ ) {
+		if ( connections[ i ].connectedTo == cell ) {
+			if ( res == nullptr ) {
+				res = connections + i;
+			} else if ( connections[ i ].distance < res->distance ) {
+				res = connections + i;
+			}
+		}
+	}
+	return res;
+}
+
+bool RoadNetwork::Node::HasMultipleConnectionsWith( const Cell & cell ) {
+	u32 numConnections = 0;
+	for ( size_t i = 0; i < 4; i++ ) {
+		if ( connections[ i ].connectedTo == cell ) {
+			numConnections++;
+		}
+	}
+	return numConnections > 1;
+}
+
+bool RoadNetwork::Node::IsConnectedToItself() const {
+	for ( size_t i = 0; i < 4; i++ ) {
+		if ( connections[ i ].IsValid() && connections[ i ].connectedTo == position ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+CardinalDirection RoadNetwork::Node::GetDirectionOfConnection( const Connection * connection ) const {
+	int offset = ( int )( connection - connections );
+	ng_assert( offset >= 0 && offset < 4 );
+	return ( CardinalDirection )offset;
 }

@@ -64,6 +64,7 @@ struct ModelAtlas {
 	Model * cubeMesh = nullptr;
 	Model * roadMesh = nullptr;
 	Model * storeHouseMesh = nullptr;
+	Model * roadBlockMesh = nullptr;
 };
 
 extern ModelAtlas g_modelAtlas;

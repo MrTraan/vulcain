@@ -2,7 +2,9 @@
 #include "entity.h"
 #include "message.h"
 
+#include <imgui/imgui.h>
 #include <queue>
+#include <string>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
@@ -10,6 +12,7 @@
 struct ICpntRegistery {
 	virtual ~ICpntRegistery() {}
 	virtual void RemoveComponent( Entity e ) = 0;
+	virtual u64  GetSize() const = 0;
 };
 
 template < class T > struct CpntRegistery : public ICpntRegistery {
@@ -71,22 +74,22 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 		ng_assert( HasComponent( e ) );
 		return components[ indexOfEntities[ e ] ];
 	}
-	
+
 	const T * TryGetComponent( Entity e ) const {
-		if ( HasComponent(e) ) {
+		if ( HasComponent( e ) ) {
 			return &components[ indexOfEntities[ e ] ];
 		}
 		return nullptr;
 	}
 
 	T * TryGetComponent( Entity e ) {
-		if ( HasComponent(e) ) {
+		if ( HasComponent( e ) ) {
 			return &components[ indexOfEntities[ e ] ];
 		}
 		return nullptr;
 	}
 
-	u64 GetSize() const { return numComponents; }
+	virtual u64 GetSize() const override { return numComponents; }
 
 	struct Iterator {
 		Iterator( Entity * e, T * cpnt ) : e( e ), cpnt( cpnt ) {}
@@ -114,7 +117,10 @@ constexpr u32 INITIAL_ENTITY_ALLOC = 4096u;
 
 struct Registery {
 	std::unordered_map< u64, ICpntRegistery * > cpntRegistriesMap;
-	MessageBroker                               messageBroker;
+#ifdef DEBUG
+	std::unordered_map< u64, std::string > cpntTypesToName;
+#endif
+	MessageBroker messageBroker;
 
 	Registery() {
 		for ( u32 i = 0; i < INITIAL_ENTITY_ALLOC; i++ ) {
@@ -175,6 +181,9 @@ struct Registery {
 		// TODO: This if must go away someday
 		if ( !cpntRegistriesMap.contains( typeHash ) ) {
 			cpntRegistriesMap[ typeHash ] = new CpntRegistery< T >( INITIAL_ENTITY_ALLOC );
+#ifdef DEBUG
+			cpntTypesToName[ typeHash ] = std::string( std::type_index( typeid( T ) ).name() );
+#endif
 		}
 		CpntRegistery< T > * returnValue = ( CpntRegistery< T > * )cpntRegistriesMap.at( typeHash );
 		return *returnValue;
@@ -186,11 +195,22 @@ struct Registery {
 		CpntRegistery< T > * returnValue = ( CpntRegistery< T > * )cpntRegistriesMap.at( typeHash );
 		return *returnValue;
 	}
-	
+
 	void BroadcastMessage( Entity emitter, MessageType type ) {
-		messageBroker.BroadcastMessage(*this, emitter, type );
+		messageBroker.BroadcastMessage( *this, emitter, type );
 	}
 
 	std::queue< Entity > availableEntityIds;
 	std::queue< Entity > markedForDeleteEntityIds;
+
+	void DebugDraw() {
+#ifdef DEBUG
+		for ( auto [ type, registery ] : cpntRegistriesMap ) {
+			if ( ImGui::TreeNode( cpntTypesToName[ type ].c_str() ) ) {
+				ImGui::Text( "Num components: %d\n", registery->GetSize() );
+				ImGui::TreePop();
+			}
+		}
+#endif
+	}
 };

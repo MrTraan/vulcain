@@ -84,10 +84,6 @@ struct File {
 	bool       SeekOffset( FileOffset offset, SeekWhence whence );
 };
 
-struct FileRead {};
-struct FileWrite {};
-struct FileReadWrite {};
-
 enum class ListFileMode {
 	NORMAL,
 	RECURSIVE,

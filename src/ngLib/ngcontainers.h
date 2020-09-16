@@ -20,9 +20,9 @@ template < typename T > struct DynamicArray {
 	bool Empty() const { return count == 0; }
 
 	DynamicArray() = default;
-	DynamicArray( u32 initialCapacity ) { Resize( initialCapacity ); }
+	DynamicArray( u32 initialCapacity ) { Reserve( initialCapacity ); }
 	DynamicArray( u32 initialCapacity, const T & defaultValue ) {
-		Resize( initialCapacity );
+		Reserve( initialCapacity );
 		count = initialCapacity;
 		for ( u32 i = 0; i < initialCapacity; i++ ) {
 			data[ i ] = defaultValue;
@@ -32,7 +32,7 @@ template < typename T > struct DynamicArray {
 
 	DynamicArray< T > & operator=( const DynamicArray< T > & rhs ) {
 		if ( rhs.capacity ) {
-			Resize( rhs.capacity );
+			Reserve( rhs.capacity );
 			for ( u32 i = 0; i < rhs.capacity; i++ ) {
 				data[ i ] = rhs.data[ i ];
 			}
@@ -53,15 +53,18 @@ template < typename T > struct DynamicArray {
 			data = new T[ initialAllocSize ];
 			capacity = initialAllocSize;
 		} else {
-			Resize( capacity * 2 );
+			Reserve( capacity * 2 );
 		}
 	}
 
 	// Resize never reduce the compact, use "shrink" for that
-	bool Resize( u32 newCapacity ) {
+	bool Reserve( u32 newCapacity ) {
 		if ( newCapacity <= capacity ) {
 			return false;
 		}
+		// Round newCapacity to the smallest power of 2 greater than or equal
+		// https://www.geeksforgeeks.org/smallest-power-of-2-greater-than-or-equal-to-n/
+		newCapacity = (u32)pow( 2ul, ( u32 )ceil( log2( newCapacity ) ) );
 		T * temp = new T[ newCapacity ];
 
 		for ( u32 i = 0; i < count; i++ ) {
@@ -125,6 +128,19 @@ template < typename T > struct DynamicArray {
 		}
 		data[ count ] = newElem;
 		return *( data + count++ );
+	}
+
+	T PopBack() {
+		ng_assert( count > 0 );
+		T last = Last();
+		count--;
+		return last;
+	}
+
+	void Append( const DynamicArray< T > & v ) {
+		Reserve( count + v.count );
+		memcpy( data + count, v.data, sizeof( T ) * v.count );
+		count += v.count;
 	}
 
 	T & At( u32 index ) {

@@ -159,11 +159,13 @@ bool ModelAtlas::LoadAllModels() {
 	cubeMesh = new Model();
 	roadMesh = new Model();
 	storeHouseMesh = new Model();
-	success &= SetupModelFromResource( *houseMesh, PackerResources::HOUSE_OBJ );
+	roadBlockMesh = new Model();
+	success &= SetupModelFromResource( *houseMesh, PackerResources::FUTURUSTIC_HOUSE_DAE );
 	success &= SetupModelFromResource( *farmMesh, PackerResources::NICE_HOUSE_DAE );
 	success &= SetupModelFromResource( *cubeMesh, PackerResources::CUBE_DAE );
 	success &= SetupModelFromResource( *roadMesh, PackerResources::ROAD_OBJ );
 	success &= SetupModelFromResource( *storeHouseMesh, PackerResources::STOREHOUSE_OBJ );
+	success &= SetupModelFromResource( *roadBlockMesh, PackerResources::ROAD_BLOCK_DAE );
 
 	return success;
 }
@@ -174,12 +176,14 @@ void ModelAtlas::FreeAllModels() {
 	FreeModelBuffers( *cubeMesh );
 	FreeModelBuffers( *roadMesh );
 	FreeModelBuffers( *storeHouseMesh );
+	FreeModelBuffers( *roadBlockMesh );
 
 	delete houseMesh;
 	delete farmMesh;
 	delete cubeMesh;
 	delete roadMesh;
 	delete storeHouseMesh;
+	delete roadBlockMesh;
 }
 
 void ComputeModelSize( Model & model ) {

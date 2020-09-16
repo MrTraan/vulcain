@@ -47,7 +47,7 @@ class Window {
 
 		// configure global opengl state
 		glDepthFunc( GL_LEQUAL );
-		glFrontFace( GL_CW );
+		glFrontFace( GL_CCW );
 
 		glEnable( GL_DEPTH_TEST );
 

@@ -57,7 +57,7 @@ void IO::Update( Window & window ) {
 				cursorIsInMainWindow = false;
 			}
 		}
-		if ( cursorIsInMainWindow ) {
+		if ( cursorIsInMainWindow && ImGui::GetIO().WantCaptureKeyboard == false ) {
 			if ( event.type == SDL_KEYDOWN ) {
 				auto key = event.key.keysym.sym;
 				keyboard.RegisterKeyDown( key );
@@ -66,6 +66,12 @@ void IO::Update( Window & window ) {
 				auto key = event.key.keysym.sym;
 				keyboard.RegisterKeyRelease( key );
 			}
+		} else {
+			for ( int & k : keyboard.keyDowns ) {
+				k = KEY_NONE;
+			}
+		}
+		if ( cursorIsInMainWindow && ImGui::GetIO().WantCaptureMouse == false ) {
 			if ( event.type == SDL_MOUSEMOTION ) {
 				mouse.offset = glm::vec2( event.motion.xrel, event.motion.yrel );
 				SDL_GetMouseState( &mouse.position.x, &mouse.position.y );

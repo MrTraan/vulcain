@@ -30,6 +30,10 @@ void Console::Draw() {
 	}
 
 	ImGui::EndChild();
+	if ( ImGui::Button("Clear") ) {
+		logs.clear();
+	}
+
 	ImGui::EndGroup();
 	ImGui::End();
 	mutex.unlock();

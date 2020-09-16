@@ -145,9 +145,9 @@ BENCHMARK( BM_stlLinkedListInsertion );
 
 static void BM_ngLinkedListInsertion( benchmark::State & state ) {
 	for ( auto _ : state ) {
-		ng::LinkedList< Texture > list;
-		for ( int i = 0; i < 64 * 20; i++ ) {
-			list.PushFront( Texture{} );
+		ng::LinkedList< int > list;
+		for ( int i = 0; i < 1000; i++ ) {
+			list.PushFront(i );
 		}
 		benchmark::DoNotOptimize( list );
 	}

@@ -10,15 +10,17 @@
 #include <tracy/TracyOpenGL.hpp>
 #include <unordered_map>
 
+#include "buildings/building.h"
+#include "buildings/placement.h"
 #include "collider.h"
 #include "entity.h"
 #include "game.h"
 #include "guizmo.h"
-#include "housing.h"
 #include "mesh.h"
 #include "navigation.h"
 #include "ngLib/ngcontainers.h"
 #include "ngLib/nglib.h"
+#include "ngLib/ngtime.h"
 #include "packer.h"
 #include "packer_resource_list.h"
 #include "registery.h"
@@ -166,30 +168,11 @@ void SpawnRoadBlock( Registery & reg, Map & map, Cell cell ) {
 	}
 }
 
-Entity SpawnBuilding( Registery & reg, Map & map, Cell cell, u32 sizeX, u32 sizeZ, const Model * model ) {
-	Entity         newBuilding = reg.CreateEntity();
-	CpntBuilding & buildingCpnt = reg.AssignComponent< CpntBuilding >( newBuilding );
-	buildingCpnt.cell = cell;
-	buildingCpnt.tileSizeX = sizeX;
-	buildingCpnt.tileSizeZ = sizeZ;
-
-	reg.AssignComponent< CpntRenderModel >( newBuilding, model );
-
-	// Center render model in the middle of the tile size
-	CpntTransform & transform = reg.AssignComponent< CpntTransform >( newBuilding );
-	transform.SetTranslation(
-	    glm::vec3( cell.x + buildingCpnt.tileSizeX / 2.0f, 0, cell.z + buildingCpnt.tileSizeZ / 2.0f ) );
-
-	reg.AssignComponent< CpntBoxCollider >(
-	    newBuilding, CpntBoxCollider( ( model->maxCoords + model->minCoords ) / 2.0f, model->size ) );
-
-	for ( u32 x = cell.x; x < cell.x + sizeX; x++ ) {
-		for ( u32 z = cell.z; z < cell.z + sizeZ; z++ ) {
-			map.SetTile( x, z, MapTile::BLOCKED );
-		}
+void DeleteRoadBlock( Registery & reg, Map & map, Cell cell ) {
+	if ( map.GetTile( cell ) == MapTile::ROAD ) {
+		map.SetTile( cell, MapTile::EMPTY );
+		roadBatchedTiles.RemoveInstancesWithPosition( GetPointInCornerOfCell( cell ) );
 	}
-
-	return newBuilding;
 }
 
 int main( int ac, char ** av ) {
@@ -292,14 +275,6 @@ int main( int ac, char ** av ) {
 
 	roadBatchedTiles.Init( &roadModel );
 
-	Entity player = registery.CreateEntity();
-	{
-		registery.AssignComponent< CpntRenderModel >( player, g_modelAtlas.cubeMesh );
-		CpntTransform & transform = registery.AssignComponent< CpntTransform >( player );
-		transform.SetTranslation( { 0.5f, 0.0f, 0.5f } );
-		registery.AssignComponent< CpntNavAgent >( player );
-	}
-
 	Map & map = theGame->map;
 	map.AllocateGrid( 200, 200 );
 	SpawnRoadBlock( registery, map, Cell( 0, 0 ) );
@@ -309,19 +284,6 @@ int main( int ac, char ** av ) {
 			if ( x % 10 == 0 || z % 10 == 0 )
 				SpawnRoadBlock( registery, map, Cell( x, z ) );
 		}
-	}
-
-	Entity storageHouse = SpawnBuilding( registery, map, Cell( 10, 10 ), 3, 3, g_modelAtlas.storeHouseMesh );
-	registery.AssignComponent< CpntBuildingStorage >( storageHouse );
-
-	Entity                  wheatFarm = SpawnBuilding( registery, map, Cell( 10, 20 ), 4, 4, g_modelAtlas.farmMesh );
-	CpntBuildingProducing & producer = registery.AssignComponent< CpntBuildingProducing >( wheatFarm );
-	producer.batchSize = 4;
-	producer.timeToProduceBatch = ng::DurationInMs( 5000.0f );
-	producer.resource = GameResource::WHEAT;
-
-	for ( u32 z = 10; z < 24; z++ ) {
-		SpawnRoadBlock( registery, map, Cell( 9, z ) );
 	}
 
 	while ( !window.shouldClose ) {
@@ -409,16 +371,8 @@ int main( int ac, char ** av ) {
 			// auto rotatedMovement = cameraTargetMovement;
 			cameraTarget += glm::vec3( rotatedMovement );
 
-			mainCamera.proj = glm::ortho( aspectRatio * cameraSize / 2, -aspectRatio * cameraSize / 2, -cameraSize / 2,
+			mainCamera.proj = glm::ortho( -aspectRatio * cameraSize / 2, aspectRatio * cameraSize / 2, -cameraSize / 2,
 			                              cameraSize / 2, 0.3f, 1000.0f );
-
-			// draw grid
-			// for ( int x = 0; x < 100; x += 1 ) {
-			//	Guizmo::Line( glm::vec3( x, 0.0f, 0.0f ), glm::vec3( x, 0.0f, 100.0f ), Guizmo::colWhite );
-			//}
-			// for ( int z = 0; z < 100; z += 1 ) {
-			//	Guizmo::Line( glm::vec3( 0.0f, 0.0f, z ), glm::vec3( 100.0f, 0.0f, z ), Guizmo::colWhite );
-			//}
 
 			ImGui::Text( "Mouse position: %d %d", io.mouse.position.x, io.mouse.position.y );
 			ImGui::Text( "Mouse offset: %f %f", io.mouse.offset.x, io.mouse.offset.y );
@@ -438,15 +392,6 @@ int main( int ac, char ** av ) {
 
 			glm::vec3 mousePositionWorldSpaceFloored( ( int )floorf( mousePositionWorldSpace.x ), 0.0f,
 			                                          ( int )floorf( mousePositionWorldSpace.z ) );
-			Guizmo::Rectangle( mousePositionWorldSpaceFloored, 1.0f, 1.0f, Guizmo::colRed );
-
-			for ( auto const & [ e, box ] : registery.IterateOver< CpntBoxCollider >() ) {
-				const CpntTransform & transform = registery.GetComponent< CpntTransform >( e );
-				if ( RayCollidesWithBox( mouseRaycast, box, transform ) ) {
-					Guizmo::LinesAroundCube( transform.GetMatrix() * glm::vec4( box.center, 1.0f ), box.size,
-					                         Guizmo::colRed );
-				}
-			}
 
 			Cell   mouseCellPosition = GetCellForPoint( mousePositionWorldSpaceFloored );
 			Entity hoveredEntity = INVALID_ENTITY_ID;
@@ -457,40 +402,182 @@ int main( int ac, char ** av ) {
 				}
 			}
 
-			if ( io.mouse.IsButtonPressed( Mouse::Button::RIGHT ) ) {
-				// move player to cursor
-				glm::vec3 playerPosition = registery.GetComponent< CpntTransform >( player ).GetTranslation();
-				u32 totalDistance = 0;
-				bool      pathFound = map.roadNetwork.FindPath(
-                    GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ), map,
-                    registery.GetComponent< CpntNavAgent >( player ).pathfindingNextSteps, &totalDistance );
-				ng::Printf( "Path found %d\n", pathFound );
-				ng::Printf("Total distance: %d\n", totalDistance);
-				std::vector< Cell > foo;
-				AStar( GetCellForPoint( playerPosition ), GetCellForPoint( mousePositionWorldSpaceFloored ),
-				       ASTAR_ALLOW_DIAGONALS, map, foo );
-			}
-			if ( io.mouse.IsButtonDown( Mouse::Button::LEFT ) ) {
-				if ( io.keyboard.IsKeyDown( KEY_LEFT_SHIFT ) ) {
-					// delete cell
-					if ( hoveredEntity != INVALID_ENTITY_ID ) {
-						CpntBuilding * building = registery.TryGetComponent< CpntBuilding >( hoveredEntity );
-						if ( building != nullptr ) {
-							registery.MarkForDelete( hoveredEntity );
-							for ( u32 x = building->cell.x; x < building->cell.x + building->tileSizeX; x++ ) {
-								for ( u32 z = building->cell.z; z < building->cell.z + building->tileSizeZ; z++ ) {
-									map.SetTile( x, z, MapTile::EMPTY );
-								}
-							}
-						}
-					} else if ( map.GetTile( mouseCellPosition ) == MapTile::ROAD ) {
-						roadBatchedTiles.RemoveInstancesWithPosition( GetPointInCornerOfCell( mouseCellPosition ) );
-						map.SetTile( mouseCellPosition, MapTile::EMPTY );
+			static MouseAction  currentMouseAction = MouseAction::SELECT;
+			static BuildingKind buildingKindSelected;
+			static Cell         mouseDragCellStart = INVALID_CELL;
+			static bool         mouseStartedDragging = false;
+			static Entity       selectedEntity = INVALID_ENTITY_ID;
+			{
+				if ( ImGui::Begin( "Buildings" ) ) {
+					if ( ImGui::Button( "Road" ) ) {
+						currentMouseAction = MouseAction::BUILD_ROAD;
 					}
-				} else if ( map.GetTile( mouseCellPosition ) == MapTile::EMPTY ) {
-					// Build road cell
-					SpawnRoadBlock( registery, map, mouseCellPosition );
+					if ( ImGui::Button( "Road Block" ) ) {
+						currentMouseAction = MouseAction::BUILD;
+						buildingKindSelected = BuildingKind::ROAD_BLOCK;
+					}
+					if ( ImGui::Button( "House" ) ) {
+						currentMouseAction = MouseAction::BUILD;
+						buildingKindSelected = BuildingKind::HOUSE;
+					}
+					if ( ImGui::Button( "Farm" ) ) {
+						currentMouseAction = MouseAction::BUILD;
+						buildingKindSelected = BuildingKind::FARM;
+					}
+					if ( ImGui::Button( "Storehouse" ) ) {
+						currentMouseAction = MouseAction::BUILD;
+						buildingKindSelected = BuildingKind::STORAGE_HOUSE;
+					}
+					if ( ImGui::Button( "Delete" ) ) {
+						currentMouseAction = MouseAction::DESTROY;
+					}
+					ImGui::End();
 				}
+			}
+
+			if ( selectedEntity != INVALID_ENTITY_ID ) {
+				if ( ImGui::Begin( "Entity selected" ) ) {
+					ImGui::Text( "ID: %llu\n", selectedEntity );
+					if ( registery.HasComponent< CpntHousing >( selectedEntity ) ) {
+						auto & housing = registery.GetComponent< CpntHousing >( selectedEntity );
+						ImGui::Text( "Number of habitants: %d / %d\n", housing.numCurrentlyLiving,
+						             housing.maxHabitants );
+					}
+					if ( registery.HasComponent< CpntBuildingProducing >( selectedEntity ) ) {
+						auto & producer = registery.GetComponent< CpntBuildingProducing >( selectedEntity );
+						float  timeSinceLastProduction = ng::DurationToSeconds( producer.timeSinceLastProduction );
+						float  timeToProduce = ng::DurationToSeconds( producer.timeToProduceBatch );
+						ImGui::SliderFloat( "production", &timeSinceLastProduction, 0.0f, timeToProduce );
+					}
+
+					if ( registery.HasComponent< CpntBuildingStorage >( selectedEntity ) ) {
+						auto & storage = registery.GetComponent< CpntBuildingStorage >( selectedEntity );
+						ImGui::Text("Storage content");
+						for ( const auto & [ type, quantity ] : storage.storage ) {
+							const char * name = GameResourceToString( type );
+							ImGui::Text( "%s: %d\n", name, quantity );
+						}
+					}
+					ImGui::End();
+				}
+			}
+
+			if ( currentMouseAction == MouseAction::SELECT ) {
+				// TODO: how could we highlight object under cursor?
+				if ( io.mouse.IsButtonPressed( Mouse::Button::LEFT ) ) {
+					selectedEntity = FindBuildingByPosition( registery, mouseCellPosition );
+				}
+			} else {
+				selectedEntity = INVALID_ENTITY_ID;
+			}
+
+			if ( currentMouseAction == MouseAction::BUILD ) {
+				auto size = GetBuildingSize( buildingKindSelected );
+				auto color = CanPlaceBuilding( mouseCellPosition, buildingKindSelected, map ) ? Guizmo::colGreen
+				                                                                              : Guizmo::colRed;
+				Guizmo::Rectangle( GetPointInCornerOfCell( mouseCellPosition ), ( float )size.x, ( float )size.y,
+				                   color );
+			}
+			if ( currentMouseAction == MouseAction::BUILD_ROAD && mouseStartedDragging == true ) {
+				for ( u32 x = mouseDragCellStart.x; x != mouseCellPosition.x;
+				      mouseDragCellStart.x < mouseCellPosition.x ? x++ : x-- ) {
+					Cell cell( x, mouseDragCellStart.z );
+					auto color = map.GetTile( cell ) == MapTile::EMPTY ? Guizmo::colGreen : Guizmo::colRed;
+					Guizmo::Rectangle( GetPointInCornerOfCell( cell ), 1, 1, color );
+				}
+				for ( u32 z = mouseDragCellStart.z; z != mouseCellPosition.z;
+				      mouseDragCellStart.z < mouseCellPosition.z ? z++ : z-- ) {
+					Cell cell( mouseCellPosition.x, z );
+					auto color = map.GetTile( cell ) == MapTile::EMPTY ? Guizmo::colGreen : Guizmo::colRed;
+					Guizmo::Rectangle( GetPointInCornerOfCell( cell ), 1, 1, color );
+				}
+				Cell cell( mouseCellPosition.x, mouseCellPosition.z );
+				auto color = map.GetTile( cell ) == MapTile::EMPTY ? Guizmo::colGreen : Guizmo::colRed;
+				Guizmo::Rectangle( GetPointInCornerOfCell( cell ), 1, 1, color );
+			}
+			if ( currentMouseAction == MouseAction::DESTROY && mouseStartedDragging == true ) {
+				Cell start( MIN( mouseDragCellStart.x, mouseCellPosition.x ),
+				            MIN( mouseDragCellStart.z, mouseCellPosition.z ) );
+				int  offsetX = ABS( ( int )mouseCellPosition.x - ( int )mouseDragCellStart.x );
+				int  offsetZ = ABS( ( int )mouseCellPosition.z - ( int )mouseDragCellStart.z );
+				if ( offsetX == 0 ) {
+					offsetX = 1;
+				}
+				if ( offsetZ == 0 ) {
+					offsetZ = 1;
+				}
+				Guizmo::Rectangle( GetPointInCornerOfCell( start ), offsetX, offsetZ, Guizmo::colRed );
+			}
+
+			if ( io.mouse.IsButtonPressed( Mouse::Button::LEFT ) ) {
+				if ( currentMouseAction == MouseAction::BUILD ) {
+					if ( CanPlaceBuilding( mouseCellPosition, buildingKindSelected, map ) ) {
+						PlaceBuilding( registery, mouseCellPosition, buildingKindSelected, map );
+					}
+				}
+				if ( currentMouseAction == MouseAction::BUILD_ROAD || currentMouseAction == MouseAction::DESTROY ) {
+					mouseStartedDragging = true;
+					mouseDragCellStart = mouseCellPosition;
+				}
+			}
+
+			if ( currentMouseAction == MouseAction::BUILD_ROAD &&
+			     io.mouse.IsButtonDown( Mouse::Button::LEFT ) == false && mouseStartedDragging == true ) {
+				for ( u32 x = mouseDragCellStart.x; x != mouseCellPosition.x;
+				      mouseDragCellStart.x < mouseCellPosition.x ? x++ : x-- ) {
+					Cell cell( x, mouseDragCellStart.z );
+					if ( map.GetTile( cell ) == MapTile::EMPTY ) {
+						SpawnRoadBlock( registery, map, cell );
+					}
+				}
+				for ( u32 z = mouseDragCellStart.z; z != mouseCellPosition.z;
+				      mouseDragCellStart.z < mouseCellPosition.z ? z++ : z-- ) {
+					Cell cell( mouseCellPosition.x, z );
+					if ( map.GetTile( cell ) == MapTile::EMPTY ) {
+						SpawnRoadBlock( registery, map, cell );
+					}
+				}
+				Cell cell( mouseCellPosition.x, mouseCellPosition.z );
+				if ( map.GetTile( cell ) == MapTile::EMPTY ) {
+					SpawnRoadBlock( registery, map, cell );
+				}
+
+				mouseStartedDragging = false;
+			}
+
+			if ( currentMouseAction == MouseAction::DESTROY && io.mouse.IsButtonDown( Mouse::Button::LEFT ) == false &&
+			     mouseStartedDragging == true ) {
+				Cell start( MIN( mouseDragCellStart.x, mouseCellPosition.x ),
+				            MIN( mouseDragCellStart.z, mouseCellPosition.z ) );
+				int  offsetX = ABS( ( int )mouseCellPosition.x - ( int )mouseDragCellStart.x );
+				int  offsetZ = ABS( ( int )mouseCellPosition.z - ( int )mouseDragCellStart.z );
+				if ( offsetX == 0 ) {
+					offsetX = 1;
+				}
+				if ( offsetZ == 0 ) {
+					offsetZ = 1;
+				}
+				Area areaOfDeletion{};
+				areaOfDeletion.center = start;
+				areaOfDeletion.sizeX = offsetX;
+				areaOfDeletion.sizeZ = offsetZ;
+				DeleteBuildingsInsideArea( registery, areaOfDeletion, map );
+
+				for ( u32 x = start.x; x < start.x + offsetX; x++ ) {
+					for ( u32 z = start.z; z < start.z + offsetZ; z++ ) {
+						if ( map.GetTile( x, z ) == MapTile::ROAD ) {
+							DeleteRoadBlock( registery, map, Cell( x, z ) );
+						}
+					}
+				}
+
+				mouseStartedDragging = false;
+			}
+
+			if ( ( io.mouse.IsButtonDown( Mouse::Button::RIGHT ) || io.keyboard.IsKeyDown( KEY_ESCAPE ) ) &&
+			     currentMouseAction != MouseAction::SELECT ) {
+				currentMouseAction = MouseAction::SELECT;
+				mouseStartedDragging = false;
 			}
 		}
 		{
@@ -544,7 +631,7 @@ int main( int ac, char ** av ) {
 			static bool drawRoadNodes = false;
 			ImGui::Checkbox( "draw road nodes", &drawRoadNodes );
 			if ( drawRoadNodes ) {
-				for ( auto & node : map.roadNetwork.nodes ) {
+				for ( auto & node : theGame->roadNetwork.nodes ) {
 					Guizmo::Rectangle( GetPointInCornerOfCell( node.position ), 1.0f, 1.0f, Guizmo::colBlue );
 				}
 			}
@@ -592,8 +679,8 @@ int main( int ac, char ** av ) {
 }
 
 void DrawDebugWindow() {
-	// static bool opened = true;
-	// ImGui::ShowDemoWindow( &opened );
+	static bool opened = true;
+	ImGui::ShowDemoWindow( &opened );
 	ImGui::Begin( "Debug" );
 
 	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
@@ -650,8 +737,12 @@ void DrawDebugWindow() {
 	//	systemWithNames[ currentlySelected ].second->DebugDraw();
 	//	ImGui::TreePop();
 	//}
+	if ( ImGui::TreeNode( "Components" ) ) {
+		registery.DebugDraw();
+		ImGui::TreePop();
+	}
 	if ( ImGui::Button( "Check road network integrity" ) ) {
-		bool ok = theGame->map.roadNetwork.CheckNetworkIntegrity();
+		bool ok = theGame->roadNetwork.CheckNetworkIntegrity();
 		if ( ok ) {
 			ng::Printf( "Road network looks fine!\n" );
 		}
