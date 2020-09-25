@@ -606,11 +606,11 @@ bool BuildPathInsideNodes( Cell                       start,
 	return false;
 }
 
-bool BuildPathBetweenNodes( RoadNetwork::Node &   start,
-                            RoadNetwork::Node &   goal,
-                            const Map &           map,
+bool BuildPathBetweenNodes( RoadNetwork::Node &        start,
+                            RoadNetwork::Node &        goal,
+                            const Map &                map,
                             ng::DynamicArray< Cell > & outPath,
-                            u32 &                 outTotalDistance ) {
+                            u32 &                      outTotalDistance ) {
 	RoadNetwork::Connection * connection = start.FindShortestConnectionWith( goal.position );
 	CardinalDirection         direction = start.GetDirectionOfConnection( connection );
 
@@ -666,7 +666,7 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &        start,
 				path.PushBack( goal );
 				if ( insertReverse == true ) {
 					for ( int64 i = path.Size() - 1; i >= 0; i-- ) {
-						outPath.PushBack( path[ (u32)i ] );
+						outPath.PushBack( path[ ( u32 )i ] );
 					}
 				} else {
 					outPath.Append( path );
@@ -700,7 +700,6 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &        start,
 	}
 	return false;
 }
-
 bool RoadNetwork::FindPath( Cell                       start,
                             Cell                       goal,
                             const Map &                map,
@@ -708,8 +707,12 @@ bool RoadNetwork::FindPath( Cell                       start,
                             u32 *                      outTotalDistance /*= nullptr*/,
                             u32                        maxDistance /*= ULONG_MAX */ ) {
 	ZoneScoped;
-	ng::DynamicArray< AStarStep * > findPathOpenSet( 64 );
-	ng::DynamicArray< AStarStep * > findPathClosedSet( 64 );
+
+	thread_local ng::DynamicArray< AStarStep * > findPathOpenSet( 64 );
+	thread_local ng::DynamicArray< AStarStep * > findPathClosedSet( 64 );
+
+	findPathOpenSet.Clear();
+	findPathClosedSet.Clear();
 
 	u32 totalDistance = 0;
 
@@ -819,7 +822,8 @@ bool RoadNetwork::FindPath( Cell                       start,
 			for ( u32 i = 0; i < node->NumSetConnections(); i++ ) {
 				Connection * connection = node->GetValidConnectionWithOffset( i );
 				int          totalCost = current->g + connection->distance;
-				if ( (u32)totalCost < maxDistance && FindNodeInSet( findPathClosedSet, connection->connectedTo ) == false ) {
+				if ( ( u32 )totalCost < maxDistance &&
+				     FindNodeInSet( findPathClosedSet, connection->connectedTo ) == false ) {
 					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, parent );
 				}
 			}
@@ -870,9 +874,13 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
                                u32                        maxDistance /*= ULONG_MAX*/,
                                u32 *                      outDistance /*= nullptr */ ) {
 	ZoneScoped;
-	ng::ScopedChrono         chrono( "FindPathBetweenBuildings" );
-	ng::DynamicArray< Cell > startingCells;
-	ng::DynamicArray< Cell > goalCells;
+	ng::ScopedChrono chrono( "FindPathBetweenBuildings" );
+
+	thread_local ng::DynamicArray< Cell > startingCells( 16 );
+	thread_local ng::DynamicArray< Cell > goalCells( 16 );
+
+	startingCells.Clear();
+	goalCells.Clear();
 
 	bool addNextCellToList = true;
 
@@ -881,9 +889,9 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
 		int64 x = building.cell.x + shiftX;
 		int64 z = building.cell.z + shiftZ;
 		if ( x >= 0 && x < map.sizeX && z >= 0 && z < map.sizeZ ) {
-			if ( map.GetTile( (u32)x, (u32)z ) == MapTile::ROAD ) {
+			if ( map.GetTile( ( u32 )x, ( u32 )z ) == MapTile::ROAD ) {
 				if ( addNextCellToList ) {
-					res.PushBack( Cell( (u32)x, (u32)z ) );
+					res.PushBack( Cell( ( u32 )x, ( u32 )z ) );
 					addNextCellToList = false;
 				}
 			} else {
@@ -938,8 +946,8 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
 	for ( u32 i = 0; i < startingCells.Size(); i++ ) {
 		for ( u32 j = 0; j < goalCells.Size(); j++ ) {
 			ng::DynamicArray< Cell > path;
-			u32                 distance = 0;
-			bool                subPathFound =
+			u32                      distance = 0;
+			bool                     subPathFound =
 			    roadNetwork.FindPath( startingCells[ i ], goalCells[ j ], map, path, &distance, shortestDistance );
 			pathFound |= subPathFound;
 			if ( subPathFound && distance < shortestDistance ) {

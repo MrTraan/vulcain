@@ -170,11 +170,18 @@ struct Registery {
 		return registery.AssignComponent( e, std::forward< Args >( args )... );
 	}
 
-	template < class T > T *  TryGetComponent( Entity e ) { return GetComponentRegistery< T >().TryGetComponent( e ); }
-	template < class T > T &  GetComponent( Entity e ) { return GetComponentRegistery< T >().GetComponent( e ); }
+	template < class T > T * TryGetComponent( Entity e ) { return GetComponentRegistery< T >().TryGetComponent( e ); }
+	template < class T > T & GetComponent( Entity e ) { return GetComponentRegistery< T >().GetComponent( e ); }
+	template < class T > const T * TryGetComponent( Entity e ) const {
+		return GetComponentRegistery< T >().TryGetComponent( e );
+	}
+	template < class T > const T & GetComponent( Entity e ) const {
+		return GetComponentRegistery< T >().GetComponent( e );
+	}
 	template < class T > bool HasComponent( Entity e ) const { return GetComponentRegistery< T >().HasComponent( e ); }
 
-	template < class T > CpntRegistery< T > & IterateOver() { return GetComponentRegistery< T >(); }
+	template < class T > CpntRegistery< T > &       IterateOver() { return GetComponentRegistery< T >(); }
+	template < class T > const CpntRegistery< T > & IterateOver() const { return GetComponentRegistery< T >(); }
 
 	template < class T > CpntRegistery< T > & GetComponentRegistery() {
 		auto typeHash = std::type_index( typeid( T ) ).hash_code();
@@ -191,7 +198,13 @@ struct Registery {
 	template < class T > const CpntRegistery< T > & GetComponentRegistery() const {
 		auto typeHash = std::type_index( typeid( T ) ).hash_code();
 		// TODO: This if must go away someday
-		ng_assert( cpntRegistriesMap.contains( typeHash ) );
+		auto mutable_this = const_cast< Registery *>(this);
+		if ( !mutable_this->cpntRegistriesMap.contains( typeHash ) ) {
+			mutable_this->cpntRegistriesMap[ typeHash ] = new CpntRegistery< T >( INITIAL_ENTITY_ALLOC );
+#ifdef DEBUG
+			mutable_this->cpntTypesToName[ typeHash ] = std::string( std::type_index( typeid( T ) ).name() );
+#endif
+		}
 		CpntRegistery< T > * returnValue = ( CpntRegistery< T > * )cpntRegistriesMap.at( typeHash );
 		return *returnValue;
 	}

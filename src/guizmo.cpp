@@ -142,6 +142,7 @@ void Draw() {
 	}
 
 	if ( triangleDrawList.size() > 0 ) {
+		glDisable( GL_DEPTH_TEST );
 		glBindVertexArray( VAO );
 		glBindBuffer( GL_ARRAY_BUFFER, VBO );
 		glBufferData( GL_ARRAY_BUFFER, triangleDrawList.size() * sizeof( TriangleData ), triangleDrawList.data(),
@@ -149,6 +150,7 @@ void Draw() {
 		for ( int i = 0; i < triangleDrawList.size(); i++ ) {
 			glDrawArrays( GL_TRIANGLES, i * 3, 3 );
 		}
+		glEnable( GL_DEPTH_TEST );
 	}
 	glBindVertexArray( 0 );
 }

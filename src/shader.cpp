@@ -1,6 +1,7 @@
 #include "shader.h"
 #include "game.h"
 #include "packer_resource_list.h"
+#include <map>
 
 ShaderAtlas g_shaderAtlas;
 
@@ -70,16 +71,69 @@ Shader CompileShaderFromResource( const PackerResourceID & vertexID, const Packe
 }
 
 void ShaderAtlas::CompileAllShaders() {
-	defaultShader =
-	    CompileShaderFromResource( PackerResources::SHADERS_DEFAULT_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
-	colorShader =
-	    CompileShaderFromResource( PackerResources::SHADERS_COLORED_VERT, PackerResources::SHADERS_COLORED_FRAG );
-	instancedShader =
-	    CompileShaderFromResource( PackerResources::SHADERS_INSTANCED_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
+	std::map< PackerResourceID, u32 > shadersCompiled;
+	for ( auto & res : theGame->package.resourceList ) {
+		if ( res.type == PackerResource::Type::VERTEX_SHADER ) {
+			u32    vertex = glCreateShader( GL_VERTEX_SHADER );
+			char * vertexCode = ( char * )theGame->package.GrabResourceData( res );
+			int    vertexSize = ( int )res.size;
+			glShaderSource( vertex, 1, &vertexCode, &vertexSize );
+			glCompileShader( vertex );
+			int ret = CheckCompileErrors( vertex );
+			if ( ret == 0 ) {
+				shadersCompiled.emplace( res.id, vertex );
+			}
+		}
+		if ( res.type == PackerResource::Type::FRAGMENT_SHADER ) {
+			u32    fragment = glCreateShader( GL_FRAGMENT_SHADER );
+			char * fragmentCode = ( char * )theGame->package.GrabResourceData( res );
+			int    fragmentSize = ( int )res.size;
+			glShaderSource( fragment, 1, &fragmentCode, &fragmentSize );
+			glCompileShader( fragment );
+			int ret = CheckCompileErrors( fragment );
+			if ( ret == 0 ) {
+				shadersCompiled.emplace( res.id, fragment );
+			}
+		}
+	}
+
+	auto LinkProgram = [ & ]( const PackerResourceID & vertexID, const PackerResourceID & fragID ) -> Shader {
+		Shader shader;
+		shader.ID = glCreateProgram();
+		if ( shadersCompiled.contains( vertexID ) ) {
+			glAttachShader( shader.ID, shadersCompiled.at( vertexID ) );
+		}
+		if ( shadersCompiled.contains( fragID ) ) {
+			glAttachShader( shader.ID, shadersCompiled.at( fragID ) );
+		}
+		glLinkProgram( shader.ID );
+		CheckLinkErrors( shader.ID );
+		return shader;
+	};
+
+	defaultShader = LinkProgram( PackerResources::SHADERS_DEFAULT_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
+	colorShader = LinkProgram( PackerResources::SHADERS_COLORED_VERT, PackerResources::SHADERS_COLORED_FRAG );
+	instancedShader = LinkProgram( PackerResources::SHADERS_INSTANCED_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
+	deferredShader = LinkProgram( PackerResources::SHADERS_DEFAULT_VERT, PackerResources::SHADERS_DEFERRED_FRAG );
+	instancedDeferredShader =
+	    LinkProgram( PackerResources::SHADERS_INSTANCED_VERT, PackerResources::SHADERS_DEFERRED_FRAG );
+	postProcessShader =
+	    LinkProgram( PackerResources::SHADERS_PASSTHROUGH_VERT, PackerResources::SHADERS_POSTPROCESS_FRAG );
+	ssaoShader = LinkProgram( PackerResources::SHADERS_PASSTHROUGH_VERT, PackerResources::SHADERS_SSAO_FRAG );
+	ssaoBlurShader = LinkProgram( PackerResources::SHADERS_PASSTHROUGH_VERT, PackerResources::SHADERS_SSAO_BLUR_FRAG );
+
+	for ( auto & [ id, shader ] : shadersCompiled ) {
+		glDeleteShader( shader );
+	}
 }
 
 void ShaderAtlas::FreeShaders() {
-	glDeleteShader( defaultShader.ID );
-	glDeleteShader( colorShader.ID );
-	glDeleteShader( instancedShader.ID );
+	glDeleteProgram( defaultShader.ID );
+	glDeleteProgram( colorShader.ID );
+	glDeleteProgram( instancedShader.ID );
+	glDeleteProgram( deferredShader.ID );
+	glDeleteProgram( instancedDeferredShader.ID );
+	glDeleteProgram( postProcessShader.ID );
+	glDeleteProgram( ssaoShader.ID );
+	glDeleteProgram( ssaoBlurShader.ID );
 }

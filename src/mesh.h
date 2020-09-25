@@ -8,6 +8,7 @@
 #include "ngLib/types.h"
 #include "packer.h"
 #include "shader.h"
+#include "ngLib/ngcontainers.h"
 
 struct Vertex {
 	glm::vec3 position;
@@ -73,6 +74,19 @@ struct CpntRenderModel {
 	CpntRenderModel() = default;
 	CpntRenderModel( const Model * model ) : model( model ) {}
 	const Model * model = nullptr;
+};
+
+struct InstancedModelBatch {
+	Model *                       model;
+	ng::DynamicArray< glm::vec3 > positions;
+	bool                          dirty = false;
+	u32                           arrayBuffer;
+
+	void AddInstanceAtPosition( const glm::vec3 & position );
+	bool RemoveInstancesWithPosition( const glm::vec3 & position );
+	void Init( Model * model );
+	void UpdateArrayBuffer();
+	void Render( Shader & shader );
 };
 
 Texture CreateTextureFromResource( const PackerResource & resource );

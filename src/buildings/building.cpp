@@ -33,7 +33,7 @@ bool IsBuildingInsideArea( const CpntBuilding & building, const Area & area ) {
 	}
 	default:
 		ng_assert_msg( false, "Unimplemented shape in IsBuildingInsideArea" );
-		false;
+		return false;
 	}
 }
 
@@ -96,7 +96,8 @@ void SystemBuildingProducing::Update( Registery & reg, float dt ) {
 			// Find a path to store house
 			Entity                   closestStorage = INVALID_ENTITY_ID;
 			u32                      closestStorageDistance = ULONG_MAX;
-			ng::DynamicArray< Cell > currentPath( 32 );
+			thread_local ng::DynamicArray< Cell > currentPath( 32 );
+			currentPath.Clear();
 			for ( auto & [ e, storage ] : reg.IterateOver< CpntBuildingStorage >() ) {
 				u32  distance = 0;
 				bool pathFound =

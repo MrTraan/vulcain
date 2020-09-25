@@ -4,13 +4,13 @@
 #include <list>
 
 struct Texture {
-	char data[400];
-	int encoding[16];
+	char data[ 400 ];
+	int  encoding[ 16 ];
 };
 
 static void BM_NetworkFindPath( benchmark::State & state ) {
-	Map           map;
-	RoadNetwork & network = map.roadNetwork;
+	Map         map;
+	RoadNetwork network;
 	map.AllocateGrid( 200, 200 );
 	for ( u32 x = 30; x <= 190; x++ ) {
 		for ( u32 z = 30; z <= 190; z++ ) {
@@ -19,9 +19,9 @@ static void BM_NetworkFindPath( benchmark::State & state ) {
 		}
 	}
 
-	std::vector< Cell > out;
+	ng::DynamicArray< Cell > out;
 	for ( auto _ : state ) {
-		map.FindPath( Cell( 34, 30 ), Cell( 164, 90 ), out );
+		network.FindPath(  Cell( 34, 30 ), Cell( 164, 90 ), map, out  );
 	}
 }
 
@@ -29,7 +29,7 @@ BENCHMARK( BM_NetworkFindPath );
 
 static void BM_AStar( benchmark::State & state ) {
 	Map           map;
-	RoadNetwork & network = map.roadNetwork;
+	RoadNetwork network;
 	map.AllocateGrid( 200, 200 );
 	for ( u32 x = 30; x <= 190; x++ ) {
 		for ( u32 z = 30; z <= 190; z++ ) {
@@ -99,7 +99,7 @@ BENCHMARK( BM_stlBitfieldTest );
 static void BM_objectPoolCreateOne( benchmark::State & state ) {
 	for ( auto _ : state ) {
 		ng::ObjectPool< int > pool;
-		int * elem = pool.Pop();
+		int *                 elem = pool.Pop();
 		benchmark::DoNotOptimize( elem );
 	}
 }
@@ -142,12 +142,11 @@ static void BM_stlLinkedListInsertion( benchmark::State & state ) {
 
 BENCHMARK( BM_stlLinkedListInsertion );
 
-
 static void BM_ngLinkedListInsertion( benchmark::State & state ) {
 	for ( auto _ : state ) {
 		ng::LinkedList< int > list;
 		for ( int i = 0; i < 1000; i++ ) {
-			list.PushFront(i );
+			list.PushFront( i );
 		}
 		benchmark::DoNotOptimize( list );
 	}
