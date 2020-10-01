@@ -251,3 +251,68 @@ Texture Texture::DefaultWhiteTexture() {
 	static Texture defaultTexture = CreateDefaultWhiteTexture();
 	return defaultTexture;
 }
+
+void InstancedModelBatch::AddInstanceAtPosition( const glm::vec3 & position ) {
+	positions.PushBack( position );
+	dirty = true;
+}
+
+bool InstancedModelBatch::RemoveInstancesWithPosition( const glm::vec3 & position ) {
+	bool modified = positions.DeleteValueFast( position );
+	if ( modified ) {
+		dirty = true;
+		return true;
+	}
+	return false;
+}
+
+void InstancedModelBatch::Init( Model * model ) {
+	this->model = model;
+	glGenBuffers( 1, &arrayBuffer );
+	UpdateArrayBuffer();
+
+	for ( unsigned int i = 0; i < model->meshes.size(); i++ ) {
+		unsigned int VAO = model->meshes[ i ].vao;
+		glBindVertexArray( VAO );
+		glEnableVertexAttribArray( 3 );
+		glVertexAttribPointer( 3, 3, GL_FLOAT, GL_FALSE, sizeof( glm::vec3 ), ( void * )0 );
+		glVertexAttribDivisor( 3, 1 );
+
+		glBindVertexArray( 0 );
+	}
+}
+
+void InstancedModelBatch::UpdateArrayBuffer() {
+	glBindBuffer( GL_ARRAY_BUFFER, arrayBuffer );
+	glBufferData( GL_ARRAY_BUFFER, positions.Size() * sizeof( glm::vec3 ), positions.data, GL_STATIC_DRAW );
+}
+
+void InstancedModelBatch::Render( Shader & shader ) {
+	ZoneScoped;
+	if ( dirty ) {
+		UpdateArrayBuffer();
+		dirty = false;
+	}
+	shader.Use();
+	for ( const Mesh & mesh : model->meshes ) {
+		glm::mat4 transform( 1.0f );
+		glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform ) ) );
+		shader.SetMatrix3( "normalTransform", normalMatrix );
+		shader.SetVector( "material.ambient", mesh.material->ambiant );
+		shader.SetVector( "material.diffuse", mesh.material->diffuse );
+		shader.SetVector( "material.specular", mesh.material->specular );
+		shader.SetFloat( "material.shininess", mesh.material->shininess );
+
+		glActiveTexture( GL_TEXTURE0 );
+		glBindVertexArray( mesh.vao );
+		glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
+		if ( mesh.material->mode == Material::MODE_TRANSPARENT ) {
+			glEnable( GL_BLEND );
+			glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+		}
+		glDrawElementsInstanced( GL_TRIANGLES, ( GLsizei )mesh.indices.size(), GL_UNSIGNED_INT, nullptr,
+		                         positions.Size() );
+		glDisable( GL_BLEND );
+		glBindVertexArray( 0 );
+	}
+}

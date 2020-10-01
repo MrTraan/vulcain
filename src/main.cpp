@@ -87,78 +87,6 @@ static void FixedUpdate() {}
 
 static void Render() {}
 
-struct InstancedModelBatch {
-	Model *                       model;
-	ng::DynamicArray< glm::vec3 > positions;
-	bool                          dirty = false;
-	u32                           arrayBuffer;
-
-	void AddInstanceAtPosition( const glm::vec3 & position ) {
-		positions.PushBack( position );
-		dirty = true;
-	}
-
-	bool RemoveInstancesWithPosition( const glm::vec3 & position ) {
-		bool modified = positions.DeleteValueFast( position );
-		if ( modified ) {
-			dirty = true;
-			return true;
-		}
-		return false;
-	}
-
-	void Init( Model * model ) {
-		this->model = model;
-		glGenBuffers( 1, &arrayBuffer );
-		UpdateArrayBuffer();
-
-		for ( unsigned int i = 0; i < model->meshes.size(); i++ ) {
-			unsigned int VAO = model->meshes[ i ].vao;
-			glBindVertexArray( VAO );
-			glEnableVertexAttribArray( 3 );
-			glVertexAttribPointer( 3, 3, GL_FLOAT, GL_FALSE, sizeof( glm::vec3 ), ( void * )0 );
-			glVertexAttribDivisor( 3, 1 );
-
-			glBindVertexArray( 0 );
-		}
-	}
-
-	void UpdateArrayBuffer() {
-		glBindBuffer( GL_ARRAY_BUFFER, arrayBuffer );
-		glBufferData( GL_ARRAY_BUFFER, positions.Size() * sizeof( glm::vec3 ), positions.data, GL_STATIC_DRAW );
-	}
-
-	void Render() {
-		if ( dirty ) {
-			UpdateArrayBuffer();
-			dirty = false;
-		}
-		Shader & shader = g_shaderAtlas.instancedShader;
-		shader.Use();
-		for ( const Mesh & mesh : model->meshes ) {
-			glm::mat4 transform( 1.0f );
-			glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform ) ) );
-			shader.SetMatrix3( "normalTransform", normalMatrix );
-			shader.SetVector( "material.ambient", mesh.material->ambiant );
-			shader.SetVector( "material.diffuse", mesh.material->diffuse );
-			shader.SetVector( "material.specular", mesh.material->specular );
-			shader.SetFloat( "material.shininess", mesh.material->shininess );
-
-			glActiveTexture( GL_TEXTURE0 );
-			glBindVertexArray( mesh.vao );
-			glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
-			if ( mesh.material->mode == Material::MODE_TRANSPARENT ) {
-				glEnable( GL_BLEND );
-				glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-			}
-			glDrawElementsInstanced( GL_TRIANGLES, ( GLsizei )mesh.indices.size(), GL_UNSIGNED_INT, nullptr,
-			                         positions.Size() );
-			glDisable( GL_BLEND );
-			glBindVertexArray( 0 );
-		}
-	}
-};
-
 InstancedModelBatch roadBatchedTiles;
 
 void SpawnRoadBlock( Registery & reg, Map & map, Cell cell ) {
@@ -212,8 +140,9 @@ int main( int ac, char ** av ) {
 		ng_assert( success == true );
 	}
 
-	Window & window = theGame->window;
-	IO &     io = theGame->io;
+	Window &   window = theGame->window;
+	IO &       io = theGame->io;
+	Renderer & renderer = theGame->renderer;
 
 	window.Init();
 
@@ -241,8 +170,8 @@ int main( int ac, char ** av ) {
 	ImGui_ImplSDL2_InitForOpenGL( window.glWindow, window.glContext );
 	ImGui_ImplOpenGL3_Init( "#version 150" );
 
-	InitRenderer();
 	g_shaderAtlas.CompileAllShaders();
+	renderer.InitRenderer( window.width, window.height );
 	modelInspectorFramebuffer.Allocate( modelInspectorWidth, modelInspectorHeight );
 
 	Guizmo::Init();
@@ -292,6 +221,17 @@ int main( int ac, char ** av ) {
 		auto  currentFrameTime = std::chrono::high_resolution_clock::now();
 		float dt = std::chrono::duration_cast< std::chrono::microseconds >( currentFrameTime - lastFrameTime ).count() /
 		           1000000.0f;
+		if ( dt > 1.0f ) {
+			// delta time is higher than 1 second, this probably means we breaked in the debugger, let's go back to
+			// normal
+			dt = 1.0f / 60.0f;
+		}
+
+		static bool pauseSim = false;
+		if ( io.keyboard.IsKeyPressed( KEY_SPACE ) ) {
+			pauseSim = !pauseSim;
+		}
+
 		lastFrameTime = currentFrameTime;
 
 		{
@@ -316,84 +256,106 @@ int main( int ac, char ** av ) {
 		for ( int i = 0; i < numFixedSteps; i++ ) {
 			FixedUpdate();
 		}
-		Update( dt );
+		Update( pauseSim ? 0.0f : dt );
 		{
-			static glm::vec3 cameraTarget( 0.0f, 0.0f, 0.0f );
-			static glm::vec3 cameraUp( 0.0f, 1.0f, 0.0f );
-			static float     cameraDistance = 50.0f;
-			static float     cameraRotationAngle = 45.0f;
+			ZoneScopedN( "Update that should go away" );
 
-			// Update camera
+			static CpntTransform cameraTargetTransform;
+			static glm::vec3     cameraTargetNewPosition( 0.0f, 0.0f, 0.0f );
+			static float         cameraTargetRotation = 45.0f;
+			ImGui::SliderFloat( "camera target rotation angle", &cameraTargetRotation, -180.0f, 180.0f );
+			cameraTargetTransform.SetRotation( { 0.0f, cameraTargetRotation, 0.0f } );
+			ImGui::Text( "camera target front: %f %f %f\n", cameraTargetTransform.Front().x,
+			             cameraTargetTransform.Front().y, cameraTargetTransform.Front().z );
 
-			ImGui::SliderFloat( "camera rotation angle", &cameraRotationAngle, 0.0f, 360.0f );
+			static float movementSpeed = 0.5f;
+			static float scrollSpeed = 1.0f;
+			static float movementTime = 5.0f;
+			ImGui::SliderFloat( "movement speed", &movementSpeed, 0.0f, 90.0f );
+			ImGui::SliderFloat( "scroll speed ", &scrollSpeed, 0.0f, 90.0f );
+			ImGui::SliderFloat( "movement time", &movementTime, 0.0f, 90.0f );
 
-			auto cameraRotationMatrix =
-			    glm::rotate( glm::mat4( 1.0f ), glm::radians( cameraRotationAngle ), glm::vec3( 0.0f, 1.0f, 0.0f ) );
-
-			glm::vec3 & cameraPosition = mainCamera.position;
-			cameraPosition = glm::vec3( 0.0f, cameraDistance, -cameraDistance );
-			ImGui::DragFloat3( "camera position before rotation", &cameraPosition.x );
-			cameraPosition = glm::vec3( cameraRotationMatrix * glm::vec4( cameraPosition, 1.0f ) );
-			cameraPosition += cameraTarget;
-			ImGui::DragFloat3( "camera position", &cameraPosition.x );
-			ImGui::DragFloat3( "camera target", &cameraTarget.x );
-
-			glm::vec3 cameraFront = glm::normalize( cameraTarget - cameraPosition );
-			glm::vec3 cameraRight = glm::normalize( glm::cross( cameraFront, glm::vec3( 0.0f, 1.0f, 0.0f ) ) );
-			cameraUp = glm::normalize( glm::cross( cameraRight, cameraFront ) );
-			ImGui::DragFloat3( "Camera front", &cameraFront.x );
-			ImGui::DragFloat3( "Camera Right", &cameraRight.x );
-			ImGui::DragFloat3( "Camera up", &cameraUp.x );
-
-			mainCamera.view = glm::lookAt( cameraPosition, cameraTarget, cameraUp );
-			float           aspectRatio = ( float )window.width / window.height;
-			static float    cameraSize = 30.0f;
-			constexpr float scrollSpeed = 100.0f;
-			ImGui::SliderFloat( "camera size", &cameraSize, 1.0f, 100.0f );
-
-			// Move camera
-			cameraSize += io.mouse.wheelMotion.y * scrollSpeed * dt;
-			cameraSize = std::min( cameraSize, 100.0f );
-			cameraSize = std::max( cameraSize, 1.0f );
-
-			glm::vec4       cameraTargetMovement( 0.0f, 0.0f, 0.0f, 1.0f );
-			constexpr float cameraMovementSpeed = 10.0f;
 			if ( io.keyboard.IsKeyDown( eKey::KEY_D ) )
-				cameraTargetMovement.x += cameraMovementSpeed * dt;
+				cameraTargetNewPosition += ( cameraTargetTransform.Right() * movementSpeed );
 			if ( io.keyboard.IsKeyDown( eKey::KEY_A ) )
-				cameraTargetMovement.x -= cameraMovementSpeed * dt;
+				cameraTargetNewPosition -= ( cameraTargetTransform.Right() * movementSpeed );
 			if ( io.keyboard.IsKeyDown( eKey::KEY_W ) )
-				cameraTargetMovement.z += cameraMovementSpeed * dt;
+				cameraTargetNewPosition += ( cameraTargetTransform.Front() * movementSpeed );
 			if ( io.keyboard.IsKeyDown( eKey::KEY_S ) )
-				cameraTargetMovement.z -= cameraMovementSpeed * dt;
+				cameraTargetNewPosition -= ( cameraTargetTransform.Front() * movementSpeed );
 
-			auto rotatedMovement = cameraRotationMatrix * cameraTargetMovement;
-			// auto rotatedMovement = cameraTargetMovement;
-			cameraTarget += glm::vec3( rotatedMovement );
+			cameraTargetTransform.SetTranslation(
+			    glm::mix( cameraTargetTransform.GetTranslation(), cameraTargetNewPosition, dt * movementTime ) );
+			ImGui::Text( "Camera target position: %f %f %f\n", cameraTargetTransform.GetTranslation().x,
+			             cameraTargetTransform.GetTranslation().y, cameraTargetTransform.GetTranslation().z );
 
-			mainCamera.proj = glm::ortho( -aspectRatio * cameraSize / 2, aspectRatio * cameraSize / 2, -cameraSize / 2,
-			                              cameraSize / 2, 0.3f, 1000.0f );
+			static float cameraDistance = 250.0f;
+			static float cameraNewDistance = cameraDistance;
+			static float cameraRotationAngle = 45.0f;
+			ImGui::SliderFloat( "camera distance", &cameraDistance, 0.0f, 500.0f );
+			ImGui::SliderFloat( "camera rotation angle", &cameraRotationAngle, -180.0f, 180.0f );
+
+			cameraNewDistance += io.mouse.wheelMotion.y * scrollSpeed;
+			cameraDistance = glm::mix( cameraDistance, cameraNewDistance, dt * movementTime );
+
+			CpntTransform cameraTransform;
+			cameraTransform.SetTranslation( { 0.0f, cameraDistance, -cameraDistance } );
+			cameraTransform.SetRotation( { cameraRotationAngle, 0.0f, 0.0f } );
+			ImGui::Text( "Camera position before transform: %f %f %f\n", cameraTransform.GetTranslation().x,
+			             cameraTransform.GetTranslation().y, cameraTransform.GetTranslation().z );
+			ImGui::Text( "Camera front before transform: %f %f %f\n", cameraTransform.Front().x,
+			             cameraTransform.Front().y, cameraTransform.Front().z );
+			cameraTransform = cameraTargetTransform * cameraTransform;
+			ImGui::Text( "Camera target position after transform: %f %f %f\n", cameraTransform.GetTranslation().x,
+			             cameraTransform.GetTranslation().y, cameraTransform.GetTranslation().z );
+			ImGui::Text( "Camera front after transform: %f %f %f\n", cameraTransform.Front().x,
+			             cameraTransform.Front().y, cameraTransform.Front().z );
+
+			mainCamera.position = cameraTransform.GetTranslation();
+			mainCamera.front = cameraTransform.Front();
+			mainCamera.view =
+			    glm::lookAt( cameraTransform.GetTranslation(),
+			                 cameraTransform.GetTranslation() + cameraTransform.Front(), cameraTransform.Up() );
+
+			float           aspectRatio = ( float )window.width / window.height;
+			static float    fovY = 10.0f;
+			constexpr float nearPlane = 0.1f;
+			constexpr float farPlane = 1000.0f;
+			ImGui::SliderFloat( "fovy", &fovY, 0.0f, 90.0f );
+			mainCamera.proj = glm::perspective( glm::radians( fovY ), aspectRatio, nearPlane, farPlane );
 
 			ImGui::Text( "Mouse position: %d %d", io.mouse.position.x, io.mouse.position.y );
 			ImGui::Text( "Mouse offset: %f %f", io.mouse.offset.x, io.mouse.offset.y );
 
-			glm::vec4 viewport = glm::vec4( 0, window.height, window.width, -window.height );
-			glm::vec3 mousePositionWorldSpace =
-			    glm::unProject( glm::vec3( io.mouse.position.x, io.mouse.position.y, 0 ), glm::mat4( 1.0f ),
-			                    mainCamera.proj * mainCamera.view, viewport );
+			// Mouse position in normalized device coordinates
+			float     x = ( 2.0f * io.mouse.position.x ) / window.width - 1.0f;
+			float     y = 1.0f - ( 2.0f * io.mouse.position.y ) / window.height;
+			float     z = 1.0f;
+			glm::vec3 ray_nds( x, y, z );
+
+			// Homogeneous Clip Coordinates
+			glm::vec4 ray_clip( ray_nds.x, ray_nds.y, -1.0f, 1.0f );
+
+			// Eye coordinates
+			glm::vec4 ray_eye = glm::inverse( mainCamera.proj ) * ray_clip;
+			ray_eye = glm::vec4( ray_eye.x, ray_eye.y, -1.0f, 0.0f );
+
+			// world coordinates
+			glm::vec3 ray_world = glm::inverse( mainCamera.view ) * ray_eye;
+
 			Ray mouseRaycast;
-			mouseRaycast.origin = mousePositionWorldSpace;
-			mouseRaycast.direction = cameraFront;
-			ng_assert( cameraFront.y != 0.0f );
-			float a = -mousePositionWorldSpace.y / cameraFront.y;
-			mousePositionWorldSpace = mousePositionWorldSpace + a * cameraFront;
-			ImGui::Text( "Mouse position world space : %f %f %f", mousePositionWorldSpace.x, mousePositionWorldSpace.y,
-			             mousePositionWorldSpace.z );
+			mouseRaycast.origin = cameraTransform.GetTranslation();
+			mouseRaycast.direction = glm::normalize( ray_world );
+			ng_assert( mouseRaycast.direction.y != 0.0f );
+			float     a = -mouseRaycast.origin.y / mouseRaycast.direction.y;
+			glm::vec3 mouseProjectionOnGround = mouseRaycast.origin + a * mouseRaycast.direction;
+			ImGui::Text( "Mouse projection on ground : %f %f %f", mouseProjectionOnGround.x, mouseProjectionOnGround.y,
+			             mouseProjectionOnGround.z );
 
-			glm::vec3 mousePositionWorldSpaceFloored( ( int )floorf( mousePositionWorldSpace.x ), 0.0f,
-			                                          ( int )floorf( mousePositionWorldSpace.z ) );
+			glm::vec3 mouseProjectionOnGroundFloored( ( int )floorf( mouseProjectionOnGround.x ), 0.0f,
+			                                          ( int )floorf( mouseProjectionOnGround.z ) );
 
-			Cell   mouseCellPosition = GetCellForPoint( mousePositionWorldSpaceFloored );
+			Cell   mouseCellPosition = GetCellForPoint( mouseProjectionOnGroundFloored );
 			Entity hoveredEntity = INVALID_ENTITY_ID;
 			for ( auto const & [ e, building ] : registery.IterateOver< CpntBuilding >() ) {
 				if ( IsCellInsideBuilding( building, mouseCellPosition ) ) {
@@ -408,6 +370,10 @@ int main( int ac, char ** av ) {
 			static bool         mouseStartedDragging = false;
 			static Entity       selectedEntity = INVALID_ENTITY_ID;
 			{
+				if ( io.keyboard.IsKeyPressed( KEY_V ) ) {
+					currentMouseAction = MouseAction::BUILD;
+					buildingKindSelected = BuildingKind::HOUSE;
+				}
 				if ( ImGui::Begin( "Buildings" ) ) {
 					if ( ImGui::Button( "Road" ) ) {
 						currentMouseAction = MouseAction::BUILD_ROAD;
@@ -452,7 +418,7 @@ int main( int ac, char ** av ) {
 
 					if ( registery.HasComponent< CpntBuildingStorage >( selectedEntity ) ) {
 						auto & storage = registery.GetComponent< CpntBuildingStorage >( selectedEntity );
-						ImGui::Text("Storage content");
+						ImGui::Text( "Storage content" );
 						for ( const auto & [ type, quantity ] : storage.storage ) {
 							const char * name = GameResourceToString( type );
 							ImGui::Text( "%s: %d\n", name, quantity );
@@ -581,6 +547,7 @@ int main( int ac, char ** av ) {
 			}
 		}
 		{
+			ZoneScopedN( "Render" );
 			theGame->window.BindDefaultFramebuffer();
 			mainCamera.Bind();
 			Render();
@@ -589,7 +556,7 @@ int main( int ac, char ** av ) {
 
 			static float lightAmbiant = 0.7f;
 			static float lightDiffuse = 0.5f;
-			static float lightSpecular = 1.0f;
+			static float lightSpecular = 0.0f;
 			ImGui::SliderFloat( "light ambiant", &lightAmbiant, 0.0f, 1.0f );
 			ImGui::SliderFloat( "light diffuse", &lightDiffuse, 0.0f, 1.0f );
 			ImGui::SliderFloat( "light specular", &lightSpecular, 0.0f, 1.0f );
@@ -599,25 +566,17 @@ int main( int ac, char ** av ) {
 			lightUBOData.ambient = glm::vec4( glm::vec3( lightAmbiant ), 1.0f );
 			lightUBOData.diffuse = glm::vec4( glm::vec3( lightDiffuse ), 1.0f );
 			lightUBOData.specular = glm::vec4( glm::vec3( lightSpecular ), 1.0f );
-			FillLightUBO( &lightUBOData );
-
-			Shader & defaultShader = g_shaderAtlas.defaultShader;
-			defaultShader.Use();
+			renderer.FillLightUBO( &lightUBOData );
 
 			// Just push the ground a tiny below y to avoid clipping
 			CpntTransform groundTransform;
-			groundTransform.SetTranslation( { 0.0f, -0.01f, 0.0f } );
-			DrawModel( groundModel, groundTransform, defaultShader );
+			groundTransform.SetTranslation( { 0.0f, -0.1f, 0.0f } );
 
-			roadBatchedTiles.Render();
+			renderer.GeometryPass( registery, &groundModel, &groundTransform, 1, &roadBatchedTiles, 1 );
+			renderer.LigthningPass();
+			renderer.PostProcessPass();
 
-			defaultShader.Use();
-			for ( auto const & [ e, renderModel ] : registery.IterateOver< CpntRenderModel >() ) {
-				if ( renderModel.model != nullptr ) {
-					DrawModel( *renderModel.model, registery.GetComponent< CpntTransform >( e ), defaultShader );
-				}
-			}
-
+			window.BindDefaultFramebuffer();
 			static bool drawCollisionBoxes = false;
 			ImGui::Checkbox( "draw collision boxes", &drawCollisionBoxes );
 			if ( drawCollisionBoxes ) {
@@ -643,15 +602,36 @@ int main( int ac, char ** av ) {
 		DrawDebugWindow();
 
 		{
-			ZoneScopedN( "Render_IMGUI" );
-			ImGui::Render();
-			ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
-			if ( imio.ConfigFlags & ImGuiConfigFlags_ViewportsEnable ) {
-				SDL_Window *  backup_current_window = SDL_GL_GetCurrentWindow();
-				SDL_GLContext backup_current_context = SDL_GL_GetCurrentContext();
-				ImGui::UpdatePlatformWindows();
-				ImGui::RenderPlatformWindowsDefault();
-				SDL_GL_MakeCurrent( backup_current_window, backup_current_context );
+			constexpr bool renderImgui = true;
+			if ( renderImgui ) {
+				ZoneScopedN( "Render_IMGUI" );
+				ImGui::Render();
+				ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
+				if ( imio.ConfigFlags & ImGuiConfigFlags_ViewportsEnable ) {
+					SDL_Window *  backup_current_window = SDL_GL_GetCurrentWindow();
+					SDL_GLContext backup_current_context = SDL_GL_GetCurrentContext();
+					ImGui::UpdatePlatformWindows();
+					ImGui::RenderPlatformWindowsDefault();
+					SDL_GL_MakeCurrent( backup_current_window, backup_current_context );
+				}
+			} else {
+				ZoneScopedN( "Render_IMGUI" );
+				ImGui::EndFrame();
+				if ( imio.ConfigFlags & ImGuiConfigFlags_ViewportsEnable ) {
+					SDL_Window *  backup_current_window = SDL_GL_GetCurrentWindow();
+					SDL_GLContext backup_current_context = SDL_GL_GetCurrentContext();
+					ImGui::UpdatePlatformWindows();
+					SDL_GL_MakeCurrent( backup_current_window, backup_current_context );
+				}
+				// ImGui::Render();
+				// ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
+				// if ( imio.ConfigFlags & ImGuiConfigFlags_ViewportsEnable ) {
+				//	SDL_Window *  backup_current_window = SDL_GL_GetCurrentWindow();
+				//	SDL_GLContext backup_current_context = SDL_GL_GetCurrentContext();
+				//	ImGui::UpdatePlatformWindows();
+				//	ImGui::RenderPlatformWindowsDefault();
+				//	SDL_GL_MakeCurrent( backup_current_window, backup_current_context );
+				//}
 			}
 		}
 
@@ -665,7 +645,7 @@ int main( int ac, char ** av ) {
 	ImGui::DestroyContext();
 
 	modelInspectorFramebuffer.Destroy();
-	ShutdownRenderer();
+	renderer.ShutdownRenderer();
 	g_shaderAtlas.FreeShaders();
 	g_modelAtlas.FreeAllModels();
 
@@ -679,8 +659,8 @@ int main( int ac, char ** av ) {
 }
 
 void DrawDebugWindow() {
-	static bool opened = true;
-	ImGui::ShowDemoWindow( &opened );
+	// static bool opened = true;
+	// ImGui::ShowDemoWindow( &opened );
 	ImGui::Begin( "Debug" );
 
 	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
@@ -706,6 +686,7 @@ void DrawDebugWindow() {
 		modelInspectorFramebuffer.Bind();
 		modelInspectorFramebuffer.Clear();
 		CpntTransform localTransform;
+		g_shaderAtlas.defaultShader.Use();
 		DrawModel( *( g_modelAtlas.farmMesh ), localTransform, g_shaderAtlas.defaultShader );
 
 		ImGui::Image( ( ImTextureID )modelInspectorFramebuffer.textureID,
@@ -747,6 +728,11 @@ void DrawDebugWindow() {
 			ng::Printf( "Road network looks fine!\n" );
 		}
 	}
+
+	if ( ImGui::Begin( "Renderer" ) ) {
+		theGame->renderer.DebugDraw();
+	}
+	ImGui::End();
 
 	ImGui::End();
 }

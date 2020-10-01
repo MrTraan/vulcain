@@ -4,6 +4,7 @@
 #include "map.h"
 #include "navigation.h"
 #include "packer.h"
+#include "renderer.h"
 #include "window.h"
 
 constexpr float FIXED_TIMESTEP = 1.0f / 30.0f;
@@ -28,6 +29,7 @@ struct Game {
 	PackerPackage package;
 	Map           map;
 	RoadNetwork   roadNetwork;
+	Renderer      renderer;
 };
 
 extern Game * theGame;

@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
@@ -15,6 +16,9 @@ constexpr Entity INVALID_ENTITY_ID = ( Entity )-1;
 
 struct CpntTransform {
   public:
+	CpntTransform() = default;
+	CpntTransform( const glm::mat4 matrix ) { DecomposeMatrix( matrix ); }
+
 	const glm::mat4 & GetMatrix() const { return matrix; }
 
 	void Translate( const glm::vec3 & v ) {
@@ -46,11 +50,30 @@ struct CpntTransform {
 		matrix = glm::scale( matrix, scale );
 	}
 
+	void DecomposeMatrix( const glm::mat4 matrix ) {
+		glm::vec3 skew;
+		glm::vec4 perspective;
+		glm::decompose( matrix, this->scale, this->rotation, this->translation, skew, perspective );
+		this->matrix = matrix;
+		( void )skew;
+		( void )perspective;
+		//rotation = glm::conjugate( rotation );
+	}
+
+	CpntTransform operator*( const CpntTransform & rhs ) const {
+		glm::mat4 matrix = this->matrix * rhs.matrix;
+		return CpntTransform( matrix );
+	}
+
+	glm::vec3 Front() const { return glm::normalize( glm::vec3( rotation * glm::vec4( 0.0f, 0.0f, 1.0f, 1.0f ) ) ); }
+	glm::vec3 Right() const { return glm::normalize( glm::cross( Front(), glm::vec3( 0.0f, 1.0f, 0.0f ) ) ); }
+	glm::vec3 Up() const { return glm::normalize( glm::cross( Right(), Front() ) ); }
+
   private:
 	glm::mat4 matrix{ 1.0f };
 	glm::vec3 translation{ 0.0f, 0.0f, 0.0f };
 	glm::vec3 scale{ 1.0f, 1.0f, 1.0f };
-	glm::quat rotation{0.0f, 0.0f, 0.0f, 0.0f};
+	glm::quat rotation{ 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
 constexpr u64 FNV_HASH_BASIS = 0xcbf29ce484222325;

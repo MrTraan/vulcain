@@ -44,7 +44,10 @@ void IO::Update( Window & window ) {
 		if ( event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED ) {
 			window.width = event.window.data1;
 			window.height = event.window.data2;
+			window.BindDefaultFramebuffer();	
 			glViewport( 0, 0, window.width, window.height );
+			theGame->renderer.ShutdownRenderer();
+			theGame->renderer.InitRenderer( window.width, window.height );
 			// TODO: Refresh UI size
 		}
 		if ( event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_ENTER ) {
