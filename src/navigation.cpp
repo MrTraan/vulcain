@@ -7,6 +7,7 @@
 #include "ngLib/types.h"
 #include "registery.h"
 #include <array>
+#include <functional>
 #include <tracy/Tracy.hpp>
 #include <vector>
 
@@ -84,7 +85,6 @@ glm::vec3 GetPointInMiddleOfCell( Cell cell ) {
 glm::vec3 GetPointInCornerOfCell( Cell cell ) { return glm::vec3( cell.x, 0.0f, cell.z ); }
 
 Cell GetCellForPoint( glm::vec3 point ) {
-	// ng_assert( point.x >= 0.0f && point.z >= 0.0f );
 	if ( point.x < 0 ) {
 		point.x = 0;
 	}
@@ -248,17 +248,17 @@ bool AStar( Cell start, Cell goal, AStarMovementAllowed movement, const Map & ma
 	return true;
 }
 
-void SystemNavAgent::Update( Registery & reg, float dt ) {
+void SystemNavAgent::Update( Registery & reg, Duration ticks ) {
 	for ( auto & [ e, agent ] : reg.IterateOver< CpntNavAgent >() ) {
 		CpntTransform & transform = reg.GetComponent< CpntTransform >( e );
-		float           remainingSpeed = agent.movementSpeed * dt;
+		float           remainingSpeed = agent.movementSpeed * ticks;
 		while ( agent.pathfindingNextSteps.Empty() == false && remainingSpeed > 0.0f ) {
 			Cell      nextStep = agent.pathfindingNextSteps.Last();
 			glm::vec3 nextCoord = GetPointInMiddleOfCell( nextStep );
 			float     distance = glm::distance( transform.GetTranslation(), nextCoord );
-			if ( distance > agent.movementSpeed * dt ) {
+			if ( distance > agent.movementSpeed * ticks ) {
 				glm::vec3 direction = glm::normalize( nextCoord - transform.GetTranslation() );
-				transform.Translate( direction * agent.movementSpeed * dt );
+				transform.Translate( direction * ( agent.movementSpeed * ticks ) );
 			} else {
 				transform.SetTranslation( nextCoord );
 				agent.pathfindingNextSteps.PopBack();
@@ -308,13 +308,6 @@ static void GetRoadNeighborsOfCell( Cell base, const Map & map, ng::StaticArray<
 			neighbors.PushBack( cell );
 		}
 	}
-}
-
-static void GetNeighborsOfCell( Cell base, Cell neighbors[ 4 ] ) {
-	neighbors[ 0 ] = GetCellAfterMovement( base, -1, 0 );
-	neighbors[ 1 ] = GetCellAfterMovement( base, 1, 0 );
-	neighbors[ 2 ] = GetCellAfterMovement( base, 0, -1 );
-	neighbors[ 3 ] = GetCellAfterMovement( base, 0, 1 );
 }
 
 RoadNetwork::Node * RoadNetwork::FindNodeWithPosition( Cell cell ) {
@@ -700,6 +693,142 @@ bool BuildPathFromNodeToCell( RoadNetwork::Node &        start,
 	}
 	return false;
 }
+
+bool CreateWandererRoutine(
+    const Cell & start, Map & map, RoadNetwork & roadNetwork, ng::DynamicArray< Cell > & outPath, u32 maxDistance ) {
+	// From the start cell and then at every intersection, we look for tiles around clockwise
+	// If it's accessible, we go there.
+	// If we reached maximum distance, we take the shortest path to home
+
+	u32                      currentDistanceWalked = 0;
+	ng::DynamicArray< Cell > exploredCells;
+
+	std::function< bool( Cell, Cell ) > ExploreCell = [ & ]( Cell cell, Cell parent ) -> bool {
+		if ( currentDistanceWalked >= maxDistance ) {
+			return false;
+		}
+		exploredCells.PushBack( cell );
+		ng::StaticArray< Cell, 4 > neighbors;
+		GetNeighborsOfCell( cell, map, neighbors );
+
+		outPath.PushBack( cell );
+		currentDistanceWalked++;
+
+		for ( const Cell & neighbor : neighbors ) {
+			if ( map.GetTile( neighbor ) == MapTile::ROAD && exploredCells.FindIndexByValue( neighbor ) == -1 ) {
+				bool ok = ExploreCell( neighbor, cell );
+				if ( !ok ) {
+					return false;
+				}
+			}
+		}
+
+		if ( parent != INVALID_CELL && currentDistanceWalked < maxDistance ) {
+			outPath.PushBack( parent );
+			currentDistanceWalked++;
+			return true;
+		}
+		return false;
+	};
+
+	ExploreCell( start, INVALID_CELL );
+	ng::ReverseArrayInplace( outPath );
+	return true;
+
+	// u32 currentDistanceWalked = 0;
+
+	// ng::DynamicArray< ng::Tuple< Cell, Cell > >                exploredConnections;
+	// ng::DynamicArray< ng::Tuple< Cell, RoadNetwork::Node * > > cellsToExplore;
+
+	// if ( roadNetwork.FindNodeWithPosition( start ) == nullptr ) {
+	//	// We didn't start from a node, let's go to one connected to start priorizing with directions in clockwise order
+	//	RoadNetwork::NodeSearchResult searchStartA;
+	//	RoadNetwork::NodeSearchResult searchStartB;
+
+	//	roadNetwork.FindNearestRoadNodes( start, map, searchStartA, searchStartB );
+	//	ng_assert( searchStartA.found == true );
+
+	//	RoadNetwork::Node * startingNode = nullptr;
+	//	if ( searchStartB.found == true &&
+	//	     ( int )searchStartB.directionFromStart < ( int )searchStartA.directionFromStart ) {
+	//		startingNode = searchStartB.node;
+	//	} else {
+	//		startingNode = searchStartA.node;
+	//	}
+
+	//	u32  distance = 0;
+	//	bool ok = BuildPathFromNodeToCell( *startingNode, start, map, outPath, distance );
+	//	outPath.PushBack( startingNode->position );
+	//	ng_assert( ok );
+	//	ng_assert_msg( distance < maxDistance,
+	//	               "We need to truncate the path, because going from start to a node exceeds max distance" );
+
+	//	cellsToExplore.PushBack( { startingNode->position, nullptr } );
+	//} else {
+	//	outPath.PushBack( start );
+	//	cellsToExplore.PushBack( { start, nullptr } );
+	//}
+
+	// auto HasConnectionBeenExplored =
+	//    []( const Cell & a, const Cell & b,
+	//        const ng::DynamicArray< ng::Tuple< Cell, Cell > > & exploredConnections ) -> bool {
+	//	Cell first, second;
+	//	if ( a < b ) {
+	//		first = a;
+	//		second = b;
+	//	} else {
+	//		first = b;
+	//		second = a;
+	//	}
+	//	for ( const auto & c : exploredConnections ) {
+	//		if ( c.First() == first && c.Second() == second ) {
+	//			return true;
+	//		}
+	//	}
+	//	return false;
+	//};
+
+	// auto MarkConnectionAsExplored = []( const Cell & a, const Cell & b,
+	//                                    ng::DynamicArray< ng::Tuple< Cell, Cell > > & exploredConnections ) {
+	//	exploredConnections.PushBack( a < b ? ng::Tuple( a, b ) : ng::Tuple( b, a ) );
+	//};
+
+	// std::function< void( RoadNetwork::Node *, RoadNetwork::Node * ) > exploreNode = [ & ](
+	//                                                                                    RoadNetwork::Node * node,
+	//                                                                                    RoadNetwork::Node * parent ) {
+	//	if ( currentDistanceWalked >= maxDistance ) {
+	//		return;
+	//	}
+	//	for ( u32 i = 0; i < node->NumSetConnections(); i++ ) {
+	//		RoadNetwork::Connection * connection = node->GetValidConnectionWithOffset( i );
+	//		if ( HasConnectionBeenExplored( node->position, connection->connectedTo, exploredConnections ) == false ) {
+	//			MarkConnectionAsExplored( node->position, connection->connectedTo, exploredConnections );
+	//			RoadNetwork::Node * neighbor = roadNetwork.ResolveConnection( connection );
+	//			u32                 distance = 0;
+	//			BuildPathBetweenNodes( *node, *neighbor, map, outPath, distance );
+	//			currentDistanceWalked += distance;
+	//			exploreNode( neighbor, node );
+	//		}
+	//	}
+
+	//	if ( parent != nullptr ) {
+	//		u32 distance = 0;
+	//		BuildPathBetweenNodes( *node, *parent, map, outPath, distance );
+	//		currentDistanceWalked += distance;
+	//	}
+	//};
+
+	// ng::Tuple< Cell, RoadNetwork::Node * > tuple = cellsToExplore.PopBack();
+	// auto                                   currentNode = roadNetwork.FindNodeWithPosition( tuple.First() );
+	// auto                                   parent = tuple.Second();
+	// ng_assert( currentNode != nullptr );
+
+	// exploreNode( currentNode, parent );
+
+	// ng::ReverseArrayInplace( outPath );
+	// return true;
+}
+
 bool RoadNetwork::FindPath( Cell                       start,
                             Cell                       goal,
                             const Map &                map,
@@ -864,6 +993,28 @@ bool RoadNetwork::FindPath( Cell                       start,
 	findPathOpenSet.Clear();
 
 	return true;
+}
+
+Cell GetAnyRoadConnectedToBuilding( const CpntBuilding & building, const Map & map ) {
+	// TODO: This does not check if cell is out of bound
+	// TODO: This should pick first road in clockwise order
+	for ( u32 x = building.cell.x; x <= building.cell.x + building.tileSizeX; x++ ) {
+		if ( map.GetTile( x, building.cell.z - 1 ) == MapTile::ROAD ) {
+			return Cell( x, building.cell.z - 1 );
+		}
+		if ( map.GetTile( x, building.cell.z + building.tileSizeZ ) == MapTile::ROAD ) {
+			return Cell( x, building.cell.z + building.tileSizeZ );
+		}
+	}
+	for ( u32 z = building.cell.z; z <= building.cell.z + building.tileSizeZ; z++ ) {
+		if ( map.GetTile( building.cell.x - 1, z ) == MapTile::ROAD ) {
+			return Cell( building.cell.x - 1, z );
+		}
+		if ( map.GetTile( building.cell.x + building.tileSizeX, z ) == MapTile::ROAD ) {
+			return Cell( building.cell.x + building.tileSizeX, z );
+		}
+	}
+	return INVALID_CELL;
 }
 
 bool FindPathBetweenBuildings( const CpntBuilding &       start,

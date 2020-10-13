@@ -23,6 +23,6 @@ typedef char      int8;
 #define IS_U32_MUL_SAFE( a, b ) ( !( ( ( a ) != 0 ) && ( ( U32_MAX / ( a ) ) < ( b ) ) ) )
 #define IS_U64_MUL_SAFE( a, b ) ( !( ( ( a ) != 0 ) && ( ( U64_MAX / ( a ) ) < ( b ) ) ) )
 
-#define MIN( a, b ) ( a < b ? a : b )
-#define MAX( a, b ) ( a > b ? a : b )
+#define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
+#define MAX( a, b ) ( ( a ) > ( b ) ? ( a ) : ( b ) )
 #define ABS( x ) ( ( x ) > 0 ? ( x ) : -( x ) )

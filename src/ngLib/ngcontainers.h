@@ -64,7 +64,7 @@ template < typename T > struct DynamicArray {
 		}
 		// Round newCapacity to the smallest power of 2 greater than or equal
 		// https://www.geeksforgeeks.org/smallest-power-of-2-greater-than-or-equal-to-n/
-		newCapacity = (u32)pow( 2ul, ( u32 )ceil( log2( newCapacity ) ) );
+		newCapacity = ( u32 )pow( 2ul, ( u32 )ceil( log2( newCapacity ) ) );
 		T * temp = new T[ newCapacity ];
 
 		for ( u32 i = 0; i < count; i++ ) {
@@ -88,6 +88,15 @@ template < typename T > struct DynamicArray {
 
 		delete[] data;
 		data = temp;
+	}
+
+	int64 FindIndexByValue( const T & value ) {
+		for ( int64 i = 0; i < count; i++ ) {
+			if ( data[ i ] == value ) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	bool DeleteIndexFast( u32 index ) {
@@ -164,6 +173,21 @@ template < typename T > struct DynamicArray {
 	const T * begin() const { return data == nullptr || count == 0 ? nullptr : data; }
 	const T * end() const { return data == nullptr || count == 0 ? nullptr : data + count; }
 };
+
+template < typename T > void ReverseArrayInplace( DynamicArray< T > & v ) {
+	if ( v.Size() == 0 ) {
+		return;
+	}
+	u32 i = 0;
+	u32 j = v.Size() - 1;
+	while ( i < j ) {
+		T tmp = v[ i ];
+		v[ i ] = v[ j ];
+		v[ j ] = tmp;
+		i++;
+		j--;
+	}
+}
 
 template < typename T, u32 N > struct StaticArray {
   private:
@@ -460,5 +484,18 @@ template < typename T > void LinkedListInsertSorted( LinkedList< T > & list, con
 	}
 	cursor->next = newNode;
 }
+
+template < typename T1, typename T2 > struct Tuple {
+	Tuple() = default;
+	Tuple( const T1 & a, const T2 & b ) : t1( a ), t2( b ) {}
+
+	T1 t1{};
+	T2 t2{};
+
+	T1 &       First() { return t1; }
+	T2 &       Second() { return t2; }
+	const T1 & First() const { return t1; }
+	const T2 & Second() const { return t2; }
+};
 
 }; // namespace ng

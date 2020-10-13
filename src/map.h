@@ -11,6 +11,11 @@ struct Cell {
 	u32 z = 0;
 
 	constexpr bool operator==( const Cell & rhs ) const { return x == rhs.x && z == rhs.z; }
+	constexpr bool operator<( const Cell & rhs ) const {
+		u64 sum = ((u64)x << 32) | z;
+		u64 sumrhs = ((u64)rhs.x << 32) | rhs.z;
+		return sum < sumrhs;
+	}
 	constexpr bool IsValid() const { return x != ( u32 )-1 && z != ( u32 )-1; }
 };
 

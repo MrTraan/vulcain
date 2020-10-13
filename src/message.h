@@ -6,6 +6,7 @@
 
 enum MessageType {
 	MESSAGE_PATHFINDING_DESTINATION_REACHED,
+	MESSAGE_PATHFINDING_MOVED_CELL,
 	MessageType_COUNT, // leave this a the end
 };
 

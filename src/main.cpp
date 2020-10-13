@@ -20,7 +20,6 @@
 #include "navigation.h"
 #include "ngLib/ngcontainers.h"
 #include "ngLib/nglib.h"
-#include "ngLib/ngtime.h"
 #include "packer.h"
 #include "packer_resource_list.h"
 #include "registery.h"
@@ -71,9 +70,6 @@ Game * theGame;
 
 static void DrawDebugWindow();
 
-SystemManager systemManager;
-Registery     registery;
-
 Camera mainCamera;
 Camera modelInspectorCamera;
 
@@ -81,9 +77,9 @@ Framebuffer   modelInspectorFramebuffer;
 constexpr int modelInspectorWidth = 400;
 constexpr int modelInspectorHeight = 400;
 
-static void Update( float dt ) { systemManager.Update( registery, dt ); }
+static void Update( float dt ) {}
 
-static void FixedUpdate() {}
+static void FixedUpdate( Duration ticks ) { theGame->systemManager.Update( theGame->registery, ticks ); }
 
 static void Render() {}
 
@@ -191,9 +187,13 @@ int main( int ac, char ** av ) {
 	Texture whiteTexture = CreateDefaultWhiteTexture();
 
 	// Register system
-	systemManager.CreateSystem< SystemHousing >();
-	systemManager.CreateSystem< SystemBuildingProducing >();
-	systemManager.CreateSystem< SystemNavAgent >();
+	theGame->systemManager.CreateSystem< SystemHousing >();
+	theGame->systemManager.CreateSystem< SystemBuildingProducing >();
+	theGame->systemManager.CreateSystem< SystemNavAgent >();
+	theGame->systemManager.CreateSystem< SystemMarket >();
+	theGame->systemManager.CreateSystem< SystemSeller >();
+	theGame->systemManager.CreateSystem< SystemServiceBuilding >();
+	theGame->systemManager.CreateSystem< SystemServiceWanderer >();
 
 	Model groundModel;
 	CreateTexturedPlane( 200.0f, 200.0f, 64.0f,
@@ -204,7 +204,8 @@ int main( int ac, char ** av ) {
 
 	roadBatchedTiles.Init( &roadModel );
 
-	Map & map = theGame->map;
+	Map &       map = theGame->map;
+	Registery & registery = theGame->registery;
 	map.AllocateGrid( 200, 200 );
 	SpawnRoadBlock( registery, map, Cell( 0, 0 ) );
 
@@ -254,7 +255,8 @@ int main( int ac, char ** av ) {
 			fixedTimeStepAccumulator -= numFixedSteps * FIXED_TIMESTEP;
 		}
 		for ( int i = 0; i < numFixedSteps; i++ ) {
-			FixedUpdate();
+			theGame->clock++;
+			FixedUpdate( 1 );
 		}
 		Update( pauseSim ? 0.0f : dt );
 		{
@@ -394,6 +396,14 @@ int main( int ac, char ** av ) {
 						currentMouseAction = MouseAction::BUILD;
 						buildingKindSelected = BuildingKind::STORAGE_HOUSE;
 					}
+					if ( ImGui::Button( "Market" ) ) {
+						currentMouseAction = MouseAction::BUILD;
+						buildingKindSelected = BuildingKind::MARKET;
+					}
+					if ( ImGui::Button( "Foutain" ) ) {
+						currentMouseAction = MouseAction::BUILD;
+						buildingKindSelected = BuildingKind::FOUNTAIN;
+					}
 					if ( ImGui::Button( "Delete" ) ) {
 						currentMouseAction = MouseAction::DESTROY;
 					}
@@ -408,16 +418,24 @@ int main( int ac, char ** av ) {
 						auto & housing = registery.GetComponent< CpntHousing >( selectedEntity );
 						ImGui::Text( "Number of habitants: %d / %d\n", housing.numCurrentlyLiving,
 						             housing.maxHabitants );
+						for ( int i = 0; i < ( int )GameService::NUM_SERVICES; i++ ) {
+							if ( housing.isServiceRequired[ i ] == true ) {
+								ImGui::Text(
+								    "Service %d: is fulfilled ? %s, last accessed %lld frames ago", i,
+								    IsServiceFulfilled( housing.lastServiceAccess[ i ], theGame->clock ) ? "Yes" : "No",
+								    theGame->clock - housing.lastServiceAccess[ i ] );
+							}
+						}
 					}
 					if ( registery.HasComponent< CpntBuildingProducing >( selectedEntity ) ) {
 						auto & producer = registery.GetComponent< CpntBuildingProducing >( selectedEntity );
-						float  timeSinceLastProduction = ng::DurationToSeconds( producer.timeSinceLastProduction );
-						float  timeToProduce = ng::DurationToSeconds( producer.timeToProduceBatch );
+						float  timeSinceLastProduction = DurationToSeconds( producer.timeSinceLastProduction );
+						float  timeToProduce = DurationToSeconds( producer.timeToProduceBatch );
 						ImGui::SliderFloat( "production", &timeSinceLastProduction, 0.0f, timeToProduce );
 					}
 
-					if ( registery.HasComponent< CpntBuildingStorage >( selectedEntity ) ) {
-						auto & storage = registery.GetComponent< CpntBuildingStorage >( selectedEntity );
+					if ( registery.HasComponent< CpntResourceInventory >( selectedEntity ) ) {
+						auto & storage = registery.GetComponent< CpntResourceInventory >( selectedEntity );
 						ImGui::Text( "Storage content" );
 						for ( const auto & [ type, quantity ] : storage.storage ) {
 							const char * name = GameResourceToString( type );
@@ -719,7 +737,7 @@ void DrawDebugWindow() {
 	//	ImGui::TreePop();
 	//}
 	if ( ImGui::TreeNode( "Components" ) ) {
-		registery.DebugDraw();
+		theGame->registery.DebugDraw();
 		ImGui::TreePop();
 	}
 	if ( ImGui::Button( "Check road network integrity" ) ) {
