@@ -12,6 +12,10 @@ glm::i32vec2 GetBuildingSize( BuildingKind kind ) {
 		return { 3, 3 };
 	case ( BuildingKind::HOUSE ):
 		return { 2, 2 };
+	case ( BuildingKind::MARKET ):
+		return { 3, 2 };
+	case ( BuildingKind::FOUNTAIN ):
+		return { 1, 1 };
 	default:
 		ng_assert( false );
 		return { 1, 1 };
@@ -97,6 +101,14 @@ const Model * GetBuildingModel( BuildingKind kind ) {
 		return g_modelAtlas.roadBlockMesh;
 		return nullptr;
 
+	case BuildingKind::MARKET:
+		return g_modelAtlas.marketMesh;
+		return nullptr;
+
+	case BuildingKind::FOUNTAIN:
+		return g_modelAtlas.fountainMesh;
+		return nullptr;
+
 	default:
 		ng_assert( false );
 		return nullptr;
@@ -132,19 +144,39 @@ bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & m
 		housing.maxHabitants = 20;
 		housing.numCurrentlyLiving = 0;
 		housing.tier = 0;
+
+		housing.isServiceRequired[(int)GameService::WATER] = true;
+
+		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
+		inventory.AccecptNewResource( GameResource::WHEAT, 15 );
 		break;
 	}
 
 	case BuildingKind::FARM: {
 		auto & producer = reg.AssignComponent< CpntBuildingProducing >( e );
 		producer.batchSize = 4;
-		producer.timeToProduceBatch = ng::DurationInMs( 5000.0f );
+		producer.timeToProduceBatch = DurationFromSeconds( 5 );
 		producer.resource = GameResource::WHEAT;
 		break;
 	}
 
 	case BuildingKind::STORAGE_HOUSE: {
-		reg.AssignComponent< CpntBuildingStorage >( e );
+		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
+		inventory.AccecptNewResource( GameResource::WHEAT, 100 );
+		break;
+	}
+
+	case BuildingKind::MARKET: {
+		reg.AssignComponent< CpntMarket >( e );
+		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
+		inventory.AccecptNewResource( GameResource::WHEAT, 100 );
+		inventory.StoreRessource( GameResource::WHEAT, 100 );
+		break;
+	}
+
+	case BuildingKind::FOUNTAIN: {
+		auto & serviceBuilding = reg.AssignComponent< CpntServiceBuilding >( e );
+		serviceBuilding.service = GameService::WATER;
 		break;
 	}
 

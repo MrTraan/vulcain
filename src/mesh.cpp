@@ -160,12 +160,16 @@ bool ModelAtlas::LoadAllModels() {
 	roadMesh = new Model();
 	storeHouseMesh = new Model();
 	roadBlockMesh = new Model();
+	marketMesh = new Model();
+	fountainMesh = new Model();
 	success &= SetupModelFromResource( *houseMesh, PackerResources::FUTURUSTIC_HOUSE_DAE );
 	success &= SetupModelFromResource( *farmMesh, PackerResources::NICE_HOUSE_DAE );
 	success &= SetupModelFromResource( *cubeMesh, PackerResources::CUBE_DAE );
 	success &= SetupModelFromResource( *roadMesh, PackerResources::ROAD_OBJ );
 	success &= SetupModelFromResource( *storeHouseMesh, PackerResources::STOREHOUSE_OBJ );
 	success &= SetupModelFromResource( *roadBlockMesh, PackerResources::ROAD_BLOCK_DAE );
+	success &= SetupModelFromResource( *marketMesh, PackerResources::MARKET_DAE );
+	success &= SetupModelFromResource( *fountainMesh, PackerResources::HOUSE_DAE );
 
 	return success;
 }
@@ -177,6 +181,8 @@ void ModelAtlas::FreeAllModels() {
 	FreeModelBuffers( *roadMesh );
 	FreeModelBuffers( *storeHouseMesh );
 	FreeModelBuffers( *roadBlockMesh );
+	FreeModelBuffers( *marketMesh );
+	FreeModelBuffers( *fountainMesh );
 
 	delete houseMesh;
 	delete farmMesh;
@@ -184,6 +190,8 @@ void ModelAtlas::FreeAllModels() {
 	delete roadMesh;
 	delete storeHouseMesh;
 	delete roadBlockMesh;
+	delete marketMesh;
+	delete fountainMesh;
 }
 
 void ComputeModelSize( Model & model ) {
@@ -221,30 +229,31 @@ void ComputeModelSize( Model & model ) {
 	model.roundedSize.z = ( int )ceilf( model.size.z );
 }
 
-void CreateTexturedPlane( float sizeX, float sizeZ, float textureTiling, const PackerResource & textureResource, Model & modelOut ) {
-	Material & mat = modelOut.materials["default"];
+void CreateTexturedPlane(
+    float sizeX, float sizeZ, float textureTiling, const PackerResource & textureResource, Model & modelOut ) {
+	Material & mat = modelOut.materials[ "default" ];
 	mat.diffuseTexture = CreateTextureFromResource( textureResource );
 
-	modelOut.meshes.resize(1);
-	Mesh & mesh = modelOut.meshes[0];
+	modelOut.meshes.resize( 1 );
+	Mesh & mesh = modelOut.meshes[ 0 ];
 	mesh.material = &mat;
 
-	mesh.vertices.resize(4);
-	mesh.vertices[0] = Vertex{ { 0.0f, 0.0f, 0.0f },  { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } };
-	mesh.vertices[1] = Vertex{ { sizeX, 0.0f, 0.0f },  { 0.0f, 1.0f, 0.0f }, { textureTiling, 0.0f } };
-	mesh.vertices[2] = Vertex{ { sizeX, 0.0f, sizeZ },  { 0.0f, 1.0f, 0.0f }, { textureTiling, textureTiling } };
-	mesh.vertices[3] = Vertex{ { 0.0f, 0.0f, sizeZ },  { 0.0f, 1.0f, 0.0f }, { 0.0f, textureTiling } };
+	mesh.vertices.resize( 4 );
+	mesh.vertices[ 0 ] = Vertex{ { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } };
+	mesh.vertices[ 1 ] = Vertex{ { sizeX, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { textureTiling, 0.0f } };
+	mesh.vertices[ 2 ] = Vertex{ { sizeX, 0.0f, sizeZ }, { 0.0f, 1.0f, 0.0f }, { textureTiling, textureTiling } };
+	mesh.vertices[ 3 ] = Vertex{ { 0.0f, 0.0f, sizeZ }, { 0.0f, 1.0f, 0.0f }, { 0.0f, textureTiling } };
 
-	mesh.indices.resize(6);
-	mesh.indices[0] = 0;
-	mesh.indices[1] = 2;
-	mesh.indices[2] = 1;
-	mesh.indices[3] = 0;
-	mesh.indices[4] = 3;
-	mesh.indices[5] = 2;
+	mesh.indices.resize( 6 );
+	mesh.indices[ 0 ] = 0;
+	mesh.indices[ 1 ] = 2;
+	mesh.indices[ 2 ] = 1;
+	mesh.indices[ 3 ] = 0;
+	mesh.indices[ 4 ] = 3;
+	mesh.indices[ 5 ] = 2;
 
-	ComputeModelSize(modelOut);
-	AllocateMeshGLBuffers(mesh);
+	ComputeModelSize( modelOut );
+	AllocateMeshGLBuffers( mesh );
 }
 
 Texture Texture::DefaultWhiteTexture() {

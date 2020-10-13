@@ -13,10 +13,11 @@ enum AStarMovementAllowed {
 };
 
 enum CardinalDirection {
-	SOUTH = 0, // x negative
-	NORTH = 1, // x positive
-	EAST = 2,  // z negative
-	WEST = 3,  // z positive
+	NORTH = 0,               // x positive
+	EAST = 1,                // z negative
+	SOUTH = 2,               // x negative
+	WEST = 3,                // z positive
+	NUM_CARDINAL_DIRECTIONS, // keep me at the end
 };
 
 struct Map;
@@ -35,7 +36,7 @@ struct RoadNetwork {
 	};
 	struct Node {
 		Cell       position;
-		Connection connections[ 4 ];
+		Connection connections[ NUM_CARDINAL_DIRECTIONS ];
 
 		u32               NumSetConnections() const;
 		Connection *      GetValidConnectionWithOffset( u32 offset );
@@ -64,38 +65,46 @@ struct RoadNetwork {
 	};
 	void FindNearestRoadNodes( Cell cell, const Map & map, NodeSearchResult & first, NodeSearchResult & second );
 
-	bool FindPath( Cell                  start,
-	               Cell                  goal,
-	               const Map &           map,
+	bool FindPath( Cell                       start,
+	               Cell                       goal,
+	               const Map &                map,
 	               ng::DynamicArray< Cell > & outPath,
-	               u32 *                 outTotalDistance = nullptr,
-	               u32                   maxDistance = ULONG_MAX );
+	               u32 *                      outTotalDistance = nullptr,
+	               u32                        maxDistance = ULONG_MAX );
 
 	bool CheckNetworkIntegrity();
 };
 
 struct CpntNavAgent {
 	ng::DynamicArray< Cell > pathfindingNextSteps;
-	// speed is in cells per second
-	float movementSpeed = 5.0f;
+	// speed is in cells per ticks
+	float movementSpeed = ConvertPerSecondToPerTick( 5.0f );
+};
+
+struct CpntWanderer {
+	u32 maxCellsCovered = 32;
 };
 
 struct SystemNavAgent : public ISystem {
-	virtual void Update( Registery & reg, float dt ) override;
+	virtual void Update( Registery & reg, Duration ticks ) override;
 };
 
-bool      FindPathBetweenBuildings( const CpntBuilding &       start,
-                                    const CpntBuilding &       goal,
-                                    Map &                      map,
-                                    RoadNetwork &              roadNetwork,
-                                    ng::DynamicArray< Cell > & outPath,
-                                    u32                        maxDistance = ULONG_MAX,
-                                    u32 *                      outDistance = nullptr );
+bool FindPathBetweenBuildings( const CpntBuilding &       start,
+                               const CpntBuilding &       goal,
+                               Map &                      map,
+                               RoadNetwork &              roadNetwork,
+                               ng::DynamicArray< Cell > & outPath,
+                               u32                        maxDistance = ULONG_MAX,
+                               u32 *                      outDistance = nullptr );
+bool CreateWandererRoutine(
+    const Cell & start, Map & map, RoadNetwork & roadNetwork, ng::DynamicArray< Cell > & outPath, u32 maxDistance );
+
 bool      AStar( Cell start, Cell goal, AStarMovementAllowed movement, const Map & map, std::vector< Cell > & outPath );
 glm::vec3 GetPointInMiddleOfCell( Cell cell );
 glm::vec3 GetPointInCornerOfCell( Cell cell );
 Cell      GetCellForPoint( glm::vec3 point );
 Cell      GetCellAfterMovement( Cell start, int movementX, int movementZ );
 Cell      GetCellAfterMovement( Cell start, CardinalDirection direction );
+Cell      GetAnyRoadConnectedToBuilding( const CpntBuilding & building, const Map & map );
 CardinalDirection GetDirectionFromCellTo( Cell from, Cell to );
 CardinalDirection OppositeDirection( CardinalDirection direction );

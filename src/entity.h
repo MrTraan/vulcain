@@ -1,4 +1,5 @@
 #pragma once
+#include "game_time.h"
 #include "ngLib/nglib.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -57,7 +58,6 @@ struct CpntTransform {
 		this->matrix = matrix;
 		( void )skew;
 		( void )perspective;
-		//rotation = glm::conjugate( rotation );
 	}
 
 	CpntTransform operator*( const CpntTransform & rhs ) const {
@@ -90,7 +90,7 @@ inline constexpr u64 FnvHash( const u8 * data, u64 size ) {
 
 struct ISystem {
 	virtual ~ISystem() {}
-	virtual void Update( Registery & reg, float dt ) = 0;
+	virtual void Update( Registery & reg, Duration ticks ) = 0;
 	virtual void DebugDraw() {}
 };
 
@@ -110,5 +110,15 @@ struct SystemManager {
 		return *system;
 	}
 
-	void Update( Registery & reg, float dt );
+	template < class T > T & GetSystem() {
+		u64 typeIndex = std::type_index( typeid( T ) ).hash_code();
+		return *( static_cast< T * >( systems.at( typeIndex ) ) );
+	}
+
+	template < class T > const T & GetSystem() const {
+		u64 typeIndex = std::type_index( typeid( T ) ).hash_code();
+		return *( static_cast< const T * >( systems.at( typeIndex ) ) );
+	}
+
+	void Update( Registery & reg, Duration ticks );
 };
