@@ -5,6 +5,7 @@
 #include "navigation.h"
 #include "service.h"
 
+#include "../system.h"
 #include <concurrentqueue.h>
 #include <map>
 
@@ -35,7 +36,8 @@ struct CpntBuilding {
 };
 
 enum class GameResource {
-	WHEAT,
+	WHEAT = 0,
+	NUM_RESOURCES, // keep me at the end
 };
 
 struct CpntBuildingProducing {
@@ -46,8 +48,11 @@ struct CpntBuildingProducing {
 };
 
 struct CpntMarket {
-	u32      wandererCellRange = 128;
-	Entity   wanderer = INVALID_ENTITY_ID;
+	static constexpr u32 wandererCellRange = 128;
+	static constexpr u32 fetcherCellRange = 128;
+
+	Entity   wanderer = INVALID_ENTITY;
+	Entity   fetcher = INVALID_ENTITY;
 	Duration timeSinceLastWandererSpawn = 0;
 	Duration durationBetweenWandererSpawns = DurationFromSeconds( 5 );
 };
@@ -55,20 +60,25 @@ struct CpntMarket {
 struct CpntServiceBuilding {
 	GameService service;
 	u32         wandererCellRange = 128;
-	Entity      wanderer = INVALID_ENTITY_ID;
+	Entity      wanderer = INVALID_ENTITY;
 	Duration    timeSinceLastWandererSpawn = 0;
 	Duration    durationBetweenWandererSpawns = DurationFromSeconds( 5 );
 };
 
-struct CpntResourceCarrier {
-	static constexpr u32 MAX_NUM_RESOURCES_CARRIED = 16u;
-	// Carriers carries at most 16 tuple of resources and amounts
-	ng::StaticArray< ng::Tuple< GameResource, u32 >, MAX_NUM_RESOURCES_CARRIED > resources;
+struct CpntSeller {
+	Cell lastCellDistributed = INVALID_CELL;
 };
 
-struct CpntSeller {
-	// Seller should also have a CpntResourceCarrier
-	Cell lastCellDistributed = INVALID_CELL;
+struct CpntResourceFetcher {
+	Entity parent;
+	Entity target;
+
+	enum class CurrentDirection {
+		TO_PARENT,
+		TO_TARGET,
+	};
+
+	CurrentDirection direction = CurrentDirection::TO_TARGET;
 };
 
 struct CpntServiceWanderer {
@@ -78,24 +88,19 @@ struct CpntServiceWanderer {
 
 struct CpntResourceInventory {
 	struct StorageCapacity {
-		u32 currentAmount;
-		u32 max;
+		u32 currentAmount = 0;
+		u32 max = 0;
 	};
-	std::map< GameResource, StorageCapacity > storage;
+	StorageCapacity storage[ ( int )GameResource::NUM_RESOURCES ] = {};
 
-	// Returns the amount "consumed"
-	u32  StoreRessource( GameResource resource, u32 amount );
-	void AccecptNewResource( GameResource resource, u32 capacity ) {
-		storage[ resource ].currentAmount = 0;
-		storage[ resource ].max = capacity;
-	}
-	bool AccecptsResource( GameResource resource ) const { return storage.contains( resource ); }
+	// Returns the amount actually stored
+	u32 StoreRessource( GameResource resource, u32 amount );
+	// returns the amount actually removed
+	u32  RemoveResource( GameResource resource, u32 amount );
+	void SetResourceMaxCapacity( GameResource resource, u32 max ) { storage[ ( int )resource ].max = max; }
+	u32  GetResourceAmount( GameResource resource ) const { return storage[ ( int )resource ].currentAmount; }
+	u32  GetResourceCapacity( GameResource resource ) const { return storage[ ( int )resource ].max; }
 	bool IsEmpty() const;
-};
-
-struct MsgServiceProvided {
-	GameService service;
-	Entity      target;
 };
 
 struct CpntHousing {
@@ -109,23 +114,28 @@ struct CpntHousing {
 	bool      isServiceRequired[ ( int )GameService::NUM_SERVICES ] = {};
 };
 
+struct SystemResourceInventory : public ISystem {
+	SystemResourceInventory() { ListenToGlobal( MESSAGE_INVENTORY_TRANSACTION ); }
+	virtual void Update( Registery & reg, Duration ticks ) override {}
+	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
+};
+
 struct SystemHousing : public ISystem {
+	SystemHousing() { ListenToGlobal( MESSAGE_SERVICE_PROVIDED ); }
 	virtual void Update( Registery & reg, Duration ticks ) override;
+	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
 
-	u32                                               totalPopulation = 0;
-	moodycamel::ConcurrentQueue< MsgServiceProvided > serviceMessages;
-
-	void NotifyServiceFulfilled( GameService service, Entity target ) {
-		serviceMessages.enqueue( { service, target } );
-	}
+	u32 totalPopulation = 0;
 };
 
 struct SystemBuildingProducing : public ISystem {
 	virtual void Update( Registery & reg, Duration ticks ) override;
+	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
 };
 
 struct SystemMarket : public ISystem {
 	virtual void Update( Registery & reg, Duration ticks ) override;
+	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
 };
 
 struct SystemSeller : public ISystem {
@@ -134,13 +144,32 @@ struct SystemSeller : public ISystem {
 
 struct SystemServiceBuilding : public ISystem {
 	virtual void Update( Registery & reg, Duration ticks ) override;
+	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
 };
 
 struct SystemServiceWanderer : public ISystem {
 	virtual void Update( Registery & reg, Duration ticks ) override;
 };
 
+struct SystemFetcher : public ISystem {
+	SystemFetcher() { ListenToGlobal( MESSAGE_CPNT_ATTACHED ); }
+	virtual void Update( Registery & reg, Duration ticks ) override {}
+	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
+};
+
 const char * GameResourceToString( GameResource resource );
 bool         IsCellInsideBuilding( const CpntBuilding & building, Cell cell );
 bool         IsBuildingInsideArea( const CpntBuilding & building, const Area & area );
 bool         IsCellAdjacentToBuilding( const CpntBuilding & building, Cell cell, const Map & map );
+
+struct TransactionMessagePayload {
+	GameResource resource;
+	u32          quantity = 0;
+	bool         acceptPayback = false;
+};
+
+inline void
+PostTransactionMessage( GameResource resource, u32 amount, bool acceptPayback, Entity recipient, Entity sender ) {
+	return PostMsg< TransactionMessagePayload >(
+	    MESSAGE_INVENTORY_TRANSACTION, TransactionMessagePayload{ resource, amount, acceptPayback }, recipient, sender );
+}

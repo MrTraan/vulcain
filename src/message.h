@@ -1,61 +1,62 @@
 #pragma once
 
 #include "entity.h"
-#include <map>
-#include <vector>
+#include "ngLib/ngcontainers.h"
 
 enum MessageType {
+	MESSAGE_ENTITY_DELETED = 0,
+	MESSAGE_ENTITY_CREATED,
+	MESSAGE_CPNT_ATTACHED,
 	MESSAGE_PATHFINDING_DESTINATION_REACHED,
 	MESSAGE_PATHFINDING_MOVED_CELL,
+	MESSAGE_SERVICE_PROVIDED,
+	MESSAGE_INVENTORY_TRANSACTION,
 	MessageType_COUNT, // leave this a the end
 };
 
-struct Registery;
+static_assert( MessageType_COUNT < 64,
+               "if there are more than 64 message types, we can't use a Bitfield64 anymore to track which event a "
+               "system listens to" );
 
-typedef void ( *MessageHandler )( Registery & reg, Entity sender, Entity receiver );
+constexpr u64 messagePayloadMaxSize = 0x100;
+using MessagePayload = u8[ messagePayloadMaxSize ];
 
-struct MessageBroker {
-	struct Listener {
-		Entity         listenerId;
-		Entity         listenTo;
-		MessageHandler handler;
-	};
-	// An array of pair, first entity is the listener, second is the entity it listens to
-	std::vector< Listener > listeners[ MessageType_COUNT ];
-
-	void AddListener( Entity listener, Entity listenTo, MessageHandler handler, MessageType type ) {
-		listeners[ type ].push_back( { listener, listenTo, handler } );
-	}
-
-	void RemoveListener( Entity listener, MessageType type ) {
-		auto & v = listeners[ type ];
-		for ( auto it = v.begin(); it != v.end(); ) {
-			if ( ( *it ).listenerId == listener ) {
-				it = v.erase( it );
-			} else {
-				it++;
-			}
-		}
-	}
-
-	void RemoveListener( Entity listener ) {
-		for ( int i = 0; i < MessageType_COUNT; i++ ) {
-			auto & v = listeners[ i ];
-			for ( auto it = v.begin(); it != v.end(); ) {
-				if ( ( *it ).listenerId == listener ) {
-					it = v.erase( it );
-				} else {
-					it++;
-				}
-			}
-		}
-	}
-
-	void BroadcastMessage( Registery & reg, Entity emitter, MessageType type ) {
-		for ( auto & listener : listeners[ type ] ) {
-			if ( listener.listenTo == emitter ) {
-				listener.handler( reg, emitter, listener.listenerId );
-			}
-		}
-	}
+struct Message {
+	MessageType    type;
+	MessagePayload payload;
+	Entity         recipient;
+	Entity         sender;
 };
+
+template < typename T > Message & FillMessagePayload( Message & msg, const T & payload ) {
+	static_assert( sizeof( T ) < messagePayloadMaxSize );
+	memcpy( msg.payload, &payload, sizeof( T ) );
+	return msg;
+}
+
+template < typename T > T & CastPayloadAs( MessagePayload & payload ) {
+	static_assert( sizeof( T ) < messagePayloadMaxSize );
+	return ( ( T * )payload )[ 0 ];
+}
+
+template < typename T > const T & CastPayloadAs( const MessagePayload & payload ) {
+	static_assert( sizeof( T ) < messagePayloadMaxSize );
+	return ( ( const T * )payload )[ 0 ];
+}
+
+void        PostMsg( Message msg );
+inline void PostMsg( MessageType type, Entity recipient, Entity sender ) {
+	Message msg{};
+	msg.type = type;
+	msg.recipient = recipient;
+	msg.sender = sender;
+	PostMsg( msg );
+}
+template < typename T > void PostMsg( MessageType type, const T & payload, Entity recipient, Entity sender ) {
+	Message msg{};
+	msg.type = type;
+	msg.recipient = recipient;
+	msg.sender = sender;
+	FillMessagePayload< T >( msg, payload );
+	PostMsg( msg );
+}

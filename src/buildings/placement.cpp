@@ -49,7 +49,7 @@ Entity FindBuildingByPosition( Registery & reg, const Cell cell ) {
 			return e;
 		}
 	}
-	return INVALID_ENTITY_ID;
+	return INVALID_ENTITY;
 }
 
 bool DeleteBuildingByPosition( Registery & reg, const Cell cell, Map & map ) {
@@ -145,10 +145,10 @@ bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & m
 		housing.numCurrentlyLiving = 0;
 		housing.tier = 0;
 
-		housing.isServiceRequired[(int)GameService::WATER] = true;
+		housing.isServiceRequired[ ( int )GameService::WATER ] = true;
 
 		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
-		inventory.AccecptNewResource( GameResource::WHEAT, 15 );
+		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 15 );
 		break;
 	}
 
@@ -162,15 +162,14 @@ bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & m
 
 	case BuildingKind::STORAGE_HOUSE: {
 		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
-		inventory.AccecptNewResource( GameResource::WHEAT, 100 );
+		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 100 );
 		break;
 	}
 
 	case BuildingKind::MARKET: {
 		reg.AssignComponent< CpntMarket >( e );
 		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
-		inventory.AccecptNewResource( GameResource::WHEAT, 100 );
-		inventory.StoreRessource( GameResource::WHEAT, 100 );
+		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 100 );
 		break;
 	}
 

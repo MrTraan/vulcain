@@ -50,4 +50,5 @@ constexpr PackerResourceID SKYBOX_RIGHT_PNG = 43u;
 constexpr PackerResourceID SKYBOX_TOP_PNG = 44u;
 constexpr PackerResourceID STOREHOUSE_MTL = 45u;
 constexpr PackerResourceID STOREHOUSE_OBJ = 46u;
+constexpr PackerResourceID WELL_DAE = 47u;
 };

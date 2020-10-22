@@ -3,6 +3,7 @@
 #include "entity.h"
 #include "map.h"
 #include "ngLib/ngcontainers.h"
+#include "system.h"
 
 struct CpntBuilding;
 
@@ -76,6 +77,9 @@ struct RoadNetwork {
 };
 
 struct CpntNavAgent {
+	CpntNavAgent() = default;
+	CpntNavAgent( const ng::DynamicArray< Cell > & steps ) : pathfindingNextSteps( steps ) {}
+
 	ng::DynamicArray< Cell > pathfindingNextSteps;
 	// speed is in cells per ticks
 	float movementSpeed = ConvertPerSecondToPerTick( 5.0f );
@@ -96,6 +100,13 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
                                ng::DynamicArray< Cell > & outPath,
                                u32                        maxDistance = ULONG_MAX,
                                u32 *                      outDistance = nullptr );
+bool FindPathFromCellToBuilding( Cell                       start,
+                                 const CpntBuilding &       goal,
+                                 Map &                      map,
+                                 RoadNetwork &              roadNetwork,
+                                 ng::DynamicArray< Cell > & outPath,
+                                 u32                        maxDistance = ULONG_MAX,
+                                 u32 *                      outDistance = nullptr );
 bool CreateWandererRoutine(
     const Cell & start, Map & map, RoadNetwork & roadNetwork, ng::DynamicArray< Cell > & outPath, u32 maxDistance );
 

@@ -431,7 +431,15 @@ template < typename T > struct LinkedList {
 
 	struct Iterator {
 		Iterator( Node * node ) : node( node ) {}
-		Iterator operator++() {
+		Iterator operator++( int ignored ) {
+			( void )ignored;
+			// postfix
+			Iterator copy( node );
+			node = node->next;
+			return copy;
+		}
+		Iterator & operator++() {
+			// prefix
 			node = node->next;
 			return *this;
 		}
@@ -442,6 +450,15 @@ template < typename T > struct LinkedList {
 
 		Node * node;
 	};
+
+	Iterator DeleteNode( Iterator & it ) {
+		if ( it.node == nullptr ) {
+			return Iterator( nullptr );
+		}
+		Iterator next( it.node->next );
+		DeleteNode( it.node );
+		return next;
+	}
 
 	// iterators
 	auto begin() { return Iterator( head ); }

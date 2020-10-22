@@ -194,6 +194,8 @@ int main( int ac, char ** av ) {
 	theGame->systemManager.CreateSystem< SystemSeller >();
 	theGame->systemManager.CreateSystem< SystemServiceBuilding >();
 	theGame->systemManager.CreateSystem< SystemServiceWanderer >();
+	theGame->systemManager.CreateSystem< SystemResourceInventory >();
+	theGame->systemManager.CreateSystem< SystemFetcher >();
 
 	Model groundModel;
 	CreateTexturedPlane( 200.0f, 200.0f, 64.0f,
@@ -358,7 +360,7 @@ int main( int ac, char ** av ) {
 			                                          ( int )floorf( mouseProjectionOnGround.z ) );
 
 			Cell   mouseCellPosition = GetCellForPoint( mouseProjectionOnGroundFloored );
-			Entity hoveredEntity = INVALID_ENTITY_ID;
+			Entity hoveredEntity = INVALID_ENTITY;
 			for ( auto const & [ e, building ] : registery.IterateOver< CpntBuilding >() ) {
 				if ( IsCellInsideBuilding( building, mouseCellPosition ) ) {
 					hoveredEntity = e;
@@ -370,7 +372,7 @@ int main( int ac, char ** av ) {
 			static BuildingKind buildingKindSelected;
 			static Cell         mouseDragCellStart = INVALID_CELL;
 			static bool         mouseStartedDragging = false;
-			static Entity       selectedEntity = INVALID_ENTITY_ID;
+			static Entity       selectedEntity = INVALID_ENTITY;
 			{
 				if ( io.keyboard.IsKeyPressed( KEY_V ) ) {
 					currentMouseAction = MouseAction::BUILD;
@@ -411,7 +413,7 @@ int main( int ac, char ** av ) {
 				}
 			}
 
-			if ( selectedEntity != INVALID_ENTITY_ID ) {
+			if ( selectedEntity != INVALID_ENTITY ) {
 				if ( ImGui::Begin( "Entity selected" ) ) {
 					ImGui::Text( "ID: %llu\n", selectedEntity );
 					if ( registery.HasComponent< CpntHousing >( selectedEntity ) ) {
@@ -437,9 +439,9 @@ int main( int ac, char ** av ) {
 					if ( registery.HasComponent< CpntResourceInventory >( selectedEntity ) ) {
 						auto & storage = registery.GetComponent< CpntResourceInventory >( selectedEntity );
 						ImGui::Text( "Storage content" );
-						for ( const auto & [ type, quantity ] : storage.storage ) {
-							const char * name = GameResourceToString( type );
-							ImGui::Text( "%s: %d\n", name, quantity );
+						for ( int i = 0; i < ( int )GameResource::NUM_RESOURCES; i++ ) {
+							const char * name = GameResourceToString( ( GameResource )i );
+							ImGui::Text( "%s: %d\n", name, storage.GetResourceAmount( ( GameResource )i ) );
 						}
 					}
 					ImGui::End();
@@ -452,7 +454,7 @@ int main( int ac, char ** av ) {
 					selectedEntity = FindBuildingByPosition( registery, mouseCellPosition );
 				}
 			} else {
-				selectedEntity = INVALID_ENTITY_ID;
+				selectedEntity = INVALID_ENTITY;
 			}
 
 			if ( currentMouseAction == MouseAction::BUILD ) {

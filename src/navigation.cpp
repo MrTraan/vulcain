@@ -264,7 +264,7 @@ void SystemNavAgent::Update( Registery & reg, Duration ticks ) {
 				agent.pathfindingNextSteps.PopBack();
 				if ( agent.pathfindingNextSteps.Empty() == true ) {
 					// we are at destination
-					reg.BroadcastMessage( e, MESSAGE_PATHFINDING_DESTINATION_REACHED );
+					PostMsg( MESSAGE_PATHFINDING_DESTINATION_REACHED, e, e );
 				}
 			}
 			remainingSpeed -= distance;
@@ -996,21 +996,22 @@ bool RoadNetwork::FindPath( Cell                       start,
 }
 
 Cell GetAnyRoadConnectedToBuilding( const CpntBuilding & building, const Map & map ) {
-	// TODO: This does not check if cell is out of bound
 	// TODO: This should pick first road in clockwise order
-	for ( u32 x = building.cell.x; x <= building.cell.x + building.tileSizeX; x++ ) {
-		if ( map.GetTile( x, building.cell.z - 1 ) == MapTile::ROAD ) {
+	for ( u32 x = building.cell.x; x <= building.cell.x + building.tileSizeX && x < map.sizeX; x++ ) {
+		if ( building.cell.z > 0 && map.GetTile( x, building.cell.z - 1 ) == MapTile::ROAD ) {
 			return Cell( x, building.cell.z - 1 );
 		}
-		if ( map.GetTile( x, building.cell.z + building.tileSizeZ ) == MapTile::ROAD ) {
+		if ( building.cell.z + building.tileSizeZ < map.sizeZ &&
+		     map.GetTile( x, building.cell.z + building.tileSizeZ ) == MapTile::ROAD ) {
 			return Cell( x, building.cell.z + building.tileSizeZ );
 		}
 	}
-	for ( u32 z = building.cell.z; z <= building.cell.z + building.tileSizeZ; z++ ) {
-		if ( map.GetTile( building.cell.x - 1, z ) == MapTile::ROAD ) {
+	for ( u32 z = building.cell.z; z <= building.cell.z + building.tileSizeZ && z < map.sizeZ; z++ ) {
+		if ( building.cell.x > 0 && map.GetTile( building.cell.x - 1, z ) == MapTile::ROAD ) {
 			return Cell( building.cell.x - 1, z );
 		}
-		if ( map.GetTile( building.cell.x + building.tileSizeX, z ) == MapTile::ROAD ) {
+		if ( building.cell.x + building.tileSizeX < map.sizeX &&
+		     map.GetTile( building.cell.x + building.tileSizeX, z ) == MapTile::ROAD ) {
 			return Cell( building.cell.x + building.tileSizeX, z );
 		}
 	}
@@ -1072,21 +1073,21 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
 		lookForRoadConnectedToBuilding( start, x, start.tileSizeZ, startingCells );
 	}
 	for ( int64 z = start.tileSizeZ - 1; z >= 0; z-- ) {
-		lookForRoadConnectedToBuilding( start, start.tileSizeZ, z, startingCells );
+		lookForRoadConnectedToBuilding( start, start.tileSizeX, z, startingCells );
 	}
 	for ( int64 x = start.tileSizeX - 1; x >= 0; x-- ) {
 		lookForRoadConnectedToBuilding( start, x, -1, startingCells );
 	}
 
 	addNextCellToList = true;
-	for ( int64 z = 0; z < start.tileSizeZ; z++ ) {
+	for ( int64 z = 0; z < goal.tileSizeZ; z++ ) {
 		lookForRoadConnectedToBuilding( goal, -1, z, goalCells );
 	}
 	for ( int64 x = 0; x < goal.tileSizeX; x++ ) {
 		lookForRoadConnectedToBuilding( goal, x, goal.tileSizeZ, goalCells );
 	}
 	for ( int64 z = goal.tileSizeZ - 1; z >= 0; z-- ) {
-		lookForRoadConnectedToBuilding( goal, goal.tileSizeZ, z, goalCells );
+		lookForRoadConnectedToBuilding( goal, goal.tileSizeX, z, goalCells );
 	}
 	for ( int64 x = goal.tileSizeX - 1; x >= 0; x-- ) {
 		lookForRoadConnectedToBuilding( goal, x, -1, goalCells );
@@ -1105,6 +1106,71 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
 				outPath = path;
 				shortestDistance = distance;
 			}
+		}
+	}
+	if ( outDistance != nullptr ) {
+		*outDistance = shortestDistance;
+	}
+	return pathFound;
+}
+
+bool FindPathFromCellToBuilding( Cell                       start,
+                                 const CpntBuilding &       goal,
+                                 Map &                      map,
+                                 RoadNetwork &              roadNetwork,
+                                 ng::DynamicArray< Cell > & outPath,
+                                 u32                        maxDistance /*= ULONG_MAX*/,
+                                 u32 *                      outDistance /*= nullptr */ ) {
+	ZoneScoped;
+	ng::ScopedChrono chrono( "FindPathFromCellToBuilding" );
+
+	thread_local ng::DynamicArray< Cell > goalCells( 16 );
+
+	goalCells.Clear();
+
+	bool addNextCellToList = true;
+
+	auto lookForRoadConnectedToBuilding = [ & ]( const CpntBuilding & building, int64 shiftX, int64 shiftZ,
+	                                             ng::DynamicArray< Cell > & res ) {
+		int64 x = building.cell.x + shiftX;
+		int64 z = building.cell.z + shiftZ;
+		if ( x >= 0 && x < map.sizeX && z >= 0 && z < map.sizeZ ) {
+			if ( map.GetTile( ( u32 )x, ( u32 )z ) == MapTile::ROAD ) {
+				if ( addNextCellToList ) {
+					res.PushBack( Cell( ( u32 )x, ( u32 )z ) );
+					addNextCellToList = false;
+				}
+			} else {
+				addNextCellToList = true;
+			}
+		}
+	};
+
+	addNextCellToList = true;
+	for ( int64 z = 0; z < goal.tileSizeZ; z++ ) {
+		lookForRoadConnectedToBuilding( goal, -1, z, goalCells );
+	}
+	for ( int64 x = 0; x < goal.tileSizeX; x++ ) {
+		lookForRoadConnectedToBuilding( goal, x, goal.tileSizeZ, goalCells );
+	}
+	for ( int64 z = goal.tileSizeZ - 1; z >= 0; z-- ) {
+		lookForRoadConnectedToBuilding( goal, goal.tileSizeX, z, goalCells );
+	}
+	for ( int64 x = goal.tileSizeX - 1; x >= 0; x-- ) {
+		lookForRoadConnectedToBuilding( goal, x, -1, goalCells );
+	}
+
+	bool pathFound = false;
+	u32  shortestDistance = maxDistance;
+	for ( u32 i = 0; i < goalCells.Size(); i++ ) {
+		ng::DynamicArray< Cell > path;
+		u32                      distance = 0;
+		bool                     subPathFound =
+		    roadNetwork.FindPath( start, goalCells[ i ], map, path, &distance, shortestDistance );
+		pathFound |= subPathFound;
+		if ( subPathFound && distance < shortestDistance ) {
+			outPath = path;
+			shortestDistance = distance;
 		}
 	}
 	if ( outDistance != nullptr ) {

@@ -1,19 +1,21 @@
 #pragma once
-#include "game_time.h"
+#include "ngLib/ngcontainers.h"
 #include "ngLib/nglib.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
-#include <typeindex>
-#include <typeinfo>
-#include <unordered_map>
 
 struct Registery;
 
-typedef u32      Entity;
+struct Entity {
+	u32 id;
+	u32 version;
+
+	bool operator==( const Entity & rhs ) const { return id == rhs.id && version == rhs.version; }
+};
 constexpr u32    INVALID_ENTITY_INDEX = ( u32 )-1;
-constexpr Entity INVALID_ENTITY_ID = ( Entity )-1;
+constexpr Entity INVALID_ENTITY = { ( u32 )-1, 0 };
 
 struct CpntTransform {
   public:
@@ -76,49 +78,3 @@ struct CpntTransform {
 	glm::quat rotation{ 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
-constexpr u64 FNV_HASH_BASIS = 0xcbf29ce484222325;
-constexpr u64 FNV_PRIME = 0x100000001b3;
-
-inline constexpr u64 FnvHash( const u8 * data, u64 size ) {
-	u64 hash = FNV_HASH_BASIS;
-	for ( u64 i = 0; i < size; i++ ) {
-		hash = hash ^ data[ i ];
-		hash = hash * FNV_PRIME;
-	}
-	return hash;
-}
-
-struct ISystem {
-	virtual ~ISystem() {}
-	virtual void Update( Registery & reg, Duration ticks ) = 0;
-	virtual void DebugDraw() {}
-};
-
-struct SystemManager {
-	std::unordered_map< u64, ISystem * > systems;
-
-	~SystemManager() {
-		for ( auto [ type, system ] : systems ) {
-			delete system;
-		}
-	}
-
-	template < class T, class... Args > T & CreateSystem( Args &&... args ) {
-		auto system = new T( std::forward< Args >( args )... );
-		u64  typeIndex = std::type_index( typeid( T ) ).hash_code();
-		systems[ typeIndex ] = system;
-		return *system;
-	}
-
-	template < class T > T & GetSystem() {
-		u64 typeIndex = std::type_index( typeid( T ) ).hash_code();
-		return *( static_cast< T * >( systems.at( typeIndex ) ) );
-	}
-
-	template < class T > const T & GetSystem() const {
-		u64 typeIndex = std::type_index( typeid( T ) ).hash_code();
-		return *( static_cast< const T * >( systems.at( typeIndex ) ) );
-	}
-
-	void Update( Registery & reg, Duration ticks );
-};

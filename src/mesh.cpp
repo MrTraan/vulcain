@@ -169,7 +169,7 @@ bool ModelAtlas::LoadAllModels() {
 	success &= SetupModelFromResource( *storeHouseMesh, PackerResources::STOREHOUSE_OBJ );
 	success &= SetupModelFromResource( *roadBlockMesh, PackerResources::ROAD_BLOCK_DAE );
 	success &= SetupModelFromResource( *marketMesh, PackerResources::MARKET_DAE );
-	success &= SetupModelFromResource( *fountainMesh, PackerResources::HOUSE_DAE );
+	success &= SetupModelFromResource( *fountainMesh, PackerResources::WELL_DAE );
 
 	return success;
 }

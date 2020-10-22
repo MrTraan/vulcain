@@ -1,13 +1,17 @@
 #pragma once
 #include "entity.h"
-#include "message.h"
 
+#include <concurrentqueue.h>
 #include <imgui/imgui.h>
 #include <queue>
 #include <string>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
+
+using CpntTypeHash = u64;
+
+template < typename T > constexpr CpntTypeHash HashComponent() { return typeid( T ).hash_code(); }
 
 struct ICpntRegistery {
 	virtual ~ICpntRegistery() {}
@@ -22,7 +26,7 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 		entityOfComponent = new Entity[ maxNumberOfEntities ];
 		for ( u32 i = 0; i < maxNumberOfEntities; i++ ) {
 			indexOfEntities[ i ] = INVALID_ENTITY_INDEX;
-			entityOfComponent[ i ] = INVALID_ENTITY_ID;
+			entityOfComponent[ i ] = INVALID_ENTITY;
 		}
 	}
 
@@ -39,9 +43,9 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 
 	template < class... Args > T & AssignComponent( Entity e, Args &&... args ) {
 		ng_assert( HasComponent( e ) == false );
-		indexOfEntities[ e ] = numComponents++;
-		T * cpnt = components + indexOfEntities[ e ];
-		entityOfComponent[ indexOfEntities[ e ] ] = e;
+		indexOfEntities[ e.id ] = numComponents++;
+		T * cpnt = components + indexOfEntities[ e.id ];
+		entityOfComponent[ indexOfEntities[ e.id ] ] = e;
 		cpnt = new ( cpnt ) T( std::forward< Args >( args )... );
 		return *cpnt;
 	}
@@ -51,40 +55,42 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 			return;
 		}
 		ng_assert( numComponents > 0 );
-		u32 indexToDelete = indexOfEntities[ e ];
+		u32 indexToDelete = indexOfEntities[ e.id ];
 		u32 indexToSwap = numComponents - 1;
 		if ( indexToDelete != indexToSwap ) {
 			components[ indexToDelete ] = components[ indexToSwap ];
-			indexOfEntities[ entityOfComponent[ indexToSwap ] ] = indexToDelete;
+			indexOfEntities[ entityOfComponent[ indexToSwap ].id ] = indexToDelete;
 			entityOfComponent[ indexToDelete ] = entityOfComponent[ indexToSwap ];
-			entityOfComponent[ indexToSwap ] = INVALID_ENTITY_ID;
+			entityOfComponent[ indexToSwap ] = INVALID_ENTITY;
 		}
-		indexOfEntities[ e ] = INVALID_ENTITY_INDEX;
+		indexOfEntities[ e.id ] = INVALID_ENTITY_INDEX;
 		numComponents--;
 	}
 
-	bool HasComponent( Entity e ) const { return indexOfEntities[ e ] != INVALID_ENTITY_INDEX; }
+	bool HasComponent( Entity e ) const {
+		return indexOfEntities[ e.id ] != INVALID_ENTITY_INDEX && entityOfComponent[ indexOfEntities[ e.id ] ] == e;
+	}
 
 	const T & GetComponent( Entity e ) const {
 		ng_assert( HasComponent( e ) );
-		return components[ indexOfEntities[ e ] ];
+		return components[ indexOfEntities[ e.id ] ];
 	}
 
 	T & GetComponent( Entity e ) {
 		ng_assert( HasComponent( e ) );
-		return components[ indexOfEntities[ e ] ];
+		return components[ indexOfEntities[ e.id ] ];
 	}
 
 	const T * TryGetComponent( Entity e ) const {
 		if ( HasComponent( e ) ) {
-			return &components[ indexOfEntities[ e ] ];
+			return &components[ indexOfEntities[ e.id ] ];
 		}
 		return nullptr;
 	}
 
 	T * TryGetComponent( Entity e ) {
 		if ( HasComponent( e ) ) {
-			return &components[ indexOfEntities[ e ] ];
+			return &components[ indexOfEntities[ e.id ] ];
 		}
 		return nullptr;
 	}
@@ -116,16 +122,20 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 constexpr u32 INITIAL_ENTITY_ALLOC = 4096u;
 
 struct Registery {
-	std::unordered_map< u64, ICpntRegistery * > cpntRegistriesMap;
+	std::unordered_map< CpntTypeHash, ICpntRegistery * > cpntRegistriesMap;
 #ifdef DEBUG
-	std::unordered_map< u64, std::string > cpntTypesToName;
+	std::unordered_map< CpntTypeHash, std::string > cpntTypesToName;
 #endif
-	MessageBroker messageBroker;
 
 	Registery() {
+		// Enqueue ids from 0 to INITIAL_ENTITY_ALLOC
+		Entity * intialEntitiesIds = new Entity[ INITIAL_ENTITY_ALLOC ];
 		for ( u32 i = 0; i < INITIAL_ENTITY_ALLOC; i++ ) {
-			availableEntityIds.push( i );
+			intialEntitiesIds[ i ].id = i;
+			intialEntitiesIds[ i ].version = 0;
 		}
+		availableEntityIds.enqueue_bulk( intialEntitiesIds, INITIAL_ENTITY_ALLOC );
+		delete[] intialEntitiesIds;
 	}
 
 	~Registery() {
@@ -135,39 +145,39 @@ struct Registery {
 	}
 
 	Entity CreateEntity() {
-		if ( availableEntityIds.size() == 0 ) {
+		Entity id = INVALID_ENTITY;
+		bool   ok = availableEntityIds.try_dequeue( id );
+		if ( !ok ) {
 			ng_assert( false );
 			// TODO: When we run out of entities, we should grow the pool size and in consequence grow every cpnt pool
-			return INVALID_ENTITY_ID;
+			return INVALID_ENTITY;
 		}
-		Entity id = availableEntityIds.front();
-		availableEntityIds.pop();
 		return id;
 	}
 
-	void DestroyEntity( Entity e ) {
-		messageBroker.RemoveListener( e );
-		availableEntityIds.push( e );
+	bool DestroyEntity( Entity e ) {
+		// @TODO: We absolutly need to check if the entity was actually alive, otherwise we could push an invalid entity
+		// id to availableEntityIds queue
+		// @TODO: We could clean the systems event queues if they listen to an entity that is now dead
 		for ( auto [ type, registery ] : cpntRegistriesMap ) {
 			registery->RemoveComponent( e );
 		}
+		e.version++;
+		bool ok = availableEntityIds.enqueue( e );
+		ng_assert( ok );
+		return true;
 	}
 
 	void MarkForDelete( Entity e ) {
-		// TODO: Should we remove from the message broker right now or on destroy?
-		markedForDeleteEntityIds.push( e );
-	}
-
-	void FlushDeleteQueue() {
-		while ( markedForDeleteEntityIds.empty() == false ) {
-			DestroyEntity( markedForDeleteEntityIds.front() );
-			markedForDeleteEntityIds.pop();
-		}
+		markedForDeleteEntityIds.enqueue( e );
+		PostMsg( MESSAGE_ENTITY_DELETED, e, INVALID_ENTITY );
 	}
 
 	template < class T, class... Args > T & AssignComponent( Entity e, Args &&... args ) {
 		CpntRegistery< T > & registery = GetComponentRegistery< T >();
-		return registery.AssignComponent( e, std::forward< Args >( args )... );
+		T &                  res = registery.AssignComponent( e, std::forward< Args >( args )... );
+		PostMsg< CpntTypeHash >( MESSAGE_CPNT_ATTACHED, HashComponent< T >(), e, e );
+		return res;
 	}
 
 	template < class T > T * TryGetComponent( Entity e ) { return GetComponentRegistery< T >().TryGetComponent( e ); }
@@ -184,7 +194,7 @@ struct Registery {
 	template < class T > const CpntRegistery< T > & IterateOver() const { return GetComponentRegistery< T >(); }
 
 	template < class T > CpntRegistery< T > & GetComponentRegistery() {
-		auto typeHash = std::type_index( typeid( T ) ).hash_code();
+		auto typeHash = HashComponent< T >();
 		// TODO: This if must go away someday
 		if ( !cpntRegistriesMap.contains( typeHash ) ) {
 			cpntRegistriesMap[ typeHash ] = new CpntRegistery< T >( INITIAL_ENTITY_ALLOC );
@@ -196,9 +206,9 @@ struct Registery {
 		return *returnValue;
 	}
 	template < class T > const CpntRegistery< T > & GetComponentRegistery() const {
-		auto typeHash = std::type_index( typeid( T ) ).hash_code();
+		auto typeHash = HashComponent< T >();
 		// TODO: This if must go away someday
-		auto mutable_this = const_cast< Registery *>(this);
+		auto mutable_this = const_cast< Registery * >( this );
 		if ( !mutable_this->cpntRegistriesMap.contains( typeHash ) ) {
 			mutable_this->cpntRegistriesMap[ typeHash ] = new CpntRegistery< T >( INITIAL_ENTITY_ALLOC );
 #ifdef DEBUG
@@ -209,17 +219,14 @@ struct Registery {
 		return *returnValue;
 	}
 
-	void BroadcastMessage( Entity emitter, MessageType type ) {
-		messageBroker.BroadcastMessage( *this, emitter, type );
-	}
-
-	std::queue< Entity > availableEntityIds;
-	std::queue< Entity > markedForDeleteEntityIds;
+	moodycamel::ConcurrentQueue< Entity > availableEntityIds;
+	moodycamel::ConcurrentQueue< Entity > markedForDeleteEntityIds;
 
 	void DebugDraw() {
 #ifdef DEBUG
 		for ( auto [ type, registery ] : cpntRegistriesMap ) {
 			if ( ImGui::TreeNode( cpntTypesToName[ type ].c_str() ) ) {
+				ImGui::Text("Hash: %llu\n", type );
 				ImGui::Text( "Num components: %d\n", registery->GetSize() );
 				ImGui::TreePop();
 			}
