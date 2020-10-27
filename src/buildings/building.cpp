@@ -1,4 +1,6 @@
 #include "buildings/building.h"
+#include "../packer_resource_list.h"
+#include "../pathfinding_job.h"
 #include "collider.h"
 #include "game.h"
 #include "mesh.h"
@@ -51,15 +53,41 @@ void SystemHousing::Update( Registery & reg, Duration ticks ) {
 	totalPopulation = 0;
 	for ( auto & [ e, housing ] : reg.IterateOver< CpntHousing >() ) {
 		// Check if population should grow in house
-		if ( housing.numCurrentlyLiving < housing.maxHabitants ) {
-			housing.numCurrentlyLiving++;
+		if ( housing.numCurrentlyLiving + housing.numIncomingMigrants < housing.maxHabitants ) {
+			constexpr Cell migrantSpawnPosition( 0, 0 );
+			housing.numIncomingMigrants++;
+			Entity migrant = reg.CreateEntity();
+			reg.AssignComponent< CpntRenderModel >( migrant, g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
+			auto & transform = reg.AssignComponent< CpntTransform >( migrant );
+			transform.SetTranslation( GetPointInMiddleOfCell( migrantSpawnPosition ) );
+			reg.AssignComponent< CpntNavAgent >( migrant );
+			reg.AssignComponent< CpntMigrant >( migrant, e );
+			ListenTo( MESSAGE_HOUSE_MIGRANT_ARRIVED, e );
 		}
 		totalPopulation += housing.numCurrentlyLiving;
+
+		// Let's see if house can evolve
+		if ( housing.tier == 0 ) {
+			auto & inventory = reg.GetComponent< CpntResourceInventory >( e );
+			if ( inventory.GetResourceAmount( GameResource::WHEAT ) >= 15 &&
+			     IsServiceFulfilled( housing.lastServiceAccess[ ( int )GameService::WATER ], theGame->clock ) ) {
+				ng::Printf( "This house is ready to evolve!\n" );
+				auto & model = reg.GetComponent< CpntRenderModel >( e );
+				model.model = g_modelAtlas.GetModel( PackerResources::HOUSE_DAE );
+				housing.tier++;
+			}
+		}
 	}
 }
 
 void SystemHousing::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
+	case MESSAGE_CPNT_ATTACHED:
+		if ( CastPayloadAs< CpntTypeHash >( msg.payload ) == HashComponent< CpntHousing >() ) {
+			// A house has spawned, let's track when it receives a service
+			ListenTo( MESSAGE_SERVICE_PROVIDED, msg.recipient );
+		}
+		break;
 	case MESSAGE_SERVICE_PROVIDED: {
 		GameService   service = CastPayloadAs< GameService >( msg.payload );
 		CpntHousing * housing = reg.TryGetComponent< CpntHousing >( msg.recipient );
@@ -68,8 +96,19 @@ void SystemHousing::HandleMessage( Registery & reg, const Message & msg ) {
 		}
 		break;
 	}
+	case MESSAGE_HOUSE_MIGRANT_ARRIVED: {
+		// a migrant has arrived
+		CpntHousing * housing = reg.TryGetComponent< CpntHousing >( msg.recipient );
+		if ( housing != nullptr ) {
+			ng_assert( housing->numIncomingMigrants > 0 );
+			ng_assert( housing->numCurrentlyLiving < housing->maxHabitants );
+			housing->numIncomingMigrants--;
+			housing->numCurrentlyLiving++;
+		}
+		break;
+	}
 	default:
-		ng_assert( false, "Message type %d can't be handled by this system\n", msg.type );
+		ng_assert_msg( false, "Message type %d can't be handled by this system\n", msg.type );
 	}
 }
 
@@ -172,14 +211,14 @@ void SystemBuildingProducing::Update( Registery & reg, Duration ticks ) {
 			    LookForStorageAcceptingResource( reg, cpntBuilding, producer.resource, ULONG_MAX, path );
 
 			if ( closestStorage == INVALID_ENTITY ) {
-				ImGui::Text( "A producing building has no connection to a storage, stall for now" );
+				// A producing building has no connection to a storage, stall for now
 				producer.timeSinceLastProduction = producer.timeToProduceBatch;
 			} else {
 				// Produce a batch
 				producer.timeSinceLastProduction -= producer.timeToProduceBatch;
 				// Spawn a dummy who will move the batch the nearest storage house
 				Entity carrier = reg.CreateEntity();
-				reg.AssignComponent< CpntRenderModel >( carrier, g_modelAtlas.cubeMesh );
+				reg.AssignComponent< CpntRenderModel >( carrier, g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
 				CpntTransform & transform = reg.AssignComponent< CpntTransform >( carrier );
 				CpntNavAgent &  navAgent = reg.AssignComponent< CpntNavAgent >( carrier );
 				navAgent.pathfindingNextSteps = path;
@@ -188,7 +227,7 @@ void SystemBuildingProducing::Update( Registery & reg, Duration ticks ) {
 				inventory.StoreRessource( producer.resource, producer.batchSize );
 
 				transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
-				ListenTo( MESSAGE_PATHFINDING_DESTINATION_REACHED, carrier );
+				ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, carrier );
 			}
 		}
 	}
@@ -196,7 +235,7 @@ void SystemBuildingProducing::Update( Registery & reg, Duration ticks ) {
 
 void SystemBuildingProducing::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
-	case MESSAGE_PATHFINDING_DESTINATION_REACHED: {
+	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
 		ng_assert( msg.sender == msg.recipient );
 		ng::Printf( "Entity %lu has arrived!\n", msg.recipient );
 
@@ -229,7 +268,7 @@ void SystemBuildingProducing::HandleMessage( Registery & reg, const Message & ms
 		break;
 	}
 	default:
-		ng_assert( false, "Message type %d can't be handled by this system\n", msg.type );
+		ng_assert_msg( false, "Message type %d can't be handled by this system\n", msg.type );
 	}
 }
 
@@ -287,7 +326,8 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 					// Let's spawn a wanderer
 					Entity wanderer = reg.CreateEntity();
 					market.wanderer = wanderer;
-					reg.AssignComponent< CpntRenderModel >( wanderer, g_modelAtlas.cubeMesh );
+					reg.AssignComponent< CpntRenderModel >( wanderer,
+					                                        g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
 					CpntNavAgent & navAgent = reg.AssignComponent< CpntNavAgent >( wanderer );
 					navAgent.pathfindingNextSteps = path;
 					CpntTransform & transform = reg.AssignComponent< CpntTransform >( wanderer );
@@ -298,7 +338,7 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 					u32 amountStored = inventory.StoreRessource(
 					    GameResource::WHEAT, marketInventory.GetResourceAmount( GameResource::WHEAT ) );
 					marketInventory.RemoveResource( GameResource::WHEAT, amountStored );
-					ListenTo( MESSAGE_PATHFINDING_DESTINATION_REACHED, wanderer );
+					ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, wanderer );
 				}
 			}
 		}
@@ -324,7 +364,7 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 				// Let's spawn a fetcher
 				Entity fetcher = reg.CreateEntity();
 				market.fetcher = fetcher;
-				reg.AssignComponent< CpntRenderModel >( fetcher, g_modelAtlas.cubeMesh );
+				reg.AssignComponent< CpntRenderModel >( fetcher, g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
 				CpntNavAgent &  navAgent = reg.AssignComponent< CpntNavAgent >( fetcher, path );
 				CpntTransform & transform = reg.AssignComponent< CpntTransform >( fetcher );
 				transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
@@ -347,7 +387,7 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 
 void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
-	case MESSAGE_PATHFINDING_DESTINATION_REACHED: {
+	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
 		for ( auto & [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
 			if ( market.wanderer == msg.sender ) {
 				ng::Printf( "A wanderer has arrived\n" );
@@ -378,7 +418,7 @@ void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 		break;
 	}
 	default:
-		ng_assert( false, "Message type %d can't be handled by this system\n", msg.type );
+		ng_assert_msg( false, "Message type %d can't be handled by this system\n", msg.type );
 	}
 }
 
@@ -474,14 +514,15 @@ void SystemServiceBuilding::Update( Registery & reg, Duration ticks ) {
 					// Let's spawn a wanderer
 					Entity wanderer = reg.CreateEntity();
 					serviceBuilding.wanderer = wanderer;
-					reg.AssignComponent< CpntRenderModel >( wanderer, g_modelAtlas.cubeMesh );
+					reg.AssignComponent< CpntRenderModel >( wanderer,
+					                                        g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
 					CpntNavAgent & navAgent = reg.AssignComponent< CpntNavAgent >( wanderer );
 					navAgent.pathfindingNextSteps = path;
 					CpntTransform & transform = reg.AssignComponent< CpntTransform >( wanderer );
 					transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
 					auto & serviceWanderer = reg.AssignComponent< CpntServiceWanderer >( wanderer );
 					serviceWanderer.service = serviceBuilding.service;
-					ListenTo( MESSAGE_PATHFINDING_DESTINATION_REACHED, wanderer );
+					ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, wanderer );
 				}
 			}
 		}
@@ -490,7 +531,7 @@ void SystemServiceBuilding::Update( Registery & reg, Duration ticks ) {
 
 void SystemServiceBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
-	case MESSAGE_PATHFINDING_DESTINATION_REACHED: {
+	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
 		ng::Printf( "A service wanderer has arrived\n" );
 		for ( auto & [ serviceBuildingEntity, serviceBuilding ] : reg.IterateOver< CpntServiceBuilding >() ) {
 			if ( serviceBuilding.wanderer == msg.sender ) {
@@ -502,7 +543,7 @@ void SystemServiceBuilding::HandleMessage( Registery & reg, const Message & msg 
 		break;
 	}
 	default:
-		ng_assert( false, "Message type %d can't be handled by this system\n", msg.type );
+		ng_assert_msg( false, "Message type %d can't be handled by this system\n", msg.type );
 	}
 }
 
@@ -523,7 +564,7 @@ void SystemResourceInventory::HandleMessage( Registery & reg, const Message & ms
 		break;
 	}
 	default:
-		ng_assert( false, "Message type %d can't be handled by this system\n", msg.type );
+		ng_assert_msg( false, "Message type %d can't be handled by this system\n", msg.type );
 	}
 }
 
@@ -532,10 +573,10 @@ void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 	case MESSAGE_CPNT_ATTACHED:
 		if ( CastPayloadAs< CpntTypeHash >( msg.payload ) == HashComponent< CpntResourceFetcher >() ) {
 			// A fetcher has spawned, let's track when it gets to destination
-			ListenTo( MESSAGE_PATHFINDING_DESTINATION_REACHED, msg.recipient );
+			ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, msg.recipient );
 		}
 		break;
-	case MESSAGE_PATHFINDING_DESTINATION_REACHED: {
+	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
 		Entity                fetcher = msg.recipient;
 		CpntResourceFetcher * cpntFetcher = reg.TryGetComponent< CpntResourceFetcher >( fetcher );
 		ng_assert( cpntFetcher != nullptr );
@@ -579,7 +620,6 @@ void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 			} else if ( cpntFetcher->direction == CpntResourceFetcher::CurrentDirection::TO_PARENT ) {
 				// We are back to the market
 				// Let's empty our inventory
-				ng::Printf( "a fetcher is supposed to be back at the market" );
 				Entity                fetcher = msg.recipient;
 				CpntResourceFetcher * cpntFetcher = reg.TryGetComponent< CpntResourceFetcher >( fetcher );
 				ng_assert( cpntFetcher != nullptr );
@@ -596,6 +636,46 @@ void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 			}
 			break;
 		}
+	}
+	}
+}
+
+void SystemMigrant::HandleMessage( Registery & reg, const Message & msg ) {
+	switch ( msg.type ) {
+	case MESSAGE_CPNT_ATTACHED: {
+		if ( CastPayloadAs< CpntTypeHash >( msg.payload ) == HashComponent< CpntMigrant >() ) {
+			// A migrant has been spawned, lets get to our target house
+			Entity          migrant = msg.recipient;
+			PathfindingTask task{};
+			task.requester = migrant;
+			task.type = PathfindingTask::Type::FROM_CELL_TO_BUILDING;
+			task.startCell = GetCellForPoint( reg.GetComponent< CpntTransform >( migrant ).GetTranslation() );
+			task.goalBuilding =
+			    reg.GetComponent< CpntBuilding >( reg.GetComponent< CpntMigrant >( migrant ).targetHouse );
+			task.movementAllowed = ASTAR_ALLOW_DIAGONALS;
+			PostMsg< PathfindingTask >( MESSAGE_PATHFINDING_REQUEST, task, INVALID_ENTITY, migrant );
+			ListenTo( MESSAGE_PATHFINDING_RESPONSE, migrant );
+		}
+		break;
+	}
+	case MESSAGE_PATHFINDING_RESPONSE: {
+		auto & payload = CastPayloadAs< PathfindingTaskResponse >( msg.payload );
+		Entity migrant = msg.recipient;
+		if ( payload.ok == false ) {
+			ng::Errorf( "We couldn't find a path from a migrant to its new house\n" );
+			reg.MarkForDelete( migrant );
+		} else {
+			CpntNavAgent & agent = reg.GetComponent< CpntNavAgent >( migrant );
+			theGame->systemManager.GetSystem< SystemPathfinding >().CopyPath( payload.id, agent.pathfindingNextSteps );
+			ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, migrant );
+		}
+		break;
+	}
+	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
+		Entity migrant = msg.recipient;
+		PostMsg( MESSAGE_HOUSE_MIGRANT_ARRIVED, reg.GetComponent< CpntMigrant >( migrant ).targetHouse, migrant );
+		reg.MarkForDelete( migrant );
+		break;
 	}
 	}
 }

@@ -1,5 +1,6 @@
 #include "placement.h"
 #include "../mesh.h"
+#include "../packer_resource_list.h"
 
 glm::i32vec2 GetBuildingSize( BuildingKind kind ) {
 	// TODO: Could we get these values from a data file?
@@ -86,27 +87,27 @@ int DeleteBuildingsInsideArea( Registery & reg, const Area & area, Map & map ) {
 const Model * GetBuildingModel( BuildingKind kind ) {
 	switch ( kind ) {
 	case BuildingKind::HOUSE:
-		return g_modelAtlas.houseMesh;
+		return g_modelAtlas.GetModel( PackerResources::TENT_DAE );
 		break;
 
 	case BuildingKind::FARM:
-		return g_modelAtlas.farmMesh;
+		return g_modelAtlas.GetModel( PackerResources::FUTURISTIC_FARM_DAE );
 		break;
 
 	case BuildingKind::STORAGE_HOUSE:
-		return g_modelAtlas.storeHouseMesh;
+		return g_modelAtlas.GetModel( PackerResources::STOREHOUSE_OBJ );
 		break;
 
 	case BuildingKind::ROAD_BLOCK:
-		return g_modelAtlas.roadBlockMesh;
+		return g_modelAtlas.GetModel( PackerResources::ROAD_BLOCK_DAE );
 		return nullptr;
 
 	case BuildingKind::MARKET:
-		return g_modelAtlas.marketMesh;
+		return g_modelAtlas.GetModel( PackerResources::MARKET_DAE );
 		return nullptr;
 
 	case BuildingKind::FOUNTAIN:
-		return g_modelAtlas.fountainMesh;
+		return g_modelAtlas.GetModel( PackerResources::WELL_DAE );
 		return nullptr;
 
 	default:
@@ -181,6 +182,12 @@ bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & m
 
 	case BuildingKind::ROAD_BLOCK:
 		// There are no specific components for a road block
+		// But it is saved in map for pathfinding (it does not block all agents)
+		for ( u32 x = cell.x; x < cell.x + size.x; x++ ) {
+			for ( u32 z = cell.z; z < cell.z + size.y; z++ ) {
+				map.SetTile( x, z, MapTile::ROAD_BLOCK );
+			}
+		}
 		break;
 
 	default:

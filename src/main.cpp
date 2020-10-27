@@ -51,6 +51,7 @@ NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #define STB_IMAGE_IMPLEMENTATION // force following include to generate implementation
 #include <stb_image.h>
 #define STB_TRUETYPE_IMPLEMENTATION
+#include "pathfinding_job.h"
 #include <stb_truetype.h>
 
 void GLErrorCallback( GLenum         source,
@@ -71,11 +72,6 @@ Game * theGame;
 static void DrawDebugWindow();
 
 Camera mainCamera;
-Camera modelInspectorCamera;
-
-Framebuffer   modelInspectorFramebuffer;
-constexpr int modelInspectorWidth = 400;
-constexpr int modelInspectorHeight = 400;
 
 static void Update( float dt ) {}
 
@@ -85,15 +81,15 @@ static void Render() {}
 
 InstancedModelBatch roadBatchedTiles;
 
-void SpawnRoadBlock( Registery & reg, Map & map, Cell cell ) {
+void SpawnRoadTile( Registery & reg, Map & map, Cell cell ) {
 	if ( map.GetTile( cell ) != MapTile::ROAD ) {
 		map.SetTile( cell, MapTile::ROAD );
 		roadBatchedTiles.AddInstanceAtPosition( GetPointInCornerOfCell( cell ) );
 	}
 }
 
-void DeleteRoadBlock( Registery & reg, Map & map, Cell cell ) {
-	if ( map.GetTile( cell ) == MapTile::ROAD ) {
+void DeleteRoadTile( Registery & reg, Map & map, Cell cell ) {
+	if ( map.GetTile( cell ) == MapTile::ROAD || map.GetTile( cell ) == MapTile::ROAD_BLOCK ) {
 		map.SetTile( cell, MapTile::EMPTY );
 		roadBatchedTiles.RemoveInstancesWithPosition( GetPointInCornerOfCell( cell ) );
 	}
@@ -168,7 +164,6 @@ int main( int ac, char ** av ) {
 
 	g_shaderAtlas.CompileAllShaders();
 	renderer.InitRenderer( window.width, window.height );
-	modelInspectorFramebuffer.Allocate( modelInspectorWidth, modelInspectorHeight );
 
 	Guizmo::Init();
 
@@ -196,6 +191,10 @@ int main( int ac, char ** av ) {
 	theGame->systemManager.CreateSystem< SystemServiceWanderer >();
 	theGame->systemManager.CreateSystem< SystemResourceInventory >();
 	theGame->systemManager.CreateSystem< SystemFetcher >();
+	theGame->systemManager.CreateSystem< SystemPathfinding >();
+	theGame->systemManager.CreateSystem< SystemMigrant >();
+
+	theGame->systemManager.StartJobs();
 
 	Model groundModel;
 	CreateTexturedPlane( 200.0f, 200.0f, 64.0f,
@@ -209,14 +208,6 @@ int main( int ac, char ** av ) {
 	Map &       map = theGame->map;
 	Registery & registery = theGame->registery;
 	map.AllocateGrid( 200, 200 );
-	SpawnRoadBlock( registery, map, Cell( 0, 0 ) );
-
-	for ( u32 x = 30; x <= 100; x++ ) {
-		for ( u32 z = 30; z <= 100; z++ ) {
-			if ( x % 10 == 0 || z % 10 == 0 )
-				SpawnRoadBlock( registery, map, Cell( x, z ) );
-		}
-	}
 
 	while ( !window.shouldClose ) {
 		ZoneScopedN( "MainLoop" );
@@ -256,10 +247,10 @@ int main( int ac, char ** av ) {
 		if ( numFixedSteps > 0 ) {
 			fixedTimeStepAccumulator -= numFixedSteps * FIXED_TIMESTEP;
 		}
-		for ( int i = 0; i < numFixedSteps; i++ ) {
-			theGame->clock++;
-			FixedUpdate( 1 );
-		}
+		// for ( int i = 0; i < numFixedSteps; i++ ) {
+		theGame->clock += numFixedSteps;
+		FixedUpdate( numFixedSteps );
+		//}
 		Update( pauseSim ? 0.0f : dt );
 		{
 			ZoneScopedN( "Update that should go away" );
@@ -279,25 +270,29 @@ int main( int ac, char ** av ) {
 			ImGui::SliderFloat( "scroll speed ", &scrollSpeed, 0.0f, 90.0f );
 			ImGui::SliderFloat( "movement time", &movementTime, 0.0f, 90.0f );
 
-			if ( io.keyboard.IsKeyDown( eKey::KEY_D ) )
-				cameraTargetNewPosition += ( cameraTargetTransform.Right() * movementSpeed );
-			if ( io.keyboard.IsKeyDown( eKey::KEY_A ) )
-				cameraTargetNewPosition -= ( cameraTargetTransform.Right() * movementSpeed );
-			if ( io.keyboard.IsKeyDown( eKey::KEY_W ) )
-				cameraTargetNewPosition += ( cameraTargetTransform.Front() * movementSpeed );
-			if ( io.keyboard.IsKeyDown( eKey::KEY_S ) )
-				cameraTargetNewPosition -= ( cameraTargetTransform.Front() * movementSpeed );
-
-			cameraTargetTransform.SetTranslation(
-			    glm::mix( cameraTargetTransform.GetTranslation(), cameraTargetNewPosition, dt * movementTime ) );
-			ImGui::Text( "Camera target position: %f %f %f\n", cameraTargetTransform.GetTranslation().x,
-			             cameraTargetTransform.GetTranslation().y, cameraTargetTransform.GetTranslation().z );
-
 			static float cameraDistance = 250.0f;
 			static float cameraNewDistance = cameraDistance;
 			static float cameraRotationAngle = 45.0f;
 			ImGui::SliderFloat( "camera distance", &cameraDistance, 0.0f, 500.0f );
 			ImGui::SliderFloat( "camera rotation angle", &cameraRotationAngle, -180.0f, 180.0f );
+
+			// the closer the camera is, the slower we want to go
+			// Consider base speed is the speed when the camera is 250 unit away up
+			float scaledMovementSpeed = cameraDistance / 250.0f * movementSpeed;
+
+			if ( io.keyboard.IsKeyDown( eKey::KEY_D ) )
+				cameraTargetNewPosition += ( cameraTargetTransform.Right() * scaledMovementSpeed );
+			if ( io.keyboard.IsKeyDown( eKey::KEY_A ) )
+				cameraTargetNewPosition -= ( cameraTargetTransform.Right() * scaledMovementSpeed );
+			if ( io.keyboard.IsKeyDown( eKey::KEY_W ) )
+				cameraTargetNewPosition += ( cameraTargetTransform.Front() * scaledMovementSpeed );
+			if ( io.keyboard.IsKeyDown( eKey::KEY_S ) )
+				cameraTargetNewPosition -= ( cameraTargetTransform.Front() * scaledMovementSpeed );
+
+			cameraTargetTransform.SetTranslation(
+			    glm::mix( cameraTargetTransform.GetTranslation(), cameraTargetNewPosition, dt * movementTime ) );
+			ImGui::Text( "Camera target position: %f %f %f\n", cameraTargetTransform.GetTranslation().x,
+			             cameraTargetTransform.GetTranslation().y, cameraTargetTransform.GetTranslation().z );
 
 			cameraNewDistance += io.mouse.wheelMotion.y * scrollSpeed;
 			cameraDistance = glm::mix( cameraDistance, cameraNewDistance, dt * movementTime );
@@ -402,7 +397,7 @@ int main( int ac, char ** av ) {
 						currentMouseAction = MouseAction::BUILD;
 						buildingKindSelected = BuildingKind::MARKET;
 					}
-					if ( ImGui::Button( "Foutain" ) ) {
+					if ( ImGui::Button( "Fountain" ) ) {
 						currentMouseAction = MouseAction::BUILD;
 						buildingKindSelected = BuildingKind::FOUNTAIN;
 					}
@@ -420,6 +415,7 @@ int main( int ac, char ** av ) {
 						auto & housing = registery.GetComponent< CpntHousing >( selectedEntity );
 						ImGui::Text( "Number of habitants: %d / %d\n", housing.numCurrentlyLiving,
 						             housing.maxHabitants );
+						ImGui::Text( "Number of incoming migrants : %d\n", housing.numIncomingMigrants );
 						for ( int i = 0; i < ( int )GameService::NUM_SERVICES; i++ ) {
 							if ( housing.isServiceRequired[ i ] == true ) {
 								ImGui::Text(
@@ -513,19 +509,19 @@ int main( int ac, char ** av ) {
 				      mouseDragCellStart.x < mouseCellPosition.x ? x++ : x-- ) {
 					Cell cell( x, mouseDragCellStart.z );
 					if ( map.GetTile( cell ) == MapTile::EMPTY ) {
-						SpawnRoadBlock( registery, map, cell );
+						SpawnRoadTile( registery, map, cell );
 					}
 				}
 				for ( u32 z = mouseDragCellStart.z; z != mouseCellPosition.z;
 				      mouseDragCellStart.z < mouseCellPosition.z ? z++ : z-- ) {
 					Cell cell( mouseCellPosition.x, z );
 					if ( map.GetTile( cell ) == MapTile::EMPTY ) {
-						SpawnRoadBlock( registery, map, cell );
+						SpawnRoadTile( registery, map, cell );
 					}
 				}
 				Cell cell( mouseCellPosition.x, mouseCellPosition.z );
 				if ( map.GetTile( cell ) == MapTile::EMPTY ) {
-					SpawnRoadBlock( registery, map, cell );
+					SpawnRoadTile( registery, map, cell );
 				}
 
 				mouseStartedDragging = false;
@@ -543,19 +539,20 @@ int main( int ac, char ** av ) {
 				if ( offsetZ == 0 ) {
 					offsetZ = 1;
 				}
+
+				for ( u32 x = start.x; x < start.x + offsetX; x++ ) {
+					for ( u32 z = start.z; z < start.z + offsetZ; z++ ) {
+						if ( map.GetTile( x, z ) == MapTile::ROAD || map.GetTile( x, z ) == MapTile::ROAD_BLOCK ) {
+							DeleteRoadTile( registery, map, Cell( x, z ) );
+						}
+					}
+				}
+
 				Area areaOfDeletion{};
 				areaOfDeletion.center = start;
 				areaOfDeletion.sizeX = offsetX;
 				areaOfDeletion.sizeZ = offsetZ;
 				DeleteBuildingsInsideArea( registery, areaOfDeletion, map );
-
-				for ( u32 x = start.x; x < start.x + offsetX; x++ ) {
-					for ( u32 z = start.z; z < start.z + offsetZ; z++ ) {
-						if ( map.GetTile( x, z ) == MapTile::ROAD ) {
-							DeleteRoadBlock( registery, map, Cell( x, z ) );
-						}
-					}
-				}
 
 				mouseStartedDragging = false;
 			}
@@ -664,7 +661,6 @@ int main( int ac, char ** av ) {
 	ImGui_ImplSDL2_Shutdown();
 	ImGui::DestroyContext();
 
-	modelInspectorFramebuffer.Destroy();
 	renderer.ShutdownRenderer();
 	g_shaderAtlas.FreeShaders();
 	g_modelAtlas.FreeAllModels();
@@ -691,28 +687,6 @@ void DrawDebugWindow() {
 	}
 	if ( ImGui::TreeNode( "IO" ) ) {
 		theGame->io.DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::TreeNode( "Model inspector" ) ) {
-		static glm::vec3 cameraPosition = glm::vec3( 5.0f, 5.0f, 5.0f );
-		ImGui::DragFloat3( "camera position", &cameraPosition.x );
-		modelInspectorCamera.position = cameraPosition;
-		modelInspectorCamera.proj =
-		    glm::perspective( 90.0f, ( float )modelInspectorWidth / modelInspectorHeight, 0.01f, 100.0f );
-		modelInspectorCamera.view =
-		    glm::lookAt( modelInspectorCamera.position, glm::vec3( 0.0f, 0.0f, 0.0f ), glm::vec3( 0.0f, 1.0f, 0.0f ) );
-
-		modelInspectorCamera.Bind();
-		modelInspectorFramebuffer.Bind();
-		modelInspectorFramebuffer.Clear();
-		CpntTransform localTransform;
-		g_shaderAtlas.defaultShader.Use();
-		DrawModel( *( g_modelAtlas.farmMesh ), localTransform, g_shaderAtlas.defaultShader );
-
-		ImGui::Image( ( ImTextureID )modelInspectorFramebuffer.textureID,
-		              ImVec2( modelInspectorWidth, modelInspectorHeight ), ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
-		theGame->window.BindDefaultFramebuffer();
-		mainCamera.Bind();
 		ImGui::TreePop();
 	}
 	// if ( ImGui::TreeNode( "Systems" ) ) {

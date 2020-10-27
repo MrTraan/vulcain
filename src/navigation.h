@@ -83,6 +83,7 @@ struct CpntNavAgent {
 	ng::DynamicArray< Cell > pathfindingNextSteps;
 	// speed is in cells per ticks
 	float movementSpeed = ConvertPerSecondToPerTick( 5.0f );
+	bool  deleteAtDestination = false;
 };
 
 struct CpntWanderer {
@@ -110,12 +111,12 @@ bool FindPathFromCellToBuilding( Cell                       start,
 bool CreateWandererRoutine(
     const Cell & start, Map & map, RoadNetwork & roadNetwork, ng::DynamicArray< Cell > & outPath, u32 maxDistance );
 
-bool      AStar( Cell start, Cell goal, AStarMovementAllowed movement, const Map & map, std::vector< Cell > & outPath );
-glm::vec3 GetPointInMiddleOfCell( Cell cell );
-glm::vec3 GetPointInCornerOfCell( Cell cell );
-Cell      GetCellForPoint( glm::vec3 point );
-Cell      GetCellAfterMovement( Cell start, int movementX, int movementZ );
-Cell      GetCellAfterMovement( Cell start, CardinalDirection direction );
-Cell      GetAnyRoadConnectedToBuilding( const CpntBuilding & building, const Map & map );
+bool AStar( Cell start, Cell goal, AStarMovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath );
+glm::vec3         GetPointInMiddleOfCell( Cell cell );
+glm::vec3         GetPointInCornerOfCell( Cell cell );
+Cell              GetCellForPoint( glm::vec3 point );
+Cell              GetCellAfterMovement( Cell start, int movementX, int movementZ );
+Cell              GetCellAfterMovement( Cell start, CardinalDirection direction );
+Cell              GetAnyRoadConnectedToBuilding( const CpntBuilding & building, const Map & map );
 CardinalDirection GetDirectionFromCellTo( Cell from, Cell to );
 CardinalDirection OppositeDirection( CardinalDirection direction );

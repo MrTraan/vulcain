@@ -1,7 +1,22 @@
 #include "system.h"
 #include "game_time.h"
 #include "registery.h"
+#include <chrono>
 #include <tracy/Tracy.hpp>
+#include "pathfinding_job.h"
+
+std::atomic_bool jobsShouldRun = true;
+
+SystemManager::~SystemManager() {
+	jobsShouldRun.store( false );
+	for ( std::thread * job : jobs ) {
+		job->join();
+		delete job;
+	}
+	for ( auto [ type, system ] : systems ) {
+		delete system;
+	}
+}
 
 void SystemManager::Update( Registery & reg, Duration ticks ) {
 	ZoneScoped;
@@ -48,4 +63,17 @@ void SystemManager::Update( Registery & reg, Duration ticks ) {
 			}
 		}
 	}
+}
+
+void SystemParallelTask( ISystem * system ) {
+	using namespace std::chrono_literals;
+	while ( jobsShouldRun.load() == true ) {
+		system->ParallelJob();
+		std::this_thread::sleep_for( 16ms );
+	}
+}
+
+void SystemManager::StartJobs() {
+	std::thread * astarThread = new std::thread( SystemParallelTask, &( GetSystem< SystemPathfinding >() ) );
+	jobs.PushBack( astarThread );
 }

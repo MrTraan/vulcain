@@ -358,6 +358,16 @@ template < typename T > struct LinkedList {
 	Node *             head = nullptr;
 	ObjectPool< Node > nodePool;
 
+	T & Alloc() {
+		Node * newNode = nodePool.Pop();
+		if ( head != nullptr ) {
+			head->previous = newNode;
+			newNode->next = head;
+		}
+		head = newNode;
+		return head->data;
+	}
+	
 	T & PushFront( const T & elem ) {
 		Node * newNode = nodePool.Pop();
 		newNode->data = elem;
@@ -368,6 +378,7 @@ template < typename T > struct LinkedList {
 		head = newNode;
 		return head->data;
 	}
+	
 
 	void PopFront() {
 		if ( head != nullptr ) {

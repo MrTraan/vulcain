@@ -38,7 +38,7 @@ static void BM_AStar( benchmark::State & state ) {
 		}
 	}
 
-	std::vector< Cell > out;
+	ng::DynamicArray<Cell> out;
 	for ( auto _ : state ) {
 		AStar( Cell( 34, 30 ), Cell( 164, 90 ), ASTAR_FORBID_DIAGONALS, map, out );
 	}

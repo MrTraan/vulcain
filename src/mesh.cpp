@@ -153,45 +153,26 @@ static void FreeModelBuffers( Model & model ) {
 }
 
 bool ModelAtlas::LoadAllModels() {
-	bool success = true;
-	houseMesh = new Model();
-	farmMesh = new Model();
-	cubeMesh = new Model();
-	roadMesh = new Model();
-	storeHouseMesh = new Model();
-	roadBlockMesh = new Model();
-	marketMesh = new Model();
-	fountainMesh = new Model();
-	success &= SetupModelFromResource( *houseMesh, PackerResources::FUTURUSTIC_HOUSE_DAE );
-	success &= SetupModelFromResource( *farmMesh, PackerResources::NICE_HOUSE_DAE );
-	success &= SetupModelFromResource( *cubeMesh, PackerResources::CUBE_DAE );
-	success &= SetupModelFromResource( *roadMesh, PackerResources::ROAD_OBJ );
-	success &= SetupModelFromResource( *storeHouseMesh, PackerResources::STOREHOUSE_OBJ );
-	success &= SetupModelFromResource( *roadBlockMesh, PackerResources::ROAD_BLOCK_DAE );
-	success &= SetupModelFromResource( *marketMesh, PackerResources::MARKET_DAE );
-	success &= SetupModelFromResource( *fountainMesh, PackerResources::WELL_DAE );
-
-	return success;
+	bool successAll = true;
+	for ( auto & res : theGame->package.resourceList ) {
+		if ( res.type == PackerResource::Type::OBJ || res.type == PackerResource::Type::COLLADA ) {
+			Model * model = new Model();
+			bool    success = SetupModelFromResource( *model, res.id );
+			ng_assert( success );
+			successAll &= success;
+			atlas[ res.id ] = model;
+		}
+	}
+	return successAll;
 }
 
 void ModelAtlas::FreeAllModels() {
-	FreeModelBuffers( *houseMesh );
-	FreeModelBuffers( *farmMesh );
-	FreeModelBuffers( *cubeMesh );
-	FreeModelBuffers( *roadMesh );
-	FreeModelBuffers( *storeHouseMesh );
-	FreeModelBuffers( *roadBlockMesh );
-	FreeModelBuffers( *marketMesh );
-	FreeModelBuffers( *fountainMesh );
-
-	delete houseMesh;
-	delete farmMesh;
-	delete cubeMesh;
-	delete roadMesh;
-	delete storeHouseMesh;
-	delete roadBlockMesh;
-	delete marketMesh;
-	delete fountainMesh;
+	for ( auto & [ id, model ] : atlas ) {
+		if ( model != nullptr ) {
+			FreeModelBuffers( *model );
+			delete model;
+		}
+	}
 }
 
 void ComputeModelSize( Model & model ) {

@@ -194,7 +194,7 @@ struct Registery {
 	template < class T > const CpntRegistery< T > & IterateOver() const { return GetComponentRegistery< T >(); }
 
 	template < class T > CpntRegistery< T > & GetComponentRegistery() {
-		auto typeHash = HashComponent< T >();
+		CpntTypeHash typeHash = HashComponent< T >();
 		// TODO: This if must go away someday
 		if ( !cpntRegistriesMap.contains( typeHash ) ) {
 			cpntRegistriesMap[ typeHash ] = new CpntRegistery< T >( INITIAL_ENTITY_ALLOC );

@@ -12,8 +12,8 @@ struct Cell {
 
 	constexpr bool operator==( const Cell & rhs ) const { return x == rhs.x && z == rhs.z; }
 	constexpr bool operator<( const Cell & rhs ) const {
-		u64 sum = ((u64)x << 32) | z;
-		u64 sumrhs = ((u64)rhs.x << 32) | rhs.z;
+		u64 sum = ( ( u64 )x << 32 ) | z;
+		u64 sumrhs = ( ( u64 )rhs.x << 32 ) | rhs.z;
 		return sum < sumrhs;
 	}
 	constexpr bool IsValid() const { return x != ( u32 )-1 && z != ( u32 )-1; }
@@ -24,6 +24,7 @@ constexpr Cell INVALID_CELL{ ( u32 )-1, ( u32 )-1 };
 enum class MapTile {
 	EMPTY,
 	ROAD,
+	ROAD_BLOCK,
 	BLOCKED,
 };
 
@@ -40,6 +41,15 @@ struct Map {
 	MapTile GetTile( u32 x, u32 z ) const;
 	void    SetTile( Cell coord, MapTile type );
 	void    SetTile( u32 x, u32 z, MapTile type );
+
+	bool IsTileWalkable( Cell cell ) const { return IsTileWalkable( GetTile( cell.x, cell.z ) ); }
+	bool IsTileWalkable( u32 x, u32 z ) const {
+		MapTile tile = GetTile( x, z );
+		return IsTileWalkable( tile );
+	}
+	bool IsTileWalkable( MapTile type ) const {
+		return type == MapTile::ROAD || type == MapTile::ROAD_BLOCK;
+	}
 
 	u32 sizeX = 0;
 	u32 sizeZ = 0;

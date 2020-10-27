@@ -8,6 +8,7 @@
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
+#include <thread>
 
 struct Registery;
 
@@ -25,7 +26,8 @@ inline constexpr u64 FnvHash( const u8 * data, u64 size ) {
 
 struct ISystem {
 	virtual ~ISystem() {}
-	virtual void Update( Registery & reg, Duration ticks ) = 0;
+	virtual void Update( Registery & reg, Duration ticks ) {}
+	virtual void ParallelJob() {}
 	virtual void HandleMessage( Registery & reg, const Message & msg ) {}
 	virtual void DebugDraw() {}
 
@@ -52,11 +54,7 @@ struct ISystem {
 struct SystemManager {
 	std::unordered_map< u64, ISystem * > systems;
 
-	~SystemManager() {
-		for ( auto [ type, system ] : systems ) {
-			delete system;
-		}
-	}
+	~SystemManager();
 
 	template < class T, class... Args > T & CreateSystem( Args &&... args ) {
 		auto system = new T( std::forward< Args >( args )... );
@@ -76,4 +74,8 @@ struct SystemManager {
 	}
 
 	void Update( Registery & reg, Duration ticks );
+
+	void StartJobs();
+
+	ng::DynamicArray<std::thread * > jobs;
 };

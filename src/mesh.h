@@ -56,18 +56,14 @@ struct Model {
 	glm::i32vec3                      roundedSize;
 };
 
+
 struct ModelAtlas {
 	bool LoadAllModels();
 	void FreeAllModels();
 
-	Model * houseMesh = nullptr;
-	Model * farmMesh = nullptr;
-	Model * cubeMesh = nullptr;
-	Model * roadMesh = nullptr;
-	Model * storeHouseMesh = nullptr;
-	Model * roadBlockMesh = nullptr;
-	Model * marketMesh = nullptr;
-	Model * fountainMesh = nullptr;
+	std::map< PackerResourceID, Model * > atlas;
+
+	const Model * GetModel( PackerResourceID id ) { return atlas.at(id); }
 };
 
 extern ModelAtlas g_modelAtlas;
