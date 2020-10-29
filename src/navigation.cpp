@@ -170,8 +170,12 @@ static thread_local ng::ObjectPool< AStarStep > aStarStepPool;
 
 bool AStar(
     Cell start, Cell goal, AStarMovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath ) {
-	ng::ScopedChrono chrono("Astar");
+	ng::ScopedChrono chrono( "Astar" );
 	ZoneScoped;
+
+	if ( map.GetTile( start ) == MapTile::BLOCKED || map.GetTile( goal ) == MapTile::BLOCKED ) {
+		return false;
+	}
 
 	std::vector< AStarStep * > openSet;
 	openSet.reserve( 256 );
@@ -300,7 +304,7 @@ void SystemNavAgent::Update( Registery & reg, Duration ticks ) {
 	}
 }
 
-static void GetNeighborsOfCell( Cell base, const Map & map, ng::StaticArray< Cell, 4 > & neighbors ) {
+void GetNeighborsOfCell( Cell base, const Map & map, ng::StaticArray< Cell, 4 > & neighbors ) {
 	if ( base.x > 0 )
 		neighbors.PushBack( GetCellAfterMovement( base, -1, 0 ) );
 	if ( base.x < map.sizeX - 1 )
@@ -527,7 +531,7 @@ void RoadNetwork::FindNearestRoadNodes( Cell               cell,
                                         NodeSearchResult & first,
                                         NodeSearchResult & second ) {
 
-	ng_assert( map.IsTileWalkable( cell ));
+	ng_assert( map.IsTileWalkable( cell ) );
 	if ( !map.IsTileWalkable( cell ) ) {
 		return;
 	}
@@ -810,7 +814,7 @@ bool RoadNetwork::FindPath( Cell                       start,
 	outPath.Clear();
 	outPath.Reserve( 64 );
 
-	if ( !map.IsTileWalkable(start) || !map.IsTileWalkable( goal ) ) {
+	if ( !map.IsTileWalkable( start ) || !map.IsTileWalkable( goal ) ) {
 		return false;
 	}
 
@@ -1227,4 +1231,3 @@ CardinalDirection RoadNetwork::Node::GetDirectionOfConnection( const Connection 
 	ng_assert( offset >= 0 && offset < 4 );
 	return ( CardinalDirection )offset;
 }
-

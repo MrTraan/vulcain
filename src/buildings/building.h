@@ -33,6 +33,19 @@ struct CpntBuilding {
 	Cell         cell;
 	u32          tileSizeX;
 	u32          tileSizeZ;
+	u32          workersNeeded = 0;
+	u32          workersEmployed = 0;
+
+	double GetEfficiency() const {
+		if ( workersNeeded == 0 )
+			return 1.0f;
+		return ( double )workersEmployed / ( double )workersNeeded;
+	}
+	double GetInvEfficiency() const {
+		if ( workersEmployed == 0 )
+			return 0.0f;
+		return ( double )workersNeeded / (double)workersEmployed;
+	}
 
 	// This allows to iterate over adjacent cells using a for loop
 	// syntax : for ( Cell cell : building.AdjacentCells(map) ) {}
@@ -50,6 +63,14 @@ struct CpntBuilding {
 			Cell operator*() const {
 				return Cell( ( u32 )( ( int )building->cell.x + shiftX ), ( u32 )( ( int )building->cell.z + shiftZ ) );
 			}
+			bool IsValid() const {
+				if ( !building || !map ) {
+					return false;
+				}
+				int64 resX = ( int64 )building->cell.x + shiftX;
+				int64 resZ = ( int64 )building->cell.z + shiftZ;
+				return resX >= 0 && resX < map->sizeX && resZ >= 0 && resZ < map->sizeZ;
+			}
 
 			Iterator & operator++() {
 				// prefix
@@ -62,7 +83,7 @@ struct CpntBuilding {
 						}
 					} else if ( shiftZ == building->tileSizeZ ) {
 						shiftX++;
-						if ( shiftX == building->tileSizeX )	 {
+						if ( shiftX == building->tileSizeX ) {
 							shiftZ--;
 						}
 					} else if ( shiftX == building->tileSizeX ) {
@@ -73,8 +94,8 @@ struct CpntBuilding {
 					} else {
 						shiftX--;
 					}
-					int64 resX = (int64)building->cell.x + shiftX;
-					int64 resZ = (int64)building->cell.z + shiftZ;
+					int64 resX = ( int64 )building->cell.x + shiftX;
+					int64 resZ = ( int64 )building->cell.z + shiftZ;
 					if ( resX >= 0 && resX < map->sizeX && resZ >= 0 && resZ < map->sizeZ ) {
 						break; // we are on a valid cell, we can break the loop
 					}
@@ -88,10 +109,14 @@ struct CpntBuilding {
 			int                  shiftZ;
 		};
 
-		auto begin() { return Iterator( building, map, -1, 0 ); }
-		auto begin() const { return Iterator( building, map, -1, 0 ); }
-		auto end() { return Iterator( nullptr, nullptr, -1, -1 ); }
-		auto end() const { return Iterator( nullptr, nullptr, -1, -1 ); }
+		Iterator begin() const {
+			auto start = Iterator( building, map, -1, 0 );
+			while ( !start.IsValid() && start != end() ) {
+				++start;
+			}
+			return start;
+		}
+		Iterator end() const { return Iterator( nullptr, nullptr, -1, -1 ); }
 	};
 
 	AdjacentCellsIterable AdjacentCells( const Map & map ) const { return AdjacentCellsIterable( this, &map ); }
@@ -177,57 +202,76 @@ struct CpntHousing {
 	bool      isServiceRequired[ ( int )GameService::NUM_SERVICES ] = {};
 };
 
-struct SystemResourceInventory : public ISystem {
+struct SystemResourceInventory : public System< CpntResourceInventory > {
 	SystemResourceInventory() { ListenToGlobal( MESSAGE_INVENTORY_TRANSACTION ); }
 	virtual void Update( Registery & reg, Duration ticks ) override {}
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
 };
 
-struct SystemHousing : public ISystem {
-	SystemHousing() { ListenToGlobal( MESSAGE_CPNT_ATTACHED ); }
+struct SystemHousing : public System< CpntHousing > {
 	virtual void Update( Registery & reg, Duration ticks ) override;
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
+	virtual void OnCpntAttached( Entity e, CpntHousing & t ) override;
+	virtual void OnCpntRemoved( Entity e, CpntHousing & t ) override;
 
 	u32 totalPopulation = 0;
 };
 
-struct SystemBuildingProducing : public ISystem {
+struct SystemBuilding : public System< CpntBuilding > {
+	SystemBuilding() {
+		ListenToGlobal( MESSAGE_WORKER_AVAILABLE );
+		ListenToGlobal( MESSAGE_WORKER_REMOVED );
+	}
+	virtual void Update( Registery & reg, Duration ticks ) override;
+	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
+	virtual void OnCpntAttached( Entity e, CpntBuilding & t ) override;
+	virtual void OnCpntRemoved( Entity e, CpntBuilding & t ) override;
+	virtual void DebugDraw() override;
+
+	u32 totalUnemployed = 0;
+	u32 totalEmployed = 0;
+	u32 totalEmployeesNeeded = 0;
+};
+
+struct SystemBuildingProducing : public System< CpntBuildingProducing > {
 	virtual void Update( Registery & reg, Duration ticks ) override;
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
 };
 
-struct SystemMarket : public ISystem {
+struct SystemMarket : public System< CpntMarket > {
 	virtual void Update( Registery & reg, Duration ticks ) override;
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
+	virtual void OnCpntRemoved( Entity e, CpntMarket & t ) override;
 };
 
-struct SystemSeller : public ISystem {
+struct SystemSeller : public System< CpntSeller > {
 	virtual void Update( Registery & reg, Duration ticks ) override;
 };
 
-struct SystemServiceBuilding : public ISystem {
+struct SystemServiceBuilding : public System< CpntServiceBuilding > {
 	virtual void Update( Registery & reg, Duration ticks ) override;
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
+	virtual void OnCpntRemoved( Entity e, CpntServiceBuilding & t ) override;
 };
 
-struct SystemServiceWanderer : public ISystem {
+struct SystemServiceWanderer : public System< CpntServiceWanderer > {
 	virtual void Update( Registery & reg, Duration ticks ) override;
 };
 
-struct SystemFetcher : public ISystem {
-	SystemFetcher() { ListenToGlobal( MESSAGE_CPNT_ATTACHED ); }
+struct SystemFetcher : public System< CpntResourceFetcher > {
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
+	virtual void OnCpntAttached( Entity e, CpntResourceFetcher & t ) override;
 };
 
 struct CpntMigrant {
 	CpntMigrant() = default;
-	CpntMigrant(Entity targetHouse) : targetHouse(targetHouse) {}
+	CpntMigrant( Entity targetHouse ) : targetHouse( targetHouse ) {}
 	Entity targetHouse;
 };
 
-struct SystemMigrant : public ISystem {
-	SystemMigrant() { ListenToGlobal( MESSAGE_CPNT_ATTACHED ); }
+struct SystemMigrant : public System< CpntMigrant > {
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
+	virtual void OnCpntAttached( Entity e, CpntMigrant & t ) override;
 };
 
 const char * GameResourceToString( GameResource resource );

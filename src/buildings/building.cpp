@@ -62,6 +62,15 @@ void SystemHousing::Update( Registery & reg, Duration ticks ) {
 			transform.SetTranslation( GetPointInMiddleOfCell( migrantSpawnPosition ) );
 			reg.AssignComponent< CpntNavAgent >( migrant );
 			reg.AssignComponent< CpntMigrant >( migrant, e );
+
+			PathfindingTask task{};
+			task.requester = migrant;
+			task.type = PathfindingTask::Type::FROM_CELL_TO_BUILDING;
+			task.startCell = GetCellForPoint( GetPointInMiddleOfCell( migrantSpawnPosition ) );
+			task.goalBuilding = reg.GetComponent< CpntBuilding >( e );
+			task.movementAllowed = ASTAR_ALLOW_DIAGONALS;
+			PostMsg< PathfindingTask >( MESSAGE_PATHFINDING_REQUEST, task, INVALID_ENTITY, migrant );
+
 			ListenTo( MESSAGE_HOUSE_MIGRANT_ARRIVED, e );
 		}
 		totalPopulation += housing.numCurrentlyLiving;
@@ -74,7 +83,8 @@ void SystemHousing::Update( Registery & reg, Duration ticks ) {
 				ng::Printf( "This house is ready to evolve!\n" );
 				auto & model = reg.GetComponent< CpntRenderModel >( e );
 				model.model = g_modelAtlas.GetModel( PackerResources::HOUSE_DAE );
-				housing.tier++;
+				housing.tier = 1;
+				housing.maxHabitants = 8;
 			}
 		}
 	}
@@ -82,12 +92,6 @@ void SystemHousing::Update( Registery & reg, Duration ticks ) {
 
 void SystemHousing::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
-	case MESSAGE_CPNT_ATTACHED:
-		if ( CastPayloadAs< CpntTypeHash >( msg.payload ) == HashComponent< CpntHousing >() ) {
-			// A house has spawned, let's track when it receives a service
-			ListenTo( MESSAGE_SERVICE_PROVIDED, msg.recipient );
-		}
-		break;
 	case MESSAGE_SERVICE_PROVIDED: {
 		GameService   service = CastPayloadAs< GameService >( msg.payload );
 		CpntHousing * housing = reg.TryGetComponent< CpntHousing >( msg.recipient );
@@ -104,11 +108,26 @@ void SystemHousing::HandleMessage( Registery & reg, const Message & msg ) {
 			ng_assert( housing->numCurrentlyLiving < housing->maxHabitants );
 			housing->numIncomingMigrants--;
 			housing->numCurrentlyLiving++;
+			PostMsg( MESSAGE_WORKER_AVAILABLE, INVALID_ENTITY, INVALID_ENTITY );
 		}
 		break;
 	}
 	default:
 		ng_assert_msg( false, "Message type %d can't be handled by this system\n", msg.type );
+	}
+}
+
+void SystemHousing::OnCpntAttached( Entity e, CpntHousing & t ) {
+	// A house has spawned, let's track when it receives a service
+	ListenTo( MESSAGE_SERVICE_PROVIDED, e );
+	for ( u32 i = 0; i < t.numCurrentlyLiving; i++ ) {
+		PostMsg( MESSAGE_WORKER_AVAILABLE, INVALID_ENTITY, INVALID_ENTITY );
+	}
+}
+
+void SystemHousing::OnCpntRemoved( Entity e, CpntHousing & t ) {
+	for ( u32 i = 0; i < t.numCurrentlyLiving; i++ ) {
+		PostMsg( MESSAGE_WORKER_REMOVED, INVALID_ENTITY, INVALID_ENTITY );
 	}
 }
 
@@ -201,21 +220,23 @@ Entity LookForStorageAcceptingResource( Registery &                reg,
 
 void SystemBuildingProducing::Update( Registery & reg, Duration ticks ) {
 	for ( auto & [ e, producer ] : reg.IterateOver< CpntBuildingProducing >() ) {
+		const CpntBuilding & cpntBuilding = reg.GetComponent< CpntBuilding >( e );
+		float                efficiency = cpntBuilding.GetEfficiency();
+		if ( efficiency == 0.0f ) {
+			// Building has no workers
+			continue;
+		}
+		Duration timeToProduce = Duration( ( double )producer.timeToProduceBatch / ( double )efficiency );
 		producer.timeSinceLastProduction += ticks;
-		if ( producer.timeSinceLastProduction >= producer.timeToProduceBatch ) {
-			const CpntBuilding & cpntBuilding = reg.GetComponent< CpntBuilding >( e );
-
+		if ( producer.timeSinceLastProduction >= timeToProduce ) {
 			// Find a path to store house
 			thread_local ng::DynamicArray< Cell > path( 32 );
 			Entity                                closestStorage =
 			    LookForStorageAcceptingResource( reg, cpntBuilding, producer.resource, ULONG_MAX, path );
 
-			if ( closestStorage == INVALID_ENTITY ) {
-				// A producing building has no connection to a storage, stall for now
-				producer.timeSinceLastProduction = producer.timeToProduceBatch;
-			} else {
+			if ( closestStorage != INVALID_ENTITY ) {
 				// Produce a batch
-				producer.timeSinceLastProduction -= producer.timeToProduceBatch;
+				producer.timeSinceLastProduction -= timeToProduce;
 				// Spawn a dummy who will move the batch the nearest storage house
 				Entity carrier = reg.CreateEntity();
 				reg.AssignComponent< CpntRenderModel >( carrier, g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
@@ -422,6 +443,15 @@ void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 	}
 }
 
+void SystemMarket::OnCpntRemoved( Entity e, CpntMarket & t ) {
+	if ( t.fetcher != INVALID_ENTITY ) {
+		theGame->registery->MarkForDelete( t.fetcher );
+	}
+	if ( t.wanderer != INVALID_ENTITY ) {
+		theGame->registery->MarkForDelete( t.wanderer );
+	}
+}
+
 void SystemSeller::Update( Registery & reg, Duration ticks ) {
 	for ( auto & [ e, seller ] : reg.IterateOver< CpntSeller >() ) {
 		auto & transform = reg.GetComponent< CpntTransform >( e );
@@ -432,12 +462,7 @@ void SystemSeller::Update( Registery & reg, Duration ticks ) {
 
 			// Four cardinal directions
 			ng::StaticArray< Cell, 4 > neighbors;
-			for ( u32 i = 0; i < 4; i++ ) {
-				Cell neighbor = GetCellAfterMovement( currentCell, ( CardinalDirection )i );
-				if ( theGame->map.GetTile( neighbor ) == MapTile::BLOCKED ) {
-					neighbors.PushBack( neighbor );
-				}
-			}
+			GetNeighborsOfCell( currentCell, theGame->map, neighbors );
 
 			// Look for houses adjacent to the seller
 			for ( auto & [ houseEntity, house ] : reg.IterateOver< CpntHousing >() ) {
@@ -472,12 +497,7 @@ void SystemServiceWanderer::Update( Registery & reg, Duration ticks ) {
 
 			// Four cardinal directions
 			ng::StaticArray< Cell, 4 > neighbors;
-			for ( u32 i = 0; i < 4; i++ ) {
-				Cell neighbor = GetCellAfterMovement( currentCell, ( CardinalDirection )i );
-				if ( theGame->map.GetTile( neighbor ) == MapTile::BLOCKED ) {
-					neighbors.PushBack( neighbor );
-				}
-			}
+			GetNeighborsOfCell( currentCell, theGame->map, neighbors );
 
 			// Look for houses adjacent to the wanderer
 			for ( auto & [ houseEntity, house ] : reg.IterateOver< CpntHousing >() ) {
@@ -497,13 +517,18 @@ void SystemServiceWanderer::Update( Registery & reg, Duration ticks ) {
 void SystemServiceBuilding::Update( Registery & reg, Duration ticks ) {
 	for ( auto & [ e, serviceBuilding ] : reg.IterateOver< CpntServiceBuilding >() ) {
 		if ( serviceBuilding.wanderer == INVALID_ENTITY ) {
-			if ( serviceBuilding.timeSinceLastWandererSpawn < serviceBuilding.durationBetweenWandererSpawns ) {
+			auto const & cpntBuilding = reg.GetComponent< CpntBuilding >( e );
+			double       invEfficiency = cpntBuilding.GetInvEfficiency();
+			if ( invEfficiency == 0.0f ) {
+				continue;
+			}
+			Duration timeBetweenSpawn = serviceBuilding.durationBetweenWandererSpawns * invEfficiency;
+			if ( serviceBuilding.timeSinceLastWandererSpawn < timeBetweenSpawn ) {
 				serviceBuilding.timeSinceLastWandererSpawn += ticks;
 			} else {
 				// Let's check if we have a path for the wanderer
 				ng::DynamicArray< Cell > path( serviceBuilding.wandererCellRange );
-				Cell                     startingCell =
-				    GetAnyRoadConnectedToBuilding( reg.GetComponent< CpntBuilding >( e ), theGame->map );
+				Cell                     startingCell = GetAnyRoadConnectedToBuilding( cpntBuilding, theGame->map );
 				if ( startingCell == INVALID_CELL ) {
 					// This building is not connected to a road
 					continue;
@@ -518,6 +543,7 @@ void SystemServiceBuilding::Update( Registery & reg, Duration ticks ) {
 					                                        g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
 					CpntNavAgent & navAgent = reg.AssignComponent< CpntNavAgent >( wanderer );
 					navAgent.pathfindingNextSteps = path;
+					navAgent.deleteAtDestination = true;
 					CpntTransform & transform = reg.AssignComponent< CpntTransform >( wanderer );
 					transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
 					auto & serviceWanderer = reg.AssignComponent< CpntServiceWanderer >( wanderer );
@@ -537,7 +563,6 @@ void SystemServiceBuilding::HandleMessage( Registery & reg, const Message & msg 
 			if ( serviceBuilding.wanderer == msg.sender ) {
 				serviceBuilding.wanderer = INVALID_ENTITY;
 				serviceBuilding.timeSinceLastWandererSpawn = 0;
-				reg.MarkForDelete( msg.recipient );
 			}
 		}
 		break;
@@ -547,19 +572,33 @@ void SystemServiceBuilding::HandleMessage( Registery & reg, const Message & msg 
 	}
 }
 
+void SystemServiceBuilding::OnCpntRemoved( Entity e, CpntServiceBuilding & t ) {
+	if ( t.wanderer != INVALID_ENTITY ) {
+		theGame->registery->MarkForDelete( t.wanderer );
+	}
+}
+
 void SystemResourceInventory::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
 	case MESSAGE_INVENTORY_TRANSACTION: {
-		CpntResourceInventory &           giver = reg.GetComponent< CpntResourceInventory >( msg.sender );
-		CpntResourceInventory &           recipient = reg.GetComponent< CpntResourceInventory >( msg.recipient );
+		CpntResourceInventory * giver = reg.TryGetComponent< CpntResourceInventory >( msg.sender );
+		CpntResourceInventory * recipient = reg.TryGetComponent< CpntResourceInventory >( msg.recipient );
+		if ( giver == nullptr ) {
+			ng::Debugf( "A transaction has been aborted, the giver is invalid\n" );
+			return;
+		}
+		if ( recipient == nullptr ) {
+			ng::Debugf( "A transaction has been aborted, the recipient is invalid\n" );
+			return;
+		}
 		const TransactionMessagePayload & payload = CastPayloadAs< TransactionMessagePayload >( msg.payload );
 
-		u32 amountAvailable = giver.RemoveResource( payload.resource, payload.quantity );
-		u32 amountConsumed = recipient.StoreRessource( payload.resource, amountAvailable );
+		u32 amountAvailable = giver->RemoveResource( payload.resource, payload.quantity );
+		u32 amountConsumed = recipient->StoreRessource( payload.resource, amountAvailable );
 		u32 amountToGiveBack = amountAvailable - amountConsumed;
 		if ( amountToGiveBack > 0 && payload.acceptPayback ) {
 			// Send back the amount we couldn't store
-			giver.StoreRessource( payload.resource, amountToGiveBack );
+			giver->StoreRessource( payload.resource, amountToGiveBack );
 		}
 		break;
 	}
@@ -570,12 +609,6 @@ void SystemResourceInventory::HandleMessage( Registery & reg, const Message & ms
 
 void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
-	case MESSAGE_CPNT_ATTACHED:
-		if ( CastPayloadAs< CpntTypeHash >( msg.payload ) == HashComponent< CpntResourceFetcher >() ) {
-			// A fetcher has spawned, let's track when it gets to destination
-			ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, msg.recipient );
-		}
-		break;
 	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
 		Entity                fetcher = msg.recipient;
 		CpntResourceFetcher * cpntFetcher = reg.TryGetComponent< CpntResourceFetcher >( fetcher );
@@ -583,12 +616,18 @@ void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 		if ( cpntFetcher != nullptr ) {
 			if ( cpntFetcher->direction == CpntResourceFetcher::CurrentDirection::TO_TARGET ) {
 				// We arrived at our target
+				CpntBuilding * targetBuilding = reg.TryGetComponent< CpntBuilding >( cpntFetcher->target );
+				if ( targetBuilding == nullptr ) {
+					// Oh no, our target building has been destroyed!
+					ng::Infof( "A fetcher destination has been destroyed" );
+					reg.MarkForDelete( fetcher );
+					return;
+				}
 				CpntResourceInventory & fetcherInventory = reg.GetComponent< CpntResourceInventory >( fetcher );
 				Cell fetcherCell = GetCellForPoint( reg.GetComponent< CpntTransform >( fetcher ).GetTranslation() );
-				CpntBuilding &          targetBuilding = reg.GetComponent< CpntBuilding >( cpntFetcher->target );
 				CpntResourceInventory & targetInventory =
 				    reg.GetComponent< CpntResourceInventory >( cpntFetcher->target );
-				if ( IsCellAdjacentToBuilding( targetBuilding, fetcherCell, theGame->map ) ) {
+				if ( IsCellAdjacentToBuilding( *targetBuilding, fetcherCell, theGame->map ) ) {
 					// Let's fill our inventory
 					for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
 						u32 capacity = fetcherInventory.GetResourceCapacity( ( GameResource )i );
@@ -640,24 +679,13 @@ void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 	}
 }
 
+void SystemFetcher::OnCpntAttached( Entity e, CpntResourceFetcher & t ) {
+	// A fetcher has spawned, let's track when it gets to destination
+	ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, e );
+}
+
 void SystemMigrant::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
-	case MESSAGE_CPNT_ATTACHED: {
-		if ( CastPayloadAs< CpntTypeHash >( msg.payload ) == HashComponent< CpntMigrant >() ) {
-			// A migrant has been spawned, lets get to our target house
-			Entity          migrant = msg.recipient;
-			PathfindingTask task{};
-			task.requester = migrant;
-			task.type = PathfindingTask::Type::FROM_CELL_TO_BUILDING;
-			task.startCell = GetCellForPoint( reg.GetComponent< CpntTransform >( migrant ).GetTranslation() );
-			task.goalBuilding =
-			    reg.GetComponent< CpntBuilding >( reg.GetComponent< CpntMigrant >( migrant ).targetHouse );
-			task.movementAllowed = ASTAR_ALLOW_DIAGONALS;
-			PostMsg< PathfindingTask >( MESSAGE_PATHFINDING_REQUEST, task, INVALID_ENTITY, migrant );
-			ListenTo( MESSAGE_PATHFINDING_RESPONSE, migrant );
-		}
-		break;
-	}
 	case MESSAGE_PATHFINDING_RESPONSE: {
 		auto & payload = CastPayloadAs< PathfindingTaskResponse >( msg.payload );
 		Entity migrant = msg.recipient;
@@ -679,3 +707,76 @@ void SystemMigrant::HandleMessage( Registery & reg, const Message & msg ) {
 	}
 	}
 }
+
+void SystemMigrant::OnCpntAttached( Entity e, CpntMigrant & t ) {
+	// A migrant has been spawned, we should be waiting for a pathfinding to follow
+	ListenTo( MESSAGE_PATHFINDING_RESPONSE, e );
+}
+
+void SystemBuilding::Update( Registery & reg, Duration ticks ) {
+	totalEmployed = 0;
+	totalEmployeesNeeded = 0;
+	for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+		while ( building.workersEmployed < building.workersNeeded && totalUnemployed > 0 ) {
+			totalUnemployed--;
+			building.workersEmployed++;
+		}
+		totalEmployed += building.workersEmployed;
+		totalEmployeesNeeded += building.workersNeeded - building.workersEmployed;
+	}
+}
+
+void SystemBuilding::HandleMessage( Registery & reg, const Message & msg ) {
+	switch ( msg.type ) {
+	case MESSAGE_WORKER_AVAILABLE: {
+		// we have a new worker to distribute
+		bool addedSomewhere = false;
+		for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+			if ( building.workersEmployed < building.workersNeeded ) {
+				addedSomewhere = true;
+				building.workersEmployed++;
+				break;
+			}
+		}
+		if ( !addedSomewhere ) {
+			// we have nowhere to employ this worker, let's go to pole emploi
+			totalUnemployed++;
+		}
+		break;
+	}
+	case MESSAGE_WORKER_REMOVED: {
+		// We have to remove a worker somewhere
+		bool removedSomewhere = false;
+		for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+			if ( building.workersEmployed > 0 ) {
+				removedSomewhere = true;
+				building.workersEmployed--;
+				break;
+			}
+		}
+		if ( !removedSomewhere ) {
+			ng_assert( totalUnemployed > 0 );
+			// That's one less chomeur
+			if ( totalUnemployed > 0 ) {
+				totalUnemployed--;
+			}
+		}
+		break;
+	}
+	}
+}
+
+void SystemBuilding::OnCpntAttached( Entity e, CpntBuilding & t ) {
+	// Let's see if we have worker to attach
+	while ( t.workersEmployed < t.workersNeeded && totalUnemployed > 0 ) {
+		totalUnemployed--;
+		t.workersEmployed++;
+	}
+}
+
+void SystemBuilding::OnCpntRemoved( Entity e, CpntBuilding & t ) {
+	// A building is removed, lets send its workforce to pole emploi
+	totalUnemployed += t.workersEmployed;
+}
+
+void SystemBuilding::DebugDraw() { ImGui::Text( "%d chomeurs", totalUnemployed ); }

@@ -1,6 +1,7 @@
 #pragma once
 #include "entity.h"
 
+#include "system.h"
 #include <concurrentqueue.h>
 #include <imgui/imgui.h>
 #include <queue>
@@ -9,13 +10,9 @@
 #include <typeinfo>
 #include <unordered_map>
 
-using CpntTypeHash = u64;
-
-template < typename T > constexpr CpntTypeHash HashComponent() { return typeid( T ).hash_code(); }
-
 struct ICpntRegistery {
 	virtual ~ICpntRegistery() {}
-	virtual void RemoveComponent( Entity e ) = 0;
+	virtual bool RemoveComponent( SystemManager * ,Entity e ) = 0;
 	virtual u64  GetSize() const = 0;
 };
 
@@ -41,19 +38,21 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 	Entity * entityOfComponent = nullptr;
 	u32      numComponents = 0;
 
-	template < class... Args > T & AssignComponent( Entity e, Args &&... args ) {
+	template < class... Args > T & AssignComponent( SystemManager * systemManager, Entity e, Args &&... args ) {
 		ng_assert( HasComponent( e ) == false );
 		indexOfEntities[ e.id ] = numComponents++;
 		T * cpnt = components + indexOfEntities[ e.id ];
 		entityOfComponent[ indexOfEntities[ e.id ] ] = e;
 		cpnt = new ( cpnt ) T( std::forward< Args >( args )... );
+		systemManager->GetSystemForCpnt< T >().OnCpntAttached( e, *cpnt );
 		return *cpnt;
 	}
 
-	virtual void RemoveComponent( Entity e ) override {
+	virtual bool RemoveComponent( SystemManager * systemManager, Entity e ) override {
 		if ( !HasComponent( e ) ) {
-			return;
+			return false;
 		}
+		systemManager->GetSystemForCpnt< T >().OnCpntRemoved( e, GetComponent( e ) );
 		ng_assert( numComponents > 0 );
 		u32 indexToDelete = indexOfEntities[ e.id ];
 		u32 indexToSwap = numComponents - 1;
@@ -65,6 +64,7 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 		}
 		indexOfEntities[ e.id ] = INVALID_ENTITY_INDEX;
 		numComponents--;
+		return true;
 	}
 
 	bool HasComponent( Entity e ) const {
@@ -127,7 +127,7 @@ struct Registery {
 	std::unordered_map< CpntTypeHash, std::string > cpntTypesToName;
 #endif
 
-	Registery() {
+	Registery( SystemManager * systemManager ) : systemManager( systemManager ) {
 		// Enqueue ids from 0 to INITIAL_ENTITY_ALLOC
 		Entity * intialEntitiesIds = new Entity[ INITIAL_ENTITY_ALLOC ];
 		for ( u32 i = 0; i < INITIAL_ENTITY_ALLOC; i++ ) {
@@ -160,23 +160,19 @@ struct Registery {
 		// id to availableEntityIds queue
 		// @TODO: We could clean the systems event queues if they listen to an entity that is now dead
 		for ( auto [ type, registery ] : cpntRegistriesMap ) {
-			registery->RemoveComponent( e );
+			registery->RemoveComponent( systemManager, e );
 		}
 		e.version++;
 		bool ok = availableEntityIds.enqueue( e );
 		ng_assert( ok );
 		return true;
 	}
-
-	void MarkForDelete( Entity e ) {
-		markedForDeleteEntityIds.enqueue( e );
-		PostMsg( MESSAGE_ENTITY_DELETED, e, INVALID_ENTITY );
-	}
+	
+	void MarkForDelete( Entity e );
 
 	template < class T, class... Args > T & AssignComponent( Entity e, Args &&... args ) {
 		CpntRegistery< T > & registery = GetComponentRegistery< T >();
-		T &                  res = registery.AssignComponent( e, std::forward< Args >( args )... );
-		PostMsg< CpntTypeHash >( MESSAGE_CPNT_ATTACHED, HashComponent< T >(), e, e );
+		T &                  res = registery.AssignComponent( systemManager, e, std::forward< Args >( args )... );
 		return res;
 	}
 
@@ -219,18 +215,20 @@ struct Registery {
 		return *returnValue;
 	}
 
-	moodycamel::ConcurrentQueue< Entity > availableEntityIds;
-	moodycamel::ConcurrentQueue< Entity > markedForDeleteEntityIds;
-
 	void DebugDraw() {
 #ifdef DEBUG
 		for ( auto [ type, registery ] : cpntRegistriesMap ) {
 			if ( ImGui::TreeNode( cpntTypesToName[ type ].c_str() ) ) {
-				ImGui::Text("Hash: %llu\n", type );
+				ImGui::Text( "Hash: %llu\n", type );
 				ImGui::Text( "Num components: %d\n", registery->GetSize() );
 				ImGui::TreePop();
 			}
 		}
 #endif
 	}
+
+	moodycamel::ConcurrentQueue< Entity > availableEntityIds;
+	moodycamel::ConcurrentQueue< Entity > markedForDeleteEntityIds;
+
+	SystemManager * systemManager = nullptr;
 };

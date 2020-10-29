@@ -7,3 +7,4 @@ void PostMsg( Message msg ) {
 		ng_assert( ok );
 	}
 }
+

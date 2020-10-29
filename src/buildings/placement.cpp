@@ -116,7 +116,7 @@ const Model * GetBuildingModel( BuildingKind kind ) {
 	}
 }
 
-bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & map ) {
+Entity PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & map ) {
 	Entity e = reg.CreateEntity();
 
 	CpntBuilding & cpntBuilding = reg.AssignComponent< CpntBuilding >( e );
@@ -142,7 +142,7 @@ bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & m
 	switch ( kind ) {
 	case BuildingKind::HOUSE: {
 		auto & housing = reg.AssignComponent< CpntHousing >( e );
-		housing.maxHabitants = 20;
+		housing.maxHabitants = 4;
 		housing.numCurrentlyLiving = 0;
 		housing.tier = 0;
 
@@ -158,12 +158,14 @@ bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & m
 		producer.batchSize = 4;
 		producer.timeToProduceBatch = DurationFromSeconds( 5 );
 		producer.resource = GameResource::WHEAT;
+		cpntBuilding.workersNeeded = 10;
 		break;
 	}
 
 	case BuildingKind::STORAGE_HOUSE: {
 		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
 		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 100 );
+		cpntBuilding.workersNeeded = 4;
 		break;
 	}
 
@@ -171,12 +173,14 @@ bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & m
 		reg.AssignComponent< CpntMarket >( e );
 		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
 		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 100 );
+		cpntBuilding.workersNeeded = 4;
 		break;
 	}
 
 	case BuildingKind::FOUNTAIN: {
 		auto & serviceBuilding = reg.AssignComponent< CpntServiceBuilding >( e );
 		serviceBuilding.service = GameService::WATER;
+		cpntBuilding.workersNeeded = 1;
 		break;
 	}
 
@@ -192,7 +196,6 @@ bool PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map & m
 
 	default:
 		ng_assert( false );
-		return false;
 	}
-	return true;
+	return e;
 }

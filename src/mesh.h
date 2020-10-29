@@ -9,6 +9,7 @@
 #include "packer.h"
 #include "shader.h"
 #include "ngLib/ngcontainers.h"
+#include "system.h"
 
 struct Vertex {
 	glm::vec3 position;
@@ -56,7 +57,6 @@ struct Model {
 	glm::i32vec3                      roundedSize;
 };
 
-
 struct ModelAtlas {
 	bool LoadAllModels();
 	void FreeAllModels();
@@ -73,6 +73,8 @@ struct CpntRenderModel {
 	CpntRenderModel( const Model * model ) : model( model ) {}
 	const Model * model = nullptr;
 };
+
+struct SystemRenderModel : System<CpntRenderModel> {};
 
 struct InstancedModelBatch {
 	Model *                       model;

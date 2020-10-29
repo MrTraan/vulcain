@@ -86,11 +86,7 @@ struct CpntNavAgent {
 	bool  deleteAtDestination = false;
 };
 
-struct CpntWanderer {
-	u32 maxCellsCovered = 32;
-};
-
-struct SystemNavAgent : public ISystem {
+struct SystemNavAgent : public System< CpntNavAgent > {
 	virtual void Update( Registery & reg, Duration ticks ) override;
 };
 
@@ -112,6 +108,7 @@ bool CreateWandererRoutine(
     const Cell & start, Map & map, RoadNetwork & roadNetwork, ng::DynamicArray< Cell > & outPath, u32 maxDistance );
 
 bool AStar( Cell start, Cell goal, AStarMovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath );
+void GetNeighborsOfCell( Cell base, const Map & map, ng::StaticArray< Cell, 4 > & neighbors );
 glm::vec3         GetPointInMiddleOfCell( Cell cell );
 glm::vec3         GetPointInCornerOfCell( Cell cell );
 Cell              GetCellForPoint( glm::vec3 point );

@@ -19,14 +19,19 @@ enum class MouseAction {
 };
 
 struct Game {
+	~Game() {
+		if ( registery ) {
+			delete registery;
+		}
+	}
 	enum class State {
 		MENU,
 		PLAYING,
 		LOADING,
 	};
 
+	Registery *   registery = nullptr;
 	SystemManager systemManager;
-	Registery     registery;
 	State         state;
 	IO            io;
 	Window        window;

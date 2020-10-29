@@ -75,11 +75,13 @@ Camera mainCamera;
 
 static void Update( float dt ) {}
 
-static void FixedUpdate( Duration ticks ) { theGame->systemManager.Update( theGame->registery, ticks ); }
+static void FixedUpdate( Duration ticks ) { theGame->systemManager.Update( *theGame->registery, ticks ); }
 
 static void Render() {}
 
 InstancedModelBatch roadBatchedTiles;
+
+struct SystemTransform : public System< CpntTransform > {};
 
 void SpawnRoadTile( Registery & reg, Map & map, Cell cell ) {
 	if ( map.GetTile( cell ) != MapTile::ROAD ) {
@@ -123,6 +125,7 @@ int main( int ac, char ** av ) {
 
 	theGame = new Game();
 	theGame->state = Game::State::MENU;
+	theGame->registery = new Registery( &theGame->systemManager );
 
 	if ( true ) {
 		bool success = PackerCreateRuntimeArchive( FS_BASE_PATH, &theGame->package );
@@ -168,13 +171,6 @@ int main( int ac, char ** av ) {
 	Guizmo::Init();
 
 	TracyGpuContext;
-	ng::LinkedList< int > list;
-	for ( int i = 0; i < 64; i++ ) {
-		list.PushFront( i );
-	}
-
-	auto  lastFrameTime = std::chrono::high_resolution_clock::now();
-	float fixedTimeStepAccumulator = 0.0f;
 
 	g_modelAtlas.LoadAllModels();
 
@@ -182,6 +178,9 @@ int main( int ac, char ** av ) {
 	Texture whiteTexture = CreateDefaultWhiteTexture();
 
 	// Register system
+	theGame->systemManager.CreateSystem< SystemRenderModel >();
+	theGame->systemManager.CreateSystem< SystemTransform >();
+	theGame->systemManager.CreateSystem< SystemBuilding >();
 	theGame->systemManager.CreateSystem< SystemHousing >();
 	theGame->systemManager.CreateSystem< SystemBuildingProducing >();
 	theGame->systemManager.CreateSystem< SystemNavAgent >();
@@ -206,9 +205,38 @@ int main( int ac, char ** av ) {
 	roadBatchedTiles.Init( &roadModel );
 
 	Map &       map = theGame->map;
-	Registery & registery = theGame->registery;
+	Registery & registery = *theGame->registery;
 	map.AllocateGrid( 200, 200 );
 
+#if 1
+	// Run functionnal tests
+	for ( u32 x = 0; x < 20; x++ ) {
+		SpawnRoadTile( registery, map, Cell( x, 0 ) );
+	}
+	PlaceBuilding( registery, Cell( 1, 1 ), BuildingKind::FOUNTAIN, map );
+	PlaceBuilding( registery, Cell( 2, 1 ), BuildingKind::MARKET, map );
+	PlaceBuilding( registery, Cell( 5, 1 ), BuildingKind::FARM, map );
+	PlaceBuilding( registery, Cell( 8, 1 ), BuildingKind::STORAGE_HOUSE, map );
+	// This is our reference house, it is the closest to the market
+	Entity house = PlaceBuilding( registery, Cell( 11, 1 ), BuildingKind::HOUSE, map );
+	PlaceBuilding( registery, Cell( 13, 1 ), BuildingKind::HOUSE, map );
+	PlaceBuilding( registery, Cell( 15, 1 ), BuildingKind::HOUSE, map );
+	PlaceBuilding( registery, Cell( 17, 1 ), BuildingKind::HOUSE, map );
+	PlaceBuilding( registery, Cell( 19, 1 ), BuildingKind::HOUSE, map );
+	// run for 1m
+	for ( int64 i = 0; i < 60 * numTicksPerSeconds; i++ ) {
+		theGame->clock++;
+		FixedUpdate( 1 );
+	}
+
+	auto & cpntHousing = registery.GetComponent< CpntHousing >( house );
+	auto & cpntInventory = registery.GetComponent< CpntResourceInventory >( house );
+	ng_assert( cpntHousing.numCurrentlyLiving > 0 );
+	ng_assert( cpntHousing.tier == 1 );
+#endif
+
+	auto  lastFrameTime = std::chrono::high_resolution_clock::now();
+	float fixedTimeStepAccumulator = 0.0f;
 	while ( !window.shouldClose ) {
 		ZoneScopedN( "MainLoop" );
 
@@ -411,6 +439,10 @@ int main( int ac, char ** av ) {
 			if ( selectedEntity != INVALID_ENTITY ) {
 				if ( ImGui::Begin( "Entity selected" ) ) {
 					ImGui::Text( "ID: %llu\n", selectedEntity );
+					if ( registery.HasComponent< CpntBuilding >( selectedEntity ) ) {
+						auto & building = registery.GetComponent< CpntBuilding >( selectedEntity );
+						ImGui::Text( "Employees: %d/%d\n", building.workersEmployed, building.workersNeeded );
+					}
 					if ( registery.HasComponent< CpntHousing >( selectedEntity ) ) {
 						auto & housing = registery.GetComponent< CpntHousing >( selectedEntity );
 						ImGui::Text( "Number of habitants: %d / %d\n", housing.numCurrentlyLiving,
@@ -428,8 +460,15 @@ int main( int ac, char ** av ) {
 					if ( registery.HasComponent< CpntBuildingProducing >( selectedEntity ) ) {
 						auto & producer = registery.GetComponent< CpntBuildingProducing >( selectedEntity );
 						float  timeSinceLastProduction = DurationToSeconds( producer.timeSinceLastProduction );
-						float  timeToProduce = DurationToSeconds( producer.timeToProduceBatch );
-						ImGui::SliderFloat( "production", &timeSinceLastProduction, 0.0f, timeToProduce );
+						const CpntBuilding & cpntBuilding = registery.GetComponent< CpntBuilding >( selectedEntity );
+						float                efficiency = cpntBuilding.GetEfficiency();
+						if ( efficiency > 0 ) {
+							float timeToProduce = DurationToSeconds(
+							    Duration( ( double )producer.timeToProduceBatch / ( double )efficiency ) );
+							ImGui::SliderFloat( "production", &timeSinceLastProduction, 0.0f, timeToProduce );
+						} else {
+							ImGui::Text( "Stalling" );
+						}
 					}
 
 					if ( registery.HasComponent< CpntResourceInventory >( selectedEntity ) ) {
@@ -568,7 +607,7 @@ int main( int ac, char ** av ) {
 			theGame->window.BindDefaultFramebuffer();
 			mainCamera.Bind();
 			Render();
-			static glm::vec3 lightDirection( -1.0f, -1.0f, 0.0f );
+			static glm::vec3 lightDirection( 1.0f, -2.0f, 1.0f );
 			ImGui::DragFloat3( "lightDirection", &lightDirection[ 0 ] );
 
 			static float lightAmbiant = 0.7f;
@@ -613,6 +652,21 @@ int main( int ac, char ** av ) {
 			}
 
 			Guizmo::Draw();
+
+			{
+				// Game stats UI
+				if ( ImGui::Begin( "Game stats" ) ) {
+					ImGui::Text( "Total population: %lu\n",
+					             theGame->systemManager.GetSystem< SystemHousing >().totalPopulation );
+					ImGui::Text( "Total employed: %lu\n",
+					             theGame->systemManager.GetSystem< SystemBuilding >().totalEmployed );
+					ImGui::Text( "Employees needed: %lu\n",
+					             theGame->systemManager.GetSystem< SystemBuilding >().totalEmployeesNeeded );
+					ImGui::Text( "Chomeurs de la rue: %lu\n",
+					             theGame->systemManager.GetSystem< SystemBuilding >().totalUnemployed );
+				}
+				ImGui::End();
+			}
 		}
 
 		ng::GetConsole().Draw();
@@ -689,31 +743,12 @@ void DrawDebugWindow() {
 		theGame->io.DebugDraw();
 		ImGui::TreePop();
 	}
-	// if ( ImGui::TreeNode( "Systems" ) ) {
-	//	std::vector< std::pair< const char *, ISystem * > > systemWithNames;
-	//	for ( auto & [ type, system ] : systemManager.systems ) {
-	//		systemWithNames.push_back( { type.name(), system } );
-	//	}
-
-	//	static int currentlySelected = 0;
-	//	if ( ImGui::BeginCombo( "system selected", systemWithNames[ currentlySelected ].first ) ) {
-	//		for ( int i = 0; i < systemWithNames.size(); i++ ) {
-	//			bool isSelected = currentlySelected == i;
-	//			if ( ImGui::Selectable( systemWithNames[ i ].first, isSelected ) ) {
-	//				currentlySelected = i;
-	//			}
-
-	//			if ( isSelected ) {
-	//				ImGui::SetItemDefaultFocus();
-	//			}
-	//		}
-	//		ImGui::EndCombo();
-	//	}
-	//	systemWithNames[ currentlySelected ].second->DebugDraw();
-	//	ImGui::TreePop();
-	//}
+	if ( ImGui::TreeNode( "Systems" ) ) {
+		theGame->systemManager.DebugDraw();
+		ImGui::TreePop();
+	}
 	if ( ImGui::TreeNode( "Components" ) ) {
-		theGame->registery.DebugDraw();
+		theGame->registery->DebugDraw();
 		ImGui::TreePop();
 	}
 	if ( ImGui::Button( "Check road network integrity" ) ) {

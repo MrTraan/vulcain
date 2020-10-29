@@ -11,12 +11,16 @@ using ngString = std::string;
 
 namespace ng {
 enum LogSeverity {
+	LOG_DEBUG,
+	LOG_DEFAULT,
 	LOG_INFO,
 	LOG_ERROR,
 	NUM_LOG_SEVERITY, // Keep me at the end plz
 };
 
 void Printf( const char * fmt, ... );
+void Debugf( const char * fmt, ... );
+void Infof( const char * fmt, ... );
 void Errorf( const char * fmt, ... );
 void LogV( const char * fmt, va_list args, LogSeverity severity );
 

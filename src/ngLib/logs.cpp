@@ -12,6 +12,20 @@ namespace ng {
 void Printf( const char * fmt, ... ) {
 	va_list args;
 	va_start( args, fmt );
+	LogV( fmt, args, LogSeverity::LOG_DEFAULT );
+	va_end( args );
+}
+
+void Debugf( const char * fmt, ... ) {
+	va_list args;
+	va_start( args, fmt );
+	LogV( fmt, args, LogSeverity::LOG_DEBUG );
+	va_end( args );
+}
+
+void Infof( const char * fmt, ... ) {
+	va_list args;
+	va_start( args, fmt );
 	LogV( fmt, args, LogSeverity::LOG_INFO );
 	va_end( args );
 }
@@ -24,7 +38,9 @@ void Errorf( const char * fmt, ... ) {
 }
 
 static constexpr const char * prefixBySeverity[] = {
-    "",        // INFO
+    "Debug: ", // DEBUG
+    "",        // DEFAULT
+    "Info: ",  // INFO
     "Error: ", // ERROR
     nullptr,
 };

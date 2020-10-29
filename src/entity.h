@@ -5,8 +5,13 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
+#include <typeindex>
+#include <typeinfo>
 
 struct Registery;
+
+using CpntTypeHash = u64;
+template < typename T > constexpr CpntTypeHash HashComponent() { return typeid( T ).hash_code(); }
 
 struct Entity {
 	u32 id;
@@ -77,4 +82,3 @@ struct CpntTransform {
 	glm::vec3 scale{ 1.0f, 1.0f, 1.0f };
 	glm::quat rotation{ 0.0f, 0.0f, 0.0f, 0.0f };
 };
-

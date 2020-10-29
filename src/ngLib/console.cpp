@@ -18,8 +18,12 @@ void Console::Draw() {
 	ImGui::BeginChild( ImGui::GetID( "CONSOLE ID" ) );
 
 	for ( auto const & log : logs ) {
-		if ( log.severity == LogSeverity::LOG_ERROR ) {
+		if ( log.severity == LogSeverity::LOG_DEBUG ) {
+			ImGui::TextColored( ImVec4( 0.0f, 255.0f, 0.0f, 255.0f ), "%s", log.text.c_str() );
+		} else if ( log.severity == LogSeverity::LOG_ERROR ) {
 			ImGui::TextColored( ImVec4( 255.0f, 0.0f, 0.0f, 255.0f ), "%s", log.text.c_str() );
+		} else if ( log.severity == LogSeverity::LOG_INFO ) {
+			ImGui::TextColored( ImVec4( 253.0f, 213.0f, 0.0f, 255.0f ), "%s", log.text.c_str() );
 		} else {
 			ImGui::Text( "%s", log.text.c_str() );
 		}
@@ -30,7 +34,7 @@ void Console::Draw() {
 	}
 
 	ImGui::EndChild();
-	if ( ImGui::Button("Clear") ) {
+	if ( ImGui::Button( "Clear" ) ) {
 		logs.clear();
 	}
 
