@@ -41,6 +41,7 @@ struct Game {
 	Renderer      renderer;
 	TimePoint     clock = 0;
 	Duration      ticks = 1;
+	float         speed = 1.0f;
 };
 
 extern Game * theGame;

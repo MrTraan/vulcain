@@ -5,10 +5,10 @@
 #include <vector>
 
 #include "entity.h"
+#include "ngLib/ngcontainers.h"
 #include "ngLib/types.h"
 #include "packer.h"
 #include "shader.h"
-#include "ngLib/ngcontainers.h"
 #include "system.h"
 
 struct Vertex {
@@ -63,7 +63,7 @@ struct ModelAtlas {
 
 	std::map< PackerResourceID, Model * > atlas;
 
-	const Model * GetModel( PackerResourceID id ) { return atlas.at(id); }
+	const Model * GetModel( PackerResourceID id ) { return atlas.at( id ); }
 };
 
 extern ModelAtlas g_modelAtlas;
@@ -74,17 +74,23 @@ struct CpntRenderModel {
 	const Model * model = nullptr;
 };
 
-struct SystemRenderModel : System<CpntRenderModel> {};
+struct SystemRenderModel : System< CpntRenderModel > {};
 
 struct InstancedModelBatch {
-	Model *                       model;
-	ng::DynamicArray< glm::vec3 > positions;
-	bool                          dirty = false;
-	u32                           arrayBuffer;
+	const Model * model;
+	struct Instance {
+		glm::mat4 transform;
+		Entity    id;
+	};
+	ng::DynamicArray< Instance > instances;
+	bool                         dirty = false;
+	u32                          arrayBuffer;
 
+	void AddInstance( Entity e, const glm::mat4 & transform );
 	void AddInstanceAtPosition( const glm::vec3 & position );
+	bool RemoveInstance( Entity e );
 	bool RemoveInstancesWithPosition( const glm::vec3 & position );
-	void Init( Model * model );
+	void Init( const Model * model );
 	void UpdateArrayBuffer();
 	void Render( Shader & shader );
 };
@@ -94,7 +100,8 @@ Texture CreateTextureFromData( const u8 * data, int width, int height, int chann
 Texture CreatePlaceholderPinkTexture();
 Texture CreateDefaultWhiteTexture();
 void    AllocateMeshGLBuffers( Mesh & mesh );
-void    DrawModel( const Model & model, const CpntTransform & transform, Shader shader );
+void    DrawModel( const Model & model, const CpntTransform & transform, Shader shader, bool bindMaterial = true );
 void    ComputeModelSize( Model & model );
 
-void CreateTexturedPlane( float sizeX, float sizeZ, float textureTiling, const PackerResource & textureResource, Model & modelOut );
+void CreateTexturedPlane(
+    float sizeX, float sizeZ, float textureTiling, const PackerResource & textureResource, Model & modelOut );

@@ -551,10 +551,10 @@ TEST_CASE( "A star", "[astar]" ) {
 			}
 		}
 
-		std::vector< Cell > out;
+		ng::DynamicArray< Cell > out;
 		bool                found = AStar( Cell( 34, 30 ), Cell( 164, 90 ), ASTAR_FORBID_DIAGONALS, map, out );
 		REQUIRE( found == true );
-		REQUIRE( out.size() == 191 );
+		REQUIRE( out.Size() == 191 );
 		REQUIRE( out[ 0 ] == Cell( 164, 90 ) );
 	}
 }

@@ -1,17 +1,24 @@
 #include <GL/gl3w.h>
 
+#define STB_IMAGE_IMPLEMENTATION // force following include to generate implementation
+#include <stb_image.h>
+#define STB_TRUETYPE_IMPLEMENTATION
+
 #include <SDL.h>
 #include <chrono>
 #include <glm/glm.hpp>
+#include <glm/gtc/noise.hpp>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_opengl3.h>
 #include <imgui/imgui_impl_sdl.h>
+#include <random>
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyOpenGL.hpp>
 #include <unordered_map>
 
 #include "buildings/building.h"
 #include "buildings/placement.h"
+#include "buildings/woodworking.h"
 #include "collider.h"
 #include "entity.h"
 #include "game.h"
@@ -22,6 +29,7 @@
 #include "ngLib/nglib.h"
 #include "packer.h"
 #include "packer_resource_list.h"
+#include "pathfinding_job.h"
 #include "registery.h"
 #include "renderer.h"
 #include "shader.h"
@@ -47,12 +55,11 @@ NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #if defined( BENCHMARK_ENABLED )
 #include "../test/benchmarks.h"
 #endif
-
-#define STB_IMAGE_IMPLEMENTATION // force following include to generate implementation
-#include <stb_image.h>
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "pathfinding_job.h"
-#include <stb_truetype.h>
+#include "buildings/debug_dump.h"
+#include "buildings/delivery.h"
+#include "buildings/resource_fetcher.h"
+#include "buildings/storage_house.h"
+#include "environment/trees.h"
 
 void GLErrorCallback( GLenum         source,
                       GLenum         type,
@@ -72,6 +79,7 @@ Game * theGame;
 static void DrawDebugWindow();
 
 Camera mainCamera;
+Camera shadowCamera;
 
 static void Update( float dt ) {}
 
@@ -192,12 +200,19 @@ int main( int ac, char ** av ) {
 	theGame->systemManager.CreateSystem< SystemFetcher >();
 	theGame->systemManager.CreateSystem< SystemPathfinding >();
 	theGame->systemManager.CreateSystem< SystemMigrant >();
+	theGame->systemManager.CreateSystem< SystemWoodshop >();
+	theGame->systemManager.CreateSystem< SystemWoodworker >();
+	theGame->systemManager.CreateSystem< SystemDeliveryGuy >();
+	theGame->systemManager.CreateSystem< SystemStorageHouse >();
+	theGame->systemManager.CreateSystem< SystemDebugDump >();
+	theGame->systemManager.CreateSystem< SystemTree >();
 
 	theGame->systemManager.StartJobs();
 
 	Model groundModel;
 	CreateTexturedPlane( 200.0f, 200.0f, 64.0f,
-	                     *( theGame->package.GrabResource( PackerResources::GRASS_TEXTURE_PNG ) ), groundModel );
+	                     *( theGame->package.GrabResource( PackerResources::GROUND_TEXTURE_MONOCOLOR_PNG ) ),
+	                     groundModel );
 	Model roadModel;
 	CreateTexturedPlane( 1.0f, 1.0f, 1.0f, *( theGame->package.GrabResource( PackerResources::ROAD_TEXTURE_PNG ) ),
 	                     roadModel );
@@ -213,6 +228,8 @@ int main( int ac, char ** av ) {
 	for ( u32 x = 0; x < 20; x++ ) {
 		SpawnRoadTile( registery, map, Cell( x, 0 ) );
 	}
+	PlaceBuilding( registery, Cell( 1, 3 ), BuildingKind::FOUNTAIN, map );
+	PlaceBuilding( registery, Cell( 1, 2 ), BuildingKind::FOUNTAIN, map );
 	PlaceBuilding( registery, Cell( 1, 1 ), BuildingKind::FOUNTAIN, map );
 	PlaceBuilding( registery, Cell( 2, 1 ), BuildingKind::MARKET, map );
 	PlaceBuilding( registery, Cell( 5, 1 ), BuildingKind::FARM, map );
@@ -223,8 +240,8 @@ int main( int ac, char ** av ) {
 	PlaceBuilding( registery, Cell( 15, 1 ), BuildingKind::HOUSE, map );
 	PlaceBuilding( registery, Cell( 17, 1 ), BuildingKind::HOUSE, map );
 	PlaceBuilding( registery, Cell( 19, 1 ), BuildingKind::HOUSE, map );
-	// run for 1m
-	for ( int64 i = 0; i < 60 * numTicksPerSeconds; i++ ) {
+	// run for 2m
+	for ( int64 i = 0; i < 120 * numTicksPerSeconds; i++ ) {
 		theGame->clock++;
 		FixedUpdate( 1 );
 	}
@@ -234,6 +251,33 @@ int main( int ac, char ** av ) {
 	ng_assert( cpntHousing.numCurrentlyLiving > 0 );
 	ng_assert( cpntHousing.tier == 1 );
 #endif
+
+	{
+		std::uniform_real_distribution< float > randomFloats( 0.0, 1.0 ); // random floats between [0.0, 1.0]
+		std::default_random_engine              generator;
+		auto &                                  reg = registery;
+		for ( u32 x = 0; x < map.sizeX; x++ ) {
+			for ( u32 z = 0; z < map.sizeZ; z++ ) {
+				constexpr float treeGenerationThreshold = 0.75f;
+				float           simplex = ( glm::simplex( glm::vec2( x / 64.0f, z / 64.0f ) ) + 1.0f ) / 2.0f;
+				if ( simplex > treeGenerationThreshold ) {
+					auto pine = reg.CreateEntity();
+					Cell cell( x, z );
+					map.SetTile( cell, MapTile::TREE );
+					auto & transform = reg.AssignComponent< CpntTransform >( pine );
+					transform.SetTranslation( GetPointInMiddleOfCell( cell ) );
+					float modifier = 0.75f + randomFloats( generator ) / 2.0f;
+					transform.SetScale( modifier );
+					float modifierY = 0.75f + randomFloats( generator ) / 2.0f;
+					transform.SetScaleY( modifierY );
+					transform.SetRotation( { 0.0f, 360.0f * randomFloats( generator ), 0.0f } );
+					reg.AssignComponent< CpntTree >( pine );
+				}
+				z += roundf( randomFloats( generator ) * 3.0f );
+			}
+			x += roundf( randomFloats( generator ) * 3.0f );
+		}
+	}
 
 	auto  lastFrameTime = std::chrono::high_resolution_clock::now();
 	float fixedTimeStepAccumulator = 0.0f;
@@ -270,35 +314,41 @@ int main( int ac, char ** av ) {
 			window.shouldClose = true;
 		}
 
-		fixedTimeStepAccumulator += dt;
+		fixedTimeStepAccumulator += dt * theGame->speed;
 		int numFixedSteps = ( int )floorf( fixedTimeStepAccumulator / FIXED_TIMESTEP );
 		if ( numFixedSteps > 0 ) {
 			fixedTimeStepAccumulator -= numFixedSteps * FIXED_TIMESTEP;
 		}
-		// for ( int i = 0; i < numFixedSteps; i++ ) {
-		theGame->clock += numFixedSteps;
-		FixedUpdate( numFixedSteps );
-		//}
+
+		if ( numFixedSteps > 0 ) {
+			theGame->clock += numFixedSteps;
+			FixedUpdate( numFixedSteps );
+		}
+
 		Update( pauseSim ? 0.0f : dt );
 		{
 			ZoneScopedN( "Update that should go away" );
 
 			static CpntTransform cameraTargetTransform;
-			static glm::vec3     cameraTargetNewPosition( 0.0f, 0.0f, 0.0f );
+			static glm::vec3     cameraTargetNewPosition( 20.0f, 0.0f, 20.0f );
 			static float         cameraTargetRotation = 45.0f;
+			static float         cameraTargetNewRotation = cameraTargetRotation;
+
 			ImGui::SliderFloat( "camera target rotation angle", &cameraTargetRotation, -180.0f, 180.0f );
 			cameraTargetTransform.SetRotation( { 0.0f, cameraTargetRotation, 0.0f } );
 			ImGui::Text( "camera target front: %f %f %f\n", cameraTargetTransform.Front().x,
 			             cameraTargetTransform.Front().y, cameraTargetTransform.Front().z );
 
-			static float movementSpeed = 0.5f;
-			static float scrollSpeed = 1.0f;
+			static float movementSpeed = 80.0f;
+			static float scrollSpeed = 5.0f;
+			static float rotationSpeed = 80.0f;
 			static float movementTime = 5.0f;
-			ImGui::SliderFloat( "movement speed", &movementSpeed, 0.0f, 90.0f );
+			ImGui::SliderFloat( "movement speed", &movementSpeed, 0.0f, 180.0f );
+			ImGui::SliderFloat( "rotation speed", &rotationSpeed, 0.0f, 180.0f );
 			ImGui::SliderFloat( "scroll speed ", &scrollSpeed, 0.0f, 90.0f );
 			ImGui::SliderFloat( "movement time", &movementTime, 0.0f, 90.0f );
 
-			static float cameraDistance = 250.0f;
+			static float cameraDistance = 100.0f;
 			static float cameraNewDistance = cameraDistance;
 			static float cameraRotationAngle = 45.0f;
 			ImGui::SliderFloat( "camera distance", &cameraDistance, 0.0f, 500.0f );
@@ -306,7 +356,7 @@ int main( int ac, char ** av ) {
 
 			// the closer the camera is, the slower we want to go
 			// Consider base speed is the speed when the camera is 250 unit away up
-			float scaledMovementSpeed = cameraDistance / 250.0f * movementSpeed;
+			float scaledMovementSpeed = cameraDistance / 250.0f * movementSpeed * dt;
 
 			if ( io.keyboard.IsKeyDown( eKey::KEY_D ) )
 				cameraTargetNewPosition += ( cameraTargetTransform.Right() * scaledMovementSpeed );
@@ -317,12 +367,18 @@ int main( int ac, char ** av ) {
 			if ( io.keyboard.IsKeyDown( eKey::KEY_S ) )
 				cameraTargetNewPosition -= ( cameraTargetTransform.Front() * scaledMovementSpeed );
 
+			if ( io.keyboard.IsKeyDown( eKey::KEY_Q ) )
+				cameraTargetNewRotation -= rotationSpeed * dt;
+			if ( io.keyboard.IsKeyDown( eKey::KEY_E ) )
+				cameraTargetNewRotation += rotationSpeed * dt;
+			cameraTargetRotation = glm::mix( cameraTargetRotation, cameraTargetNewRotation, dt * movementTime );
+
 			cameraTargetTransform.SetTranslation(
 			    glm::mix( cameraTargetTransform.GetTranslation(), cameraTargetNewPosition, dt * movementTime ) );
 			ImGui::Text( "Camera target position: %f %f %f\n", cameraTargetTransform.GetTranslation().x,
 			             cameraTargetTransform.GetTranslation().y, cameraTargetTransform.GetTranslation().z );
 
-			cameraNewDistance += io.mouse.wheelMotion.y * scrollSpeed;
+			cameraNewDistance -= io.mouse.wheelMotion.y * scrollSpeed;
 			cameraDistance = glm::mix( cameraDistance, cameraNewDistance, dt * movementTime );
 
 			CpntTransform cameraTransform;
@@ -350,6 +406,11 @@ int main( int ac, char ** av ) {
 			constexpr float farPlane = 1000.0f;
 			ImGui::SliderFloat( "fovy", &fovY, 0.0f, 90.0f );
 			mainCamera.proj = glm::perspective( glm::radians( fovY ), aspectRatio, nearPlane, farPlane );
+
+			shadowCamera.position = mainCamera.position;
+			shadowCamera.front = mainCamera.front;
+			shadowCamera.view = mainCamera.view;
+			shadowCamera.proj = glm::ortho( -20, 20, -20, 20 );
 
 			ImGui::Text( "Mouse position: %d %d", io.mouse.position.x, io.mouse.position.y );
 			ImGui::Text( "Mouse offset: %f %f", io.mouse.offset.x, io.mouse.offset.y );
@@ -425,9 +486,17 @@ int main( int ac, char ** av ) {
 						currentMouseAction = MouseAction::BUILD;
 						buildingKindSelected = BuildingKind::MARKET;
 					}
+					if ( ImGui::Button( "Woodshop" ) ) {
+						currentMouseAction = MouseAction::BUILD;
+						buildingKindSelected = BuildingKind::WOODSHOP;
+					}
 					if ( ImGui::Button( "Fountain" ) ) {
 						currentMouseAction = MouseAction::BUILD;
 						buildingKindSelected = BuildingKind::FOUNTAIN;
+					}
+					if ( ImGui::Button( "[DEBUG] Dump" ) ) {
+						currentMouseAction = MouseAction::BUILD;
+						buildingKindSelected = BuildingKind::DEBUG_DUMP;
 					}
 					if ( ImGui::Button( "Delete" ) ) {
 						currentMouseAction = MouseAction::DESTROY;
@@ -438,10 +507,11 @@ int main( int ac, char ** av ) {
 
 			if ( selectedEntity != INVALID_ENTITY ) {
 				if ( ImGui::Begin( "Entity selected" ) ) {
-					ImGui::Text( "ID: %llu\n", selectedEntity );
+					ImGui::Text( "ID: %llu, version: %llu\n", selectedEntity.id, selectedEntity.version );
 					if ( registery.HasComponent< CpntBuilding >( selectedEntity ) ) {
 						auto & building = registery.GetComponent< CpntBuilding >( selectedEntity );
 						ImGui::Text( "Employees: %d/%d\n", building.workersEmployed, building.workersNeeded );
+						ImGui::Text( "Connected to a road: %s\n", building.hasRoadConnection ? "Yes" : "No" );
 					}
 					if ( registery.HasComponent< CpntHousing >( selectedEntity ) ) {
 						auto & housing = registery.GetComponent< CpntHousing >( selectedEntity );
@@ -479,6 +549,24 @@ int main( int ac, char ** av ) {
 							ImGui::Text( "%s: %d\n", name, storage.GetResourceAmount( ( GameResource )i ) );
 						}
 					}
+
+					if ( registery.HasComponent< CpntDebugDump >( selectedEntity ) ) {
+						auto &               dump = registery.GetComponent< CpntDebugDump >( selectedEntity );
+						static const char ** resourceList = nullptr;
+						if ( resourceList == nullptr ) {
+							resourceList = new const char *[ ( int )GameResource::NUM_RESOURCES ];
+							ForEveryGameResource( resource ) {
+								resourceList[ ( int )resource ] = GameResourceToString( resource );
+							}
+						}
+
+						int currentIndex = ( int )dump.resourceToDump;
+						if ( ImGui::Combo( "resource to dump", &currentIndex, resourceList,
+						                   ( int )GameResource::NUM_RESOURCES ) ) {
+							dump.resourceToDump = ( GameResource )currentIndex;
+						}
+					}
+
 					ImGui::End();
 				}
 			}
@@ -605,7 +693,15 @@ int main( int ac, char ** av ) {
 		{
 			ZoneScopedN( "Render" );
 			theGame->window.BindDefaultFramebuffer();
-			mainCamera.Bind();
+			ViewProjUBOData uboData{};
+			uboData.view = mainCamera.view;
+			uboData.projection = mainCamera.proj;
+			uboData.viewProj = mainCamera.proj * mainCamera.view;
+			uboData.shadowViewProj = shadowCamera.proj * shadowCamera.view;
+			uboData.cameraPosition = glm::vec4( mainCamera.position, 1.0f );
+			uboData.cameraFront = glm::vec4( mainCamera.front, 1.0f );
+			theGame->renderer.FillViewProjUBO( &uboData );
+
 			Render();
 			static glm::vec3 lightDirection( 1.0f, -2.0f, 1.0f );
 			ImGui::DragFloat3( "lightDirection", &lightDirection[ 0 ] );
@@ -626,11 +722,12 @@ int main( int ac, char ** av ) {
 
 			// Just push the ground a tiny below y to avoid clipping
 			CpntTransform groundTransform;
-			groundTransform.SetTranslation( { 0.0f, -0.1f, 0.0f } );
+			groundTransform.SetTranslation( { 0.0f, -0.2f, 0.0f } );
 
 			renderer.GeometryPass( registery, &groundModel, &groundTransform, 1, &roadBatchedTiles, 1 );
 			renderer.LigthningPass();
 			renderer.PostProcessPass();
+			renderer.DebugPass();
 
 			window.BindDefaultFramebuffer();
 			static bool drawCollisionBoxes = false;
@@ -729,12 +826,13 @@ int main( int ac, char ** av ) {
 }
 
 void DrawDebugWindow() {
-	// static bool opened = true;
-	// ImGui::ShowDemoWindow( &opened );
+	static bool opened = true;
+	ImGui::ShowDemoWindow( &opened );
 	ImGui::Begin( "Debug" );
 
 	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
 	             ImGui::GetIO().Framerate );
+	ImGui::SliderFloat( "Game speed", &( theGame->speed ), 0.0f, 10.0f );
 	if ( ImGui::TreeNode( "Window" ) ) {
 		theGame->window.DebugDraw();
 		ImGui::TreePop();

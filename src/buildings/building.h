@@ -26,6 +26,8 @@ enum class BuildingKind {
 	STORAGE_HOUSE,
 	MARKET,
 	FOUNTAIN,
+	WOODSHOP,
+	DEBUG_DUMP,
 };
 
 struct CpntBuilding {
@@ -35,16 +37,24 @@ struct CpntBuilding {
 	u32          tileSizeZ;
 	u32          workersNeeded = 0;
 	u32          workersEmployed = 0;
+	bool         hasRoadConnection = false;
 
 	double GetEfficiency() const {
+		if ( !hasRoadConnection ) {
+			return 0.0f;
+		}
 		if ( workersNeeded == 0 )
 			return 1.0f;
 		return ( double )workersEmployed / ( double )workersNeeded;
 	}
 	double GetInvEfficiency() const {
+		if ( !hasRoadConnection )
+			return 0.0f;
+		if ( workersNeeded == 0 )
+			return 1.0f;
 		if ( workersEmployed == 0 )
 			return 0.0f;
-		return ( double )workersNeeded / (double)workersEmployed;
+		return ( double )workersNeeded / ( double )workersEmployed;
 	}
 
 	// This allows to iterate over adjacent cells using a for loop
@@ -110,6 +120,9 @@ struct CpntBuilding {
 		};
 
 		Iterator begin() const {
+			if ( building->tileSizeX == 0 || building->tileSizeZ == 0 ) {
+				return end();
+			}
 			auto start = Iterator( building, map, -1, 0 );
 			while ( !start.IsValid() && start != end() ) {
 				++start;
@@ -124,14 +137,20 @@ struct CpntBuilding {
 
 enum class GameResource {
 	WHEAT = 0,
+	WOOD = 1,
 	NUM_RESOURCES, // keep me at the end
 };
+
+#define ForEveryGameResource( varName )                                                                                \
+	for ( GameResource varName = ( GameResource )( 0 ); varName != GameResource::NUM_RESOURCES;                        \
+	      varName = ( GameResource )( ( int )varName + 1 ) )
 
 struct CpntBuildingProducing {
 	GameResource resource;
 	Duration     timeToProduceBatch = 0;
 	Duration     timeSinceLastProduction = 0;
 	u32          batchSize = 1;
+	Entity       deliveryGuy = INVALID_ENTITY;
 };
 
 struct CpntMarket {
@@ -153,19 +172,10 @@ struct CpntServiceBuilding {
 };
 
 struct CpntSeller {
-	Cell lastCellDistributed = INVALID_CELL;
-};
-
-struct CpntResourceFetcher {
-	Entity parent;
-	Entity target;
-
-	enum class CurrentDirection {
-		TO_PARENT,
-		TO_TARGET,
-	};
-
-	CurrentDirection direction = CurrentDirection::TO_TARGET;
+	CpntSeller() = default;
+	CpntSeller( Entity market ) : market( market ) {}
+	Entity market = INVALID_ENTITY;
+	Cell   lastCellDistributed = INVALID_CELL;
 };
 
 struct CpntServiceWanderer {
@@ -179,6 +189,8 @@ struct CpntResourceInventory {
 		u32 max = 0;
 	};
 	StorageCapacity storage[ ( int )GameResource::NUM_RESOURCES ] = {};
+	bool            hasMaxTotalAmount = false;
+	u32             maxTotalAmount = 0;
 
 	// Returns the amount actually stored
 	u32 StoreRessource( GameResource resource, u32 amount );
@@ -186,24 +198,40 @@ struct CpntResourceInventory {
 	u32  RemoveResource( GameResource resource, u32 amount );
 	void SetResourceMaxCapacity( GameResource resource, u32 max ) { storage[ ( int )resource ].max = max; }
 	u32  GetResourceAmount( GameResource resource ) const { return storage[ ( int )resource ].currentAmount; }
-	u32  GetResourceCapacity( GameResource resource ) const { return storage[ ( int )resource ].max; }
+	u32  GetResourceCapacity( GameResource resource ) const {
+        auto & resourceStorage = storage[ ( int )resource ];
+        u32    capacity = hasMaxTotalAmount ? MIN( resourceStorage.max - resourceStorage.currentAmount,
+                                                maxTotalAmount - GetTotalAmount() )
+                                         : resourceStorage.max - resourceStorage.currentAmount;
+        return capacity;
+	}
 	bool IsEmpty() const;
+	u32  GetTotalAmount() const {
+        u32 total = 0;
+        ForEveryGameResource( resource ) { total += GetResourceAmount( resource ); }
+        return total;
+	}
 };
 
 struct CpntHousing {
 	CpntHousing() {}
 	CpntHousing( u32 _tier ) : tier( _tier ) {}
-	u32 maxHabitants = 0;
-	u32 numCurrentlyLiving = 0;
-	u32 numIncomingMigrants = 0;
-	u32 tier = 0;
+	u32      maxHabitants = 0;
+	u32      numCurrentlyLiving = 0;
+	u32      numIncomingMigrants = 0;
+	u32      tier = 0;
+	Duration foodConsuptionSpeedPerHabitant = DurationFromSeconds( 60 ); // every habitant eats one food per minute
+	TimePoint lastAteAt = 0;
 
 	TimePoint lastServiceAccess[ ( int )GameService::NUM_SERVICES ] = {};
 	bool      isServiceRequired[ ( int )GameService::NUM_SERVICES ] = {};
 };
 
 struct SystemResourceInventory : public System< CpntResourceInventory > {
-	SystemResourceInventory() { ListenToGlobal( MESSAGE_INVENTORY_TRANSACTION ); }
+	SystemResourceInventory() {
+		ListenToGlobal( MESSAGE_INVENTORY_TRANSACTION );
+		ListenToGlobal( MESSAGE_FULL_INVENTORY_TRANSACTION );
+	}
 	virtual void Update( Registery & reg, Duration ticks ) override {}
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
 };
@@ -221,6 +249,8 @@ struct SystemBuilding : public System< CpntBuilding > {
 	SystemBuilding() {
 		ListenToGlobal( MESSAGE_WORKER_AVAILABLE );
 		ListenToGlobal( MESSAGE_WORKER_REMOVED );
+		ListenToGlobal( MESSAGE_ROAD_CELL_ADDED );
+		ListenToGlobal( MESSAGE_ROAD_CELL_REMOVED );
 	}
 	virtual void Update( Registery & reg, Duration ticks ) override;
 	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
@@ -256,11 +286,6 @@ struct SystemServiceBuilding : public System< CpntServiceBuilding > {
 
 struct SystemServiceWanderer : public System< CpntServiceWanderer > {
 	virtual void Update( Registery & reg, Duration ticks ) override;
-};
-
-struct SystemFetcher : public System< CpntResourceFetcher > {
-	virtual void HandleMessage( Registery & reg, const Message & msg ) override;
-	virtual void OnCpntAttached( Entity e, CpntResourceFetcher & t ) override;
 };
 
 struct CpntMigrant {

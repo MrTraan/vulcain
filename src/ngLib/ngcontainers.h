@@ -367,7 +367,7 @@ template < typename T > struct LinkedList {
 		head = newNode;
 		return head->data;
 	}
-	
+
 	T & PushFront( const T & elem ) {
 		Node * newNode = nodePool.Pop();
 		newNode->data = elem;
@@ -378,7 +378,6 @@ template < typename T > struct LinkedList {
 		head = newNode;
 		return head->data;
 	}
-	
 
 	void PopFront() {
 		if ( head != nullptr ) {
@@ -405,6 +404,13 @@ template < typename T > struct LinkedList {
 	T & Front() {
 		ng_assert( head != nullptr );
 		return head->data;
+	}
+
+	Node * GetLastNode() {
+		Node * cursor = head;
+		while ( cursor != nullptr && cursor->next != nullptr )
+			cursor = cursor->next;
+		return cursor;
 	}
 
 	Node * GetNodeWithOffset( u64 offset ) {

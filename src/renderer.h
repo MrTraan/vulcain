@@ -17,6 +17,7 @@ struct ViewProjUBOData {
 	glm::mat4 projection;
 	glm::mat4 view;
 	glm::mat4 viewProj;
+	glm::mat4 shadowViewProj;
 	glm::vec4 cameraPosition;
 	glm::vec4 cameraFront;
 };
@@ -33,8 +34,6 @@ struct Camera {
 	glm::vec3 front;
 	glm::mat4 proj;
 	glm::mat4 view;
-
-	void Bind();
 };
 
 struct Framebuffer {
@@ -92,6 +91,9 @@ struct Renderer {
 	u32                           SSAONoiseTexture;
 	ng::DynamicArray< glm::vec3 > SSAOKernel;
 
+	u32 shadowFramebufferID;
+	u32 shadowDepthMap;
+
 	void InitRenderer( int width, int height );
 	void ShutdownRenderer();
 
@@ -105,6 +107,7 @@ struct Renderer {
 	                   u32                   numInstancesModels );
 	void LigthningPass();
 	void PostProcessPass();
+	void DebugPass();
 
 	void FillViewProjUBO( const ViewProjUBOData * data );
 	void FillLightUBO( const LightUBOData * data );

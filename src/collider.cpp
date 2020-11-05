@@ -1,6 +1,22 @@
 #include "collider.h"
 #include "entity.h"
 
+//bool BoxCollidesWithBox( 
+//	const CpntBoxCollider & colliderA, const CpntTransform & transformA,
+//	const CpntBoxCollider & colliderB, const CpntTransform & transformB
+//	) {
+//	glm::vec3 aabbMinA = colliderA.center - ( colliderA.size / 2.0f );
+//	glm::vec3 aabbMaxA = colliderA.center + ( colliderA.size / 2.0f );
+//	glm::vec3 aabbMinB = colliderB.center - ( colliderB.size / 2.0f );
+//	glm::vec3 aabbMaxB = colliderB.center + ( colliderB.size / 2.0f );
+//
+//	aabbMinA = glm::vec3( transformA.GetMatrix() * glm::vec4(aabbMinA, 1.0f) );
+//	aabbMaxA = glm::vec3( transformA.GetMatrix() * glm::vec4(aabbMaxA, 1.0f) );
+//	aabbMinB = glm::vec3( transformA.GetMatrix() * glm::vec4(aabbMinB, 1.0f) );
+//	aabbMaxB = glm::vec3( transformA.GetMatrix() * glm::vec4(aabbMaxB, 1.0f) );
+//
+//}
+
 bool RayCollidesWithBox( const Ray &             ray,
                          const CpntBoxCollider & collider,
                          const CpntTransform &   transform,

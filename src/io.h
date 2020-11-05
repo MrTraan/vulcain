@@ -12,6 +12,8 @@ enum eKey {
 	KEY_S = SDLK_s,
 	KEY_D = SDLK_d,
 	KEY_V = SDLK_v,
+	KEY_Q = SDLK_q,
+	KEY_E = SDLK_e,
 
 	KEY_UP = SDLK_UP,
 	KEY_DOWN = SDLK_DOWN,

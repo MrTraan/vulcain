@@ -43,6 +43,7 @@ if ( ENABLE_TESTING )
 	set( TEST_SOURCES
 	"test/test_road_network.cpp"
 	"test/test_containers.cpp"
+	"test/test_registry.cpp"
 	)
 else()
 	set( TEST_SOURCES "" )
@@ -71,7 +72,7 @@ add_executable(vulcain
 	"./lib/imgui/imgui_impl_opengl3.cpp"
 
 	"src/io.cpp" "src/packer.cpp" "src/guizmo.cpp" "src/shader.h" "src/shader.cpp" "src/renderer.h" "src/renderer.cpp" "src/mesh.h" "src/mesh.cpp" "src/obj_parser.h" "src/obj_parser.cpp" "src/entity.h" "src/collider.h" "src/collider.cpp" "src/navigation.h" "src/navigation.cpp" "src/ngLib/ngcontainers.h" "src/message.h" "src/registery.h"  "src/collada_parser.h" "src/collada_parser.cpp"
- "src/buildings/building.h" "src/buildings/building.cpp" "src/buildings/farm.h" "src/buildings/placement.h" "src/buildings/placement.cpp" "src/map.h" "src/map.cpp" "src/ui/ui.h" "src/ui/ui.cpp" "src/service.h" "src/service.cpp" "src/game_time.h" "src/message.cpp" "src/system.h" "src/system.cpp" "src/pathfinding_job.h" "src/pathfinding_job.cpp" "src/registery.cpp")
+ "src/buildings/building.h" "src/buildings/building.cpp"  "src/buildings/placement.h" "src/buildings/placement.cpp" "src/map.h" "src/map.cpp" "src/ui/ui.h" "src/ui/ui.cpp" "src/service.h" "src/service.cpp" "src/game_time.h" "src/message.cpp" "src/system.h" "src/system.cpp" "src/pathfinding_job.h" "src/pathfinding_job.cpp" "src/registery.cpp" "src/buildings/woodworking.h" "src/buildings/woodworking.cpp" "src/buildings/delivery.h" "src/buildings/delivery.cpp" "src/buildings/storage_house.h" "src/buildings/storage_house.cpp" "src/buildings/debug_dump.h" "src/buildings/debug_dump.cpp" "src/buildings/resource_fetcher.h" "src/buildings/resource_fetcher.cpp" "src/environment/trees.h" "src/environment/trees.cpp")
 
 
 target_compile_options( vulcain PRIVATE

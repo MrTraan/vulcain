@@ -17,16 +17,19 @@ struct Shader {
 		glUniform2f( glGetUniformLocation( ID, name ), v.x, v.y );
 	}
 	void SetVector( const char * name, const glm::vec3 & v ) const {
-		glUniform3f( glGetUniformLocation( ID, name ), v.x, v.y, v.z );
+		int location = glGetUniformLocation( ID, name );
+		glUniform3f( location, v.x, v.y, v.z );
 	}
 	void SetVectorArray( const char * name, const glm::vec3 * v, u32 count ) const {
 		glUniform3fv( glGetUniformLocation( ID, name ), count, ( float * )v );
 	}
 	void SetMatrix( const char * name, const glm::mat4x4 & mat ) const {
-		glUniformMatrix4fv( glGetUniformLocation( ID, name ), 1, GL_FALSE, glm::value_ptr( mat ) );
+		auto location = glGetUniformLocation( ID, name );
+		glUniformMatrix4fv( location, 1, GL_FALSE, glm::value_ptr( mat ) );
 	}
 	void SetMatrix3( const char * name, const glm::mat3x3 & mat ) const {
-		glUniformMatrix3fv( glGetUniformLocation( ID, name ), 1, GL_FALSE, glm::value_ptr( mat ) );
+		auto location = glGetUniformLocation( ID, name );
+		glUniformMatrix3fv( location, 1, GL_FALSE, glm::value_ptr( mat ) );
 	}
 };
 
@@ -45,6 +48,7 @@ struct ShaderAtlas {
 	Shader postProcessShader;
 	Shader ssaoShader;
 	Shader ssaoBlurShader;
+	Shader shadowPassShader;
 };
 
 extern ShaderAtlas g_shaderAtlas;

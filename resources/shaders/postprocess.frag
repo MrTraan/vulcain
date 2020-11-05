@@ -71,9 +71,9 @@ void main() {
 	vec3  specular = vec3( light_specular )* ( spec * fragSpecular );
 
 	// Curvature
-//	ivec2 texel = ivec2(gl_FragCoord.xy);
-//	float curvature = calculate_curvature(texel, curvature_ridge, curvature_valley);
-//	fragDiffuse *= curvature + 1.0;
+	ivec2 texel = ivec2(gl_FragCoord.xy);
+	float curvature = calculate_curvature(texel, curvature_ridge, curvature_valley);
+	fragDiffuse *= curvature + 1.0;
 
 	// ambiant 
 	vec3 ambiant = vec3( light_ambient.r * fragDiffuse * ambiantOcclusion );

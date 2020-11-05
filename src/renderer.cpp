@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "environment/trees.h"
 #include "game.h"
 #include "mesh.h"
 #include "ngLib/nglib.h"
@@ -83,6 +84,30 @@ void Renderer::InitRenderer( int width, int height ) {
 	if ( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE ) {
 		ng::Errorf( "SSAO blur Framebuffer not complete!\n" );
 	}
+
+	int SHADOW_MAP_WIDTH = width;
+	int SHADOW_MAP_HEIGHT = height;
+
+	glGenFramebuffers( 1, &shadowFramebufferID );
+
+	glGenTextures( 1, &shadowDepthMap );
+	glBindTexture( GL_TEXTURE_2D, shadowDepthMap );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 0, GL_DEPTH_COMPONENT,
+	              GL_FLOAT, NULL );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+	constexpr float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor );
+
+	glBindFramebuffer( GL_FRAMEBUFFER, shadowFramebufferID );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowDepthMap, 0 );
+	glDrawBuffer( GL_NONE );
+	glReadBuffer( GL_NONE );
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 }
 
 void Renderer::ShutdownRenderer() {
@@ -98,6 +123,9 @@ void Renderer::ShutdownRenderer() {
 	glDeleteTextures( 1, &SSAONoiseTexture );
 	glDeleteFramebuffers( 1, &SSAOBlurFbo );
 	glDeleteTextures( 1, &SSAOBlurColorBuffer );
+
+	glDeleteFramebuffers( 1, &shadowFramebufferID );
+	glDeleteTextures( 1, &shadowDepthMap );
 }
 
 void Renderer::SetResolution( int width, int height ) {}
@@ -122,12 +150,27 @@ void Renderer::GeometryPass( const Registery &     reg,
 		instancedModels[ i ].Render( g_shaderAtlas.instancedDeferredShader );
 	}
 
+	theGame->systemManager.GetSystem< SystemTree >().instances.Render( g_shaderAtlas.instancedDeferredShader );
+
 	g_shaderAtlas.deferredShader.Use();
 	for ( auto const & [ e, renderModel ] : reg.IterateOver< CpntRenderModel >() ) {
 		if ( renderModel.model != nullptr ) {
 			DrawModel( *renderModel.model, reg.GetComponent< CpntTransform >( e ), g_shaderAtlas.deferredShader );
 		}
 	}
+
+	glBindRenderbuffer( GL_RENDERBUFFER, 0 );
+	glBindFramebuffer( GL_FRAMEBUFFER, shadowFramebufferID );
+	glClear( GL_DEPTH_BUFFER_BIT );
+	g_shaderAtlas.shadowPassShader.Use();
+	for ( auto const & [ e, renderModel ] : reg.IterateOver< CpntRenderModel >() ) {
+		if ( renderModel.model != nullptr ) {
+			DrawModel( *renderModel.model, reg.GetComponent< CpntTransform >( e ), g_shaderAtlas.shadowPassShader,
+			           false );
+		}
+	}
+
+	g_shaderAtlas.deferredShader.Use();
 }
 
 void Renderer::LigthningPass() {
@@ -175,8 +218,8 @@ void Renderer::PostProcessPass() {
 	theGame->window.Clear();
 
 	g_shaderAtlas.postProcessShader.Use();
-	static float curvatureRidge = 1.0f;
-	static float curvatureValley = 1.0f;
+	static float curvatureRidge = 0.0f;
+	static float curvatureValley = 0.0f;
 	ImGui::SliderFloat( "curvature ridge", &curvatureRidge, 0.0f, 2.0f );
 	ImGui::SliderFloat( "curvature valley", &curvatureValley, 0.0f, 2.0f );
 	g_shaderAtlas.postProcessShader.SetFloat( "curvature_ridge", 0.5f / MAX( curvatureRidge * curvatureRidge, 1e-4 ) );
@@ -195,6 +238,9 @@ void Renderer::PostProcessPass() {
 	glBindVertexArray( fullScreenQuadVAO );
 	glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
 	glBindVertexArray( 0 );
+}
+
+void Renderer::DebugPass() {
 }
 
 void Renderer::FillViewProjUBO( const ViewProjUBOData * data ) {
@@ -231,6 +277,10 @@ void Renderer::DebugDraw() {
 
 	ImGui::Text( "SSAO blurred" );
 	ImGui::Image( ( ImTextureID )SSAOBlurColorBuffer, ImVec2( width / 2.0f, height / 2.0f ), ImVec2( 0, 1 ),
+	              ImVec2( 1, 0 ) );
+
+	ImGui::Text( "Shadow map" );
+	ImGui::Image( ( ImTextureID )shadowDepthMap, ImVec2( width / 2.0f, height / 2.0f ), ImVec2( 0, 1 ),
 	              ImVec2( 1, 0 ) );
 }
 
@@ -325,17 +375,6 @@ void Framebuffer::Destroy() {
 	glDeleteRenderbuffers( 1, &renderbufferID );
 	glDeleteTextures( 1, &textureID );
 	glDeleteFramebuffers( 1, &framebufferID );
-}
-
-void Camera::Bind() {
-	ViewProjUBOData uboData{};
-	uboData.view = view;
-	uboData.projection = proj;
-	uboData.viewProj = proj * view;
-	uboData.cameraPosition = glm::vec4( position, 1.0f );
-	uboData.cameraFront = glm::vec4( front, 1.0f );
-
-	theGame->renderer.FillViewProjUBO( &uboData );
 }
 
 static float lerp( float a, float b, float f ) { return a + f * ( b - a ); }

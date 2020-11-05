@@ -26,6 +26,7 @@ enum class MapTile {
 	ROAD,
 	ROAD_BLOCK,
 	BLOCKED,
+	TREE,
 };
 
 struct Map {
@@ -47,9 +48,12 @@ struct Map {
 		MapTile tile = GetTile( x, z );
 		return IsTileWalkable( tile );
 	}
-	bool IsTileWalkable( MapTile type ) const {
-		return type == MapTile::ROAD || type == MapTile::ROAD_BLOCK;
-	}
+	bool IsTileWalkable( MapTile type ) const { return type == MapTile::ROAD || type == MapTile::ROAD_BLOCK; }
+
+	bool IsTileAStarNavigable( Cell cell ) const { return IsTileAStarNavigable( GetTile( cell ) ); }
+	bool IsTileAStarNavigable( MapTile type ) const { return type == MapTile::EMPTY || type == MapTile::ROAD; }
+
+	bool IsValidTile( int64 x, int64 z ) const { return x >= 0 && x < sizeX && z >= 0 && z < sizeZ; }
 
 	u32 sizeX = 0;
 	u32 sizeZ = 0;

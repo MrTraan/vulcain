@@ -12,10 +12,16 @@ enum MessageType {
 	MESSAGE_NAVAGENT_DESTINATION_REACHED,
 	MESSAGE_NAVAGENT_MOVED_CELL,
 	MESSAGE_SERVICE_PROVIDED,
+	MESSAGE_FULL_INVENTORY_TRANSACTION,
 	MESSAGE_INVENTORY_TRANSACTION,
+	MESSAGE_INVENTORY_TRANSACTION_COMPLETED,
+	MESSAGE_INVENTORY_UPDATE,
 	MESSAGE_HOUSE_MIGRANT_ARRIVED,
 	MESSAGE_WORKER_AVAILABLE,
 	MESSAGE_WORKER_REMOVED,
+	MESSAGE_ROAD_CELL_REMOVED,
+	MESSAGE_ROAD_CELL_ADDED,
+	MESSAGE_WOODSHOP_WORKER_RETURNED,
 	MessageType_COUNT, // leave this a the end
 };
 
@@ -63,5 +69,24 @@ template < typename T > void PostMsg( MessageType type, const T & payload, Entit
 	msg.recipient = recipient;
 	msg.sender = sender;
 	FillMessagePayload< T >( msg, payload );
+	PostMsg( msg );
+}
+
+// PostMsgGlobal does not differ from PostMsg, because anyone can listen to any message globally
+// Its just an alias for clarity when we post a msg that we know will  only be listened to globally
+template < typename T > void PostMsgGlobal( MessageType type, const T & payload) {
+	Message msg{};
+	msg.type = type;
+	msg.recipient = INVALID_ENTITY;
+	msg.sender = INVALID_ENTITY;
+	FillMessagePayload< T >( msg, payload );
+	PostMsg( msg );
+}
+
+inline void PostMsgGlobal( MessageType type ) {
+	Message msg{};
+	msg.type = type;
+	msg.recipient = INVALID_ENTITY;
+	msg.sender = INVALID_ENTITY;
 	PostMsg( msg );
 }

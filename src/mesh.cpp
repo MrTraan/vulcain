@@ -96,20 +96,27 @@ void AllocateMeshGLBuffers( Mesh & mesh ) {
 	glBindVertexArray( 0 );
 }
 
-void DrawModel( const Model & model, const CpntTransform & parentTransform, Shader shader ) {
+void DrawModel( const Model &         model,
+                const CpntTransform & parentTransform,
+                Shader                shader,
+                bool                  bindMaterial /*= true */ ) {
 	for ( const Mesh & mesh : model.meshes ) {
 		glm::mat4 transform = parentTransform.GetMatrix() * mesh.transformation;
 		shader.SetMatrix( "modelTransform", transform );
-		glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform ) ) );
-		shader.SetMatrix3( "normalTransform", normalMatrix );
-		shader.SetVector( "material.ambient", mesh.material->ambiant );
-		shader.SetVector( "material.diffuse", mesh.material->diffuse );
-		shader.SetVector( "material.specular", mesh.material->specular );
-		shader.SetFloat( "material.shininess", mesh.material->shininess );
+		if ( bindMaterial ) {
+			glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform ) ) );
+			shader.SetMatrix3( "normalTransform", normalMatrix );
+			shader.SetVector( "material.ambient", mesh.material->ambiant );
+			shader.SetVector( "material.diffuse", mesh.material->diffuse );
+			shader.SetVector( "material.specular", mesh.material->specular );
+			shader.SetFloat( "material.shininess", mesh.material->shininess );
+		}
 
-		glActiveTexture( GL_TEXTURE0 );
 		glBindVertexArray( mesh.vao );
-		glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
+		if ( bindMaterial ) {
+			glActiveTexture( GL_TEXTURE0 );
+			glBindTexture( GL_TEXTURE_2D, mesh.material->diffuseTexture.id );
+		}
 		if ( mesh.material->mode == Material::MODE_TRANSPARENT ) {
 			glEnable( GL_BLEND );
 			glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
@@ -242,13 +249,28 @@ Texture Texture::DefaultWhiteTexture() {
 	return defaultTexture;
 }
 
-void InstancedModelBatch::AddInstanceAtPosition( const glm::vec3 & position ) {
-	positions.PushBack( position );
+void InstancedModelBatch::AddInstance( Entity e, const glm::mat4 & transform ) {
+	Instance & instance = instances.AllocateOne();
+	instance.transform = transform;
+	instance.id = e;
 	dirty = true;
 }
 
-bool InstancedModelBatch::RemoveInstancesWithPosition( const glm::vec3 & position ) {
-	bool modified = positions.DeleteValueFast( position );
+void InstancedModelBatch::AddInstanceAtPosition( const glm::vec3 & position ) {
+	Instance & instance = instances.AllocateOne();
+	instance.transform = glm::translate( glm::mat4( 1.0f ), position );
+	instance.id = INVALID_ENTITY;
+	dirty = true;
+}
+
+bool InstancedModelBatch::RemoveInstance( Entity e ) {
+	bool modified = false;
+	for ( int64 i = ( int64 )instances.Size() - 1; i >= 0; i-- ) {
+		if ( instances[ i ].id == e ) {
+			instances.DeleteIndexFast( i );
+			modified = true;
+		}
+	}
 	if ( modified ) {
 		dirty = true;
 		return true;
@@ -256,7 +278,24 @@ bool InstancedModelBatch::RemoveInstancesWithPosition( const glm::vec3 & positio
 	return false;
 }
 
-void InstancedModelBatch::Init( Model * model ) {
+bool InstancedModelBatch::RemoveInstancesWithPosition( const glm::vec3 & position ) {
+	glm::mat4 transform( 1.0f );
+	transform = glm::translate( transform, position );
+	bool modified = false;
+	for ( int64 i = ( int64 )instances.Size() - 1; i >= 0; i-- ) {
+		if ( instances[ i ].transform == transform ) {
+			instances.DeleteIndexFast( i );
+			modified = true;
+		}
+	}
+	if ( modified ) {
+		dirty = true;
+		return true;
+	}
+	return false;
+}
+
+void InstancedModelBatch::Init( const Model * model ) {
 	this->model = model;
 	glGenBuffers( 1, &arrayBuffer );
 	UpdateArrayBuffer();
@@ -265,8 +304,19 @@ void InstancedModelBatch::Init( Model * model ) {
 		unsigned int VAO = model->meshes[ i ].vao;
 		glBindVertexArray( VAO );
 		glEnableVertexAttribArray( 3 );
-		glVertexAttribPointer( 3, 3, GL_FLOAT, GL_FALSE, sizeof( glm::vec3 ), ( void * )0 );
+		constexpr u64 stride = sizeof( Instance );
+		constexpr u64 baseOffset = offsetof( Instance, transform );
+		glVertexAttribPointer( 3, 4, GL_FLOAT, GL_FALSE, stride, ( void * )( baseOffset + 0 * sizeof( glm::vec4 ) ) );
+		glEnableVertexAttribArray( 4 );
+		glVertexAttribPointer( 4, 4, GL_FLOAT, GL_FALSE, stride, ( void * )( baseOffset + 1 * sizeof( glm::vec4 ) ) );
+		glEnableVertexAttribArray( 5 );
+		glVertexAttribPointer( 5, 4, GL_FLOAT, GL_FALSE, stride, ( void * )( baseOffset + 2 * sizeof( glm::vec4 ) ) );
+		glEnableVertexAttribArray( 6 );
+		glVertexAttribPointer( 6, 4, GL_FLOAT, GL_FALSE, stride, ( void * )( baseOffset + 3 * sizeof( glm::vec4 ) ) );
 		glVertexAttribDivisor( 3, 1 );
+		glVertexAttribDivisor( 4, 1 );
+		glVertexAttribDivisor( 5, 1 );
+		glVertexAttribDivisor( 6, 1 );
 
 		glBindVertexArray( 0 );
 	}
@@ -274,7 +324,7 @@ void InstancedModelBatch::Init( Model * model ) {
 
 void InstancedModelBatch::UpdateArrayBuffer() {
 	glBindBuffer( GL_ARRAY_BUFFER, arrayBuffer );
-	glBufferData( GL_ARRAY_BUFFER, positions.Size() * sizeof( glm::vec3 ), positions.data, GL_STATIC_DRAW );
+	glBufferData( GL_ARRAY_BUFFER, instances.Size() * sizeof( Instance ), instances.data, GL_STATIC_DRAW );
 }
 
 void InstancedModelBatch::Render( Shader & shader ) {
@@ -285,9 +335,7 @@ void InstancedModelBatch::Render( Shader & shader ) {
 	}
 	shader.Use();
 	for ( const Mesh & mesh : model->meshes ) {
-		glm::mat4 transform( 1.0f );
-		glm::mat3 normalMatrix( glm::transpose( glm::inverse( transform ) ) );
-		shader.SetMatrix3( "normalTransform", normalMatrix );
+		shader.SetMatrix( "baseTransform", mesh.transformation );
 		shader.SetVector( "material.ambient", mesh.material->ambiant );
 		shader.SetVector( "material.diffuse", mesh.material->diffuse );
 		shader.SetVector( "material.specular", mesh.material->specular );
@@ -301,7 +349,7 @@ void InstancedModelBatch::Render( Shader & shader ) {
 			glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 		}
 		glDrawElementsInstanced( GL_TRIANGLES, ( GLsizei )mesh.indices.size(), GL_UNSIGNED_INT, nullptr,
-		                         positions.Size() );
+		                         instances.Size() );
 		glDisable( GL_BLEND );
 		glBindVertexArray( 0 );
 	}

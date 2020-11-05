@@ -2,14 +2,18 @@
 #include "../packer_resource_list.h"
 #include "../pathfinding_job.h"
 #include "collider.h"
+#include "delivery.h"
 #include "game.h"
 #include "mesh.h"
 #include "registery.h"
+#include "resource_fetcher.h"
 
 const char * GameResourceToString( GameResource resource ) {
 	switch ( resource ) {
 	case GameResource::WHEAT:
 		return "Wheat";
+	case GameResource::WOOD:
+		return "Wood";
 	default:
 		ng_assert( false );
 		return nullptr;
@@ -66,8 +70,8 @@ void SystemHousing::Update( Registery & reg, Duration ticks ) {
 			PathfindingTask task{};
 			task.requester = migrant;
 			task.type = PathfindingTask::Type::FROM_CELL_TO_BUILDING;
-			task.startCell = GetCellForPoint( GetPointInMiddleOfCell( migrantSpawnPosition ) );
-			task.goalBuilding = reg.GetComponent< CpntBuilding >( e );
+			task.start.cell = migrantSpawnPosition;
+			task.goal.building = reg.GetComponent< CpntBuilding >( e );
 			task.movementAllowed = ASTAR_ALLOW_DIAGONALS;
 			PostMsg< PathfindingTask >( MESSAGE_PATHFINDING_REQUEST, task, INVALID_ENTITY, migrant );
 
@@ -78,14 +82,22 @@ void SystemHousing::Update( Registery & reg, Duration ticks ) {
 		// Let's see if house can evolve
 		if ( housing.tier == 0 ) {
 			auto & inventory = reg.GetComponent< CpntResourceInventory >( e );
-			if ( inventory.GetResourceAmount( GameResource::WHEAT ) >= 15 &&
+			if ( inventory.GetResourceAmount( GameResource::WHEAT ) >= 1 &&
 			     IsServiceFulfilled( housing.lastServiceAccess[ ( int )GameService::WATER ], theGame->clock ) ) {
-				ng::Printf( "This house is ready to evolve!\n" );
 				auto & model = reg.GetComponent< CpntRenderModel >( e );
 				model.model = g_modelAtlas.GetModel( PackerResources::HOUSE_DAE );
 				housing.tier = 1;
 				housing.maxHabitants = 8;
+				inventory.SetResourceMaxCapacity( GameResource::WHEAT, 8 );
+				inventory.SetResourceMaxCapacity( GameResource::WOOD, 8 );
 			}
+		}
+
+		if ( ( theGame->clock - housing.lastAteAt ) * housing.numCurrentlyLiving >
+		     housing.foodConsuptionSpeedPerHabitant ) {
+			housing.lastAteAt = theGame->clock;
+			auto & inventory = reg.GetComponent< CpntResourceInventory >( e );
+			inventory.RemoveResource( GameResource::WHEAT, 1 );
 		}
 	}
 }
@@ -204,7 +216,7 @@ Entity LookForStorageAcceptingResource( Registery &                reg,
 			continue;
 		}
 		const CpntResourceInventory & inventory = reg.GetComponent< CpntResourceInventory >( e );
-		if ( inventory.GetResourceAmount( resource ) < inventory.GetResourceCapacity( resource ) ) {
+		if ( inventory.GetResourceCapacity( resource ) > 0 ) {
 			u32  distance = 0;
 			bool pathFound =
 			    FindPathBetweenBuildings( origin, reg.GetComponent< CpntBuilding >( e ), theGame->map,
@@ -220,6 +232,9 @@ Entity LookForStorageAcceptingResource( Registery &                reg,
 
 void SystemBuildingProducing::Update( Registery & reg, Duration ticks ) {
 	for ( auto & [ e, producer ] : reg.IterateOver< CpntBuildingProducing >() ) {
+		if ( producer.deliveryGuy != INVALID_ENTITY ) {
+			continue;
+		}
 		const CpntBuilding & cpntBuilding = reg.GetComponent< CpntBuilding >( e );
 		float                efficiency = cpntBuilding.GetEfficiency();
 		if ( efficiency == 0.0f ) {
@@ -229,63 +244,24 @@ void SystemBuildingProducing::Update( Registery & reg, Duration ticks ) {
 		Duration timeToProduce = Duration( ( double )producer.timeToProduceBatch / ( double )efficiency );
 		producer.timeSinceLastProduction += ticks;
 		if ( producer.timeSinceLastProduction >= timeToProduce ) {
-			// Find a path to store house
-			thread_local ng::DynamicArray< Cell > path( 32 );
-			Entity                                closestStorage =
-			    LookForStorageAcceptingResource( reg, cpntBuilding, producer.resource, ULONG_MAX, path );
-
-			if ( closestStorage != INVALID_ENTITY ) {
-				// Produce a batch
-				producer.timeSinceLastProduction -= timeToProduce;
-				// Spawn a dummy who will move the batch the nearest storage house
-				Entity carrier = reg.CreateEntity();
-				reg.AssignComponent< CpntRenderModel >( carrier, g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
-				CpntTransform & transform = reg.AssignComponent< CpntTransform >( carrier );
-				CpntNavAgent &  navAgent = reg.AssignComponent< CpntNavAgent >( carrier );
-				navAgent.pathfindingNextSteps = path;
-				auto & inventory = reg.AssignComponent< CpntResourceInventory >( carrier );
-				inventory.SetResourceMaxCapacity( producer.resource, producer.batchSize );
-				inventory.StoreRessource( producer.resource, producer.batchSize );
-
-				transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
-				ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, carrier );
-			}
+			producer.timeSinceLastProduction -= timeToProduce;
+			CpntResourceInventory inventory;
+			inventory.SetResourceMaxCapacity( producer.resource, producer.batchSize );
+			inventory.StoreRessource( producer.resource, producer.batchSize );
+			producer.deliveryGuy = CreateDeliveryGuy( reg, e, inventory );
+			ListenTo( MESSAGE_ENTITY_DELETED, producer.deliveryGuy );
 		}
 	}
 }
 
 void SystemBuildingProducing::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
-	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
-		ng_assert( msg.sender == msg.recipient );
-		ng::Printf( "Entity %lu has arrived!\n", msg.recipient );
-
-		// Look for a storage house next to receiver
-		CpntTransform & transform = reg.GetComponent< CpntTransform >( msg.recipient );
-		Cell            position = GetCellForPoint( transform.GetTranslation() );
-		Entity          closestStorage = INVALID_ENTITY;
-		for ( auto & [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
-			if ( building.kind == BuildingKind::STORAGE_HOUSE ) {
-				if ( IsCellAdjacentToBuilding( building, position, theGame->map ) ) {
-					closestStorage = e;
-					break;
-				}
+	case MESSAGE_ENTITY_DELETED: {
+		for ( auto & [ e, producer ] : reg.IterateOver< CpntBuildingProducing >() ) {
+			if ( producer.deliveryGuy == msg.recipient ) {
+				producer.deliveryGuy = INVALID_ENTITY;
 			}
 		}
-		if ( closestStorage == INVALID_ENTITY ) {
-			// TODO: Handle that the storage has been removed
-			ng::Errorf( "An agent was directed to a storage that disappeared in the meantime" );
-		} else {
-			// Store what we have on us in the storage
-			CpntResourceInventory & carrier = reg.GetComponent< CpntResourceInventory >( msg.recipient );
-			for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
-				u32 amount = carrier.GetResourceAmount( ( GameResource )i );
-				PostMsg< TransactionMessagePayload >( MESSAGE_INVENTORY_TRANSACTION,
-				                                      TransactionMessagePayload{ ( GameResource )i, amount, false },
-				                                      closestStorage, msg.recipient );
-			}
-		}
-		reg.MarkForDelete( msg.recipient );
 		break;
 	}
 	default:
@@ -295,10 +271,12 @@ void SystemBuildingProducing::HandleMessage( Registery & reg, const Message & ms
 
 u32 CpntResourceInventory::StoreRessource( GameResource resource, u32 amount ) {
 	StorageCapacity & resourceStorage = storage[ ( int )resource ];
-	if ( amount + resourceStorage.currentAmount > resourceStorage.max ) {
-		u32 consumed = resourceStorage.max - resourceStorage.currentAmount;
-		resourceStorage.currentAmount += consumed;
-		return consumed;
+	u32               capacity = hasMaxTotalAmount
+	                   ? MIN( resourceStorage.max - resourceStorage.currentAmount, maxTotalAmount - GetTotalAmount() )
+	                   : resourceStorage.max - resourceStorage.currentAmount;
+	if ( amount > capacity ) {
+		resourceStorage.currentAmount += capacity;
+		return capacity;
 	} else {
 		resourceStorage.currentAmount += amount;
 		return amount;
@@ -353,12 +331,7 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 					navAgent.pathfindingNextSteps = path;
 					CpntTransform & transform = reg.AssignComponent< CpntTransform >( wanderer );
 					transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
-					reg.AssignComponent< CpntSeller >( wanderer );
-					auto & inventory = reg.AssignComponent< CpntResourceInventory >( wanderer );
-					inventory.SetResourceMaxCapacity( GameResource::WHEAT, 100 );
-					u32 amountStored = inventory.StoreRessource(
-					    GameResource::WHEAT, marketInventory.GetResourceAmount( GameResource::WHEAT ) );
-					marketInventory.RemoveResource( GameResource::WHEAT, amountStored );
+					reg.AssignComponent< CpntSeller >( wanderer, marketEntity );
 					ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, wanderer );
 				}
 			}
@@ -368,39 +341,26 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 		GameResource resourcesToFetch[ ( int )GameResource::NUM_RESOURCES ];
 
 		// Let's check if we are low on resources
-		for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
-			auto const & capacity = marketInventory.storage[ i ];
-			// if we have less than 1/4 of the max capacity, try to get new resources
-			if ( capacity.max > 0 && capacity.currentAmount < capacity.max / 4 ) {
-				resourcesToFetch[ numResourcesToFetch++ ] = ( GameResource )i;
+		ForEveryGameResource( resource ) {
+			if ( marketInventory.GetResourceCapacity( resource ) > 0 ) {
+				resourcesToFetch[ numResourcesToFetch++ ] = resource;
 			}
 		}
 
 		if ( numResourcesToFetch > 0 && market.fetcher == INVALID_ENTITY && market.wanderer == INVALID_ENTITY ) {
-			ng::DynamicArray< Cell > path( 32 );
-			Entity                   closestStorage = LookForStorageContainingOneOfResourceList(
-                reg, marketBuilding, resourcesToFetch, numResourcesToFetch, market.fetcherCellRange, path );
-			if ( closestStorage != INVALID_ENTITY ) {
-				// we found a storage containing what we are looking for nearby
-				// Let's spawn a fetcher
-				Entity fetcher = reg.CreateEntity();
-				market.fetcher = fetcher;
-				reg.AssignComponent< CpntRenderModel >( fetcher, g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
-				CpntNavAgent &  navAgent = reg.AssignComponent< CpntNavAgent >( fetcher, path );
-				CpntTransform & transform = reg.AssignComponent< CpntTransform >( fetcher );
-				transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
-				auto & inventory = reg.AssignComponent< CpntResourceInventory >( fetcher );
-				for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
-					// Set maximum storage of fetcher to the amount of resource we need
-					auto const & marketCapacity = marketInventory.storage[ i ];
-					inventory.SetResourceMaxCapacity( ( GameResource )i,
-					                                  marketCapacity.max - marketCapacity.currentAmount );
+			for ( u32 i = 0; i < numResourcesToFetch; i++ ) {
+				ng::DynamicArray< Cell > path( 32 );
+				Entity                   closestStorage = LookForStorageContainingOneOfResourceList(
+                    reg, marketBuilding, resourcesToFetch + i, 1, market.fetcherCellRange, path );
+				if ( closestStorage != INVALID_ENTITY ) {
+					// we found a storage containing what we are looking for nearby
+					// Let's spawn a fetcher
+					market.fetcher = CreateResourceFetcher(
+					    reg, resourcesToFetch[ i ], marketInventory.GetResourceCapacity( resourcesToFetch[ 0 ] ),
+					    marketEntity );
+					ListenTo( MESSAGE_ENTITY_DELETED, market.fetcher );
+					break;
 				}
-				CpntResourceFetcher & fetcherCpnt = reg.AssignComponent< CpntResourceFetcher >( fetcher );
-				fetcherCpnt.parent = marketEntity;
-				fetcherCpnt.target = closestStorage;
-				ng::Printf( "We spawned a fetcher\n" );
-				ListenTo( MESSAGE_ENTITY_DELETED, fetcher );
 			}
 		}
 	}
@@ -411,17 +371,8 @@ void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
 		for ( auto & [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
 			if ( market.wanderer == msg.sender ) {
-				ng::Printf( "A wanderer has arrived\n" );
 				// Let's get back resources that were not distributed
-				auto & wandererStorage = reg.GetComponent< CpntResourceInventory >( msg.sender );
-				auto & marketStorage = reg.GetComponent< CpntResourceInventory >( marketEntity );
-				for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
-					PostMsg< TransactionMessagePayload >(
-					    MESSAGE_INVENTORY_TRANSACTION,
-					    TransactionMessagePayload{ ( GameResource )i,
-					                               wandererStorage.GetResourceCapacity( ( GameResource )i ), false },
-					    marketEntity, msg.sender );
-				}
+				PostMsg( MESSAGE_FULL_INVENTORY_TRANSACTION, marketEntity, msg.sender );
 				market.wanderer = INVALID_ENTITY;
 				market.timeSinceLastWandererSpawn = 0;
 			}
@@ -432,7 +383,6 @@ void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 	case MESSAGE_ENTITY_DELETED: {
 		for ( auto & [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
 			if ( market.fetcher == msg.recipient ) {
-				ng::Printf( "A fetcher has arrived\n" );
 				market.fetcher = INVALID_ENTITY;
 			}
 		}
@@ -455,7 +405,6 @@ void SystemMarket::OnCpntRemoved( Entity e, CpntMarket & t ) {
 void SystemSeller::Update( Registery & reg, Duration ticks ) {
 	for ( auto & [ e, seller ] : reg.IterateOver< CpntSeller >() ) {
 		auto & transform = reg.GetComponent< CpntTransform >( e );
-		auto & sellerInventory = reg.GetComponent< CpntResourceInventory >( e );
 		Cell   currentCell = GetCellForPoint( transform.GetTranslation() );
 		if ( currentCell != seller.lastCellDistributed ) {
 			seller.lastCellDistributed = currentCell;
@@ -467,20 +416,14 @@ void SystemSeller::Update( Registery & reg, Duration ticks ) {
 			// Look for houses adjacent to the seller
 			for ( auto & [ houseEntity, house ] : reg.IterateOver< CpntHousing >() ) {
 				auto const & building = reg.GetComponent< CpntBuilding >( houseEntity );
-				for ( const Cell & neighborCell : neighbors ) {
-					if ( IsCellInsideBuilding( building, neighborCell ) ) {
-						// distribute resources
-						auto & houseInventory = reg.GetComponent< CpntResourceInventory >( houseEntity );
-						for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
-							auto & capacity = sellerInventory.storage[ i ];
-							if ( capacity.currentAmount > 0 ) {
-								PostMsg< TransactionMessagePayload >(
-								    MESSAGE_INVENTORY_TRANSACTION,
-								    TransactionMessagePayload{ ( GameResource )i, capacity.currentAmount, true },
-								    houseEntity, e );
-							}
+				if ( IsCellAdjacentToBuilding( building, currentCell, theGame->map ) ) {
+					// distribute resources
+					auto & houseInventory = reg.GetComponent< CpntResourceInventory >( houseEntity );
+					ForEveryGameResource( resource ) {
+						if ( houseInventory.GetResourceCapacity( resource ) > 0 ) {
+							PostTransactionMessage( resource, houseInventory.GetResourceCapacity( resource ), true,
+							                        houseEntity, seller.market );
 						}
-						break; // no need to look for other cells, we found the building
 					}
 				}
 			}
@@ -558,7 +501,6 @@ void SystemServiceBuilding::Update( Registery & reg, Duration ticks ) {
 void SystemServiceBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
 	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
-		ng::Printf( "A service wanderer has arrived\n" );
 		for ( auto & [ serviceBuildingEntity, serviceBuilding ] : reg.IterateOver< CpntServiceBuilding >() ) {
 			if ( serviceBuilding.wanderer == msg.sender ) {
 				serviceBuilding.wanderer = INVALID_ENTITY;
@@ -600,88 +542,40 @@ void SystemResourceInventory::HandleMessage( Registery & reg, const Message & ms
 			// Send back the amount we couldn't store
 			giver->StoreRessource( payload.resource, amountToGiveBack );
 		}
+		PostMsg( MESSAGE_INVENTORY_TRANSACTION_COMPLETED, msg.sender, msg.recipient );
+		if ( amountConsumed > 0 ) {
+			PostMsg( MESSAGE_INVENTORY_UPDATE, msg.sender, INVALID_ENTITY );
+			PostMsg( MESSAGE_INVENTORY_UPDATE, msg.recipient, INVALID_ENTITY );
+		}
+		break;
+	}
+	case MESSAGE_FULL_INVENTORY_TRANSACTION: {
+		CpntResourceInventory * giver = reg.TryGetComponent< CpntResourceInventory >( msg.sender );
+		CpntResourceInventory * recipient = reg.TryGetComponent< CpntResourceInventory >( msg.recipient );
+		if ( giver == nullptr ) {
+			ng::Debugf( "A transaction has been aborted, the giver is invalid\n" );
+			return;
+		}
+		if ( recipient == nullptr ) {
+			ng::Debugf( "A transaction has been aborted, the recipient is invalid\n" );
+			return;
+		}
+		u32 amountConsumed = 0;
+		for ( int i = 0; i < ( int )GameResource::NUM_RESOURCES; i++ ) {
+			GameResource resource = ( GameResource )i;
+			u32 amountAvailable = giver->RemoveResource( resource, recipient->GetResourceCapacity( resource ) );
+			amountConsumed += recipient->StoreRessource( resource, amountAvailable );
+		}
+		PostMsg( MESSAGE_INVENTORY_TRANSACTION_COMPLETED, msg.sender, msg.recipient );
+		if ( amountConsumed > 0 ) {
+			PostMsg( MESSAGE_INVENTORY_UPDATE, msg.sender, INVALID_ENTITY );
+			PostMsg( MESSAGE_INVENTORY_UPDATE, msg.recipient, INVALID_ENTITY );
+		}
 		break;
 	}
 	default:
 		ng_assert_msg( false, "Message type %d can't be handled by this system\n", msg.type );
 	}
-}
-
-void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
-	switch ( msg.type ) {
-	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
-		Entity                fetcher = msg.recipient;
-		CpntResourceFetcher * cpntFetcher = reg.TryGetComponent< CpntResourceFetcher >( fetcher );
-		ng_assert( cpntFetcher != nullptr );
-		if ( cpntFetcher != nullptr ) {
-			if ( cpntFetcher->direction == CpntResourceFetcher::CurrentDirection::TO_TARGET ) {
-				// We arrived at our target
-				CpntBuilding * targetBuilding = reg.TryGetComponent< CpntBuilding >( cpntFetcher->target );
-				if ( targetBuilding == nullptr ) {
-					// Oh no, our target building has been destroyed!
-					ng::Infof( "A fetcher destination has been destroyed" );
-					reg.MarkForDelete( fetcher );
-					return;
-				}
-				CpntResourceInventory & fetcherInventory = reg.GetComponent< CpntResourceInventory >( fetcher );
-				Cell fetcherCell = GetCellForPoint( reg.GetComponent< CpntTransform >( fetcher ).GetTranslation() );
-				CpntResourceInventory & targetInventory =
-				    reg.GetComponent< CpntResourceInventory >( cpntFetcher->target );
-				if ( IsCellAdjacentToBuilding( *targetBuilding, fetcherCell, theGame->map ) ) {
-					// Let's fill our inventory
-					for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
-						u32 capacity = fetcherInventory.GetResourceCapacity( ( GameResource )i );
-						if ( capacity > 0 ) {
-							PostTransactionMessage( ( GameResource )i, capacity, true, fetcher, cpntFetcher->target );
-						}
-					}
-					// Now let's go back to our parent
-					cpntFetcher->direction = CpntResourceFetcher::CurrentDirection::TO_PARENT;
-					CpntBuilding * parentBuilding = reg.TryGetComponent< CpntBuilding >( cpntFetcher->parent );
-					if ( parentBuilding == nullptr ) {
-						ng::Errorf( "A fetcher arrived at destination, but there is market to go back anymore! :(\n" );
-						reg.MarkForDelete( fetcher );
-					} else {
-						CpntNavAgent & fetcherNavAgent = reg.GetComponent< CpntNavAgent >( fetcher );
-						bool           ok =
-						    FindPathFromCellToBuilding( fetcherCell, *parentBuilding, theGame->map,
-						                                theGame->roadNetwork, fetcherNavAgent.pathfindingNextSteps );
-						if ( !ok ) {
-							ng::Errorf( "A fetcher arrived at destination, but there is no road to go back to the "
-							            "market! :(\n" );
-							reg.MarkForDelete( fetcher );
-						}
-					}
-				} else {
-					ng::Errorf( "A fetcher arrived at destination, but there is not storage there! :(\n" );
-					reg.MarkForDelete( fetcher );
-				}
-			} else if ( cpntFetcher->direction == CpntResourceFetcher::CurrentDirection::TO_PARENT ) {
-				// We are back to the market
-				// Let's empty our inventory
-				Entity                fetcher = msg.recipient;
-				CpntResourceFetcher * cpntFetcher = reg.TryGetComponent< CpntResourceFetcher >( fetcher );
-				ng_assert( cpntFetcher != nullptr );
-				if ( cpntFetcher != nullptr ) {
-					CpntResourceInventory & fetcherInventory = reg.GetComponent< CpntResourceInventory >( fetcher );
-					for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
-						u32 amount = fetcherInventory.GetResourceAmount( ( GameResource )i );
-						if ( amount > 0 ) {
-							PostTransactionMessage( ( GameResource )i, amount, false, cpntFetcher->parent, fetcher );
-						}
-					}
-				}
-				reg.MarkForDelete( fetcher );
-			}
-			break;
-		}
-	}
-	}
-}
-
-void SystemFetcher::OnCpntAttached( Entity e, CpntResourceFetcher & t ) {
-	// A fetcher has spawned, let's track when it gets to destination
-	ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, e );
 }
 
 void SystemMigrant::HandleMessage( Registery & reg, const Message & msg ) {
@@ -763,6 +657,32 @@ void SystemBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 		}
 		break;
 	}
+	case MESSAGE_ROAD_CELL_ADDED: {
+		Cell cell = CastPayloadAs< Cell >( msg.payload );
+		for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+			if ( building.hasRoadConnection == false && IsCellAdjacentToBuilding( building, cell, theGame->map ) ) {
+				building.hasRoadConnection = true;
+			}
+		}
+		break;
+	}
+	case MESSAGE_ROAD_CELL_REMOVED: {
+		Cell removedCell = CastPayloadAs< Cell >( msg.payload );
+		for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+			if ( building.hasRoadConnection == true &&
+			     IsCellAdjacentToBuilding( building, removedCell, theGame->map ) ) {
+				building.hasRoadConnection = false;
+				// we removed a road connected to a building, but it still might has a connection with another cell
+				for ( const Cell & cell : building.AdjacentCells( theGame->map ) ) {
+					if ( theGame->map.GetTile( cell ) == MapTile::ROAD && cell != removedCell ) {
+						building.hasRoadConnection = true;
+						break;
+					}
+				}
+			}
+		}
+		break;
+	}
 	}
 }
 
@@ -771,6 +691,15 @@ void SystemBuilding::OnCpntAttached( Entity e, CpntBuilding & t ) {
 	while ( t.workersEmployed < t.workersNeeded && totalUnemployed > 0 ) {
 		totalUnemployed--;
 		t.workersEmployed++;
+	}
+
+	// Let's check if we have a road connection
+	t.hasRoadConnection = false;
+	for ( const Cell & cell : t.AdjacentCells( theGame->map ) ) {
+		if ( theGame->map.GetTile( cell ) == MapTile::ROAD ) {
+			t.hasRoadConnection = true;
+			break;
+		}
 	}
 }
 

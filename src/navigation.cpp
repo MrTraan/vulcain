@@ -84,16 +84,12 @@ static bool PopNodeFromList( ng::LinkedList< AStarStep > & list, Cell coords, AS
 	return false;
 }
 
-static int Heuristic( Cell node, Cell goal, AStarMovementAllowed movement ) {
+static int Heuristic( Cell node, Cell goal, MovementAllowed movement ) {
 	switch ( movement ) {
 	case ASTAR_ALLOW_DIAGONALS:
 		return MAX( std::abs( ( int )node.x - ( int )goal.x ), std::abs( ( int )node.z - ( int )goal.z ) );
 	case ASTAR_FORBID_DIAGONALS:
 		return std::abs( ( int )node.x - ( int )goal.x ) + std::abs( ( int )node.z - ( int )goal.z );
-	case ASTAR_FREE_MOVEMENT:
-		float x = ( float )node.x - goal.x;
-		float z = ( float )node.z - goal.z;
-		return ( int )( sqrtf( x * x + z * z ) * 10.0f );
 	}
 	ng_assert( false );
 	return 0;
@@ -114,6 +110,10 @@ Cell GetCellForPoint( glm::vec3 point ) {
 	}
 	auto cell = Cell( ( u32 )point.x, ( u32 )point.z );
 	return cell;
+}
+
+Cell GetCellForTransform( const CpntTransform & transform ) {
+	return GetCellForPoint( transform.GetTranslation() ); 
 }
 
 Cell GetCellAfterMovement( Cell start, int movementX, int movementZ ) {
@@ -146,7 +146,7 @@ CardinalDirection GetDirectionFromCellTo( Cell from, Cell to ) {
 		return SOUTH;
 	if ( deltaZ > 0 )
 		return WEST;
-	if ( deltaZ < 0 )
+	else
 		return EAST;
 }
 
@@ -169,11 +169,11 @@ CardinalDirection OppositeDirection( CardinalDirection direction ) {
 static thread_local ng::ObjectPool< AStarStep > aStarStepPool;
 
 bool AStar(
-    Cell start, Cell goal, AStarMovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath ) {
-	ng::ScopedChrono chrono( "Astar" );
+    Cell start, Cell goal, MovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath ) {
 	ZoneScoped;
 
-	if ( map.GetTile( start ) == MapTile::BLOCKED || map.GetTile( goal ) == MapTile::BLOCKED ) {
+	ng_assert(movement == ASTAR_ALLOW_DIAGONALS || movement == ASTAR_FORBID_DIAGONALS );
+	if ( !map.IsTileAStarNavigable( start ) || !map.IsTileAStarNavigable( goal ) ) {
 		return false;
 	}
 
@@ -221,7 +221,7 @@ bool AStar(
 					continue;
 				}
 				Cell neighborCoords( x, z );
-				if ( map.GetTile( neighborCoords ) == MapTile::BLOCKED ||
+				if ( !map.IsTileAStarNavigable( neighborCoords ) ||
 				     ( movement == ASTAR_FORBID_DIAGONALS && x != current->coord.x && z != current->coord.z ) ) {
 					continue;
 				}
@@ -992,7 +992,6 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
                                u32                        maxDistance /*= ULONG_MAX*/,
                                u32 *                      outDistance /*= nullptr */ ) {
 	ZoneScoped;
-	ng::ScopedChrono chrono( "FindPathBetweenBuildings" );
 
 	thread_local ng::DynamicArray< Cell > startingCells( 16 );
 	thread_local ng::DynamicArray< Cell > goalCells( 16 );
@@ -1040,9 +1039,10 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
 
 	bool pathFound = false;
 	u32  shortestDistance = maxDistance;
+	ng::DynamicArray< Cell > path(32);
 	for ( u32 i = 0; i < startingCells.Size(); i++ ) {
 		for ( u32 j = 0; j < goalCells.Size(); j++ ) {
-			ng::DynamicArray< Cell > path;
+			path.Clear();
 			u32                      distance = 0;
 			bool                     subPathFound =
 			    roadNetwork.FindPath( startingCells[ i ], goalCells[ j ], map, path, &distance, shortestDistance );
@@ -1067,7 +1067,6 @@ bool FindPathFromCellToBuilding( Cell                       start,
                                  u32                        maxDistance /*= ULONG_MAX*/,
                                  u32 *                      outDistance /*= nullptr */ ) {
 	ZoneScoped;
-	ng::ScopedChrono chrono( "FindPathFromCellToBuilding" );
 
 	thread_local ng::DynamicArray< Cell > goalCells( 16 );
 

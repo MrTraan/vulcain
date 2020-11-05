@@ -13,16 +13,26 @@ struct PathfindingTask {
 	enum class Type {
 		FROM_CELL_TO_CELL,
 		FROM_CELL_TO_BUILDING,
+		FROM_CELL_TO_TILE_TYPE,
 		FROM_BUILDING_TO_BUILDING,
 		FROM_BUILDING_TO_CELL,
+		FROM_BUILDING_TO_TILE_TYPE,
+		FROM_CELL_TO_RESOURCE_STORAGE_WITH_CAPACITY,
+		FROM_BUILDING_TO_RESOURCE_STORAGE_WITH_CAPACITY,
+		FROM_CELL_TO_RESOURCE_STORAGE_WITH_STOCK,
+		FROM_BUILDING_TO_RESOURCE_STORAGE_WITH_STOCK,
 	};
-	Entity               requester;
-	Type                 type;
-	Cell                 startCell = INVALID_CELL;
-	CpntBuilding         startBuilding{};
-	Cell                 goalCell = INVALID_CELL;
-	CpntBuilding         goalBuilding{};
-	AStarMovementAllowed movementAllowed;
+	union Coordinate {
+		Cell         cell;
+		CpntBuilding building;
+		MapTile      tileType;
+		GameResource resourceType;
+	};
+	Entity          requester;
+	Type            type;
+	Coordinate      start{ INVALID_CELL };
+	Coordinate      goal{ INVALID_CELL };
+	MovementAllowed movementAllowed;
 };
 
 struct PathfindingTaskResponse {
@@ -32,7 +42,7 @@ struct PathfindingTaskResponse {
 
 struct CpntPathfinding {};
 
-struct SystemPathfinding : public System<CpntPathfinding> {
+struct SystemPathfinding : public System< CpntPathfinding > {
 	SystemPathfinding() {
 		ListenToGlobal( MESSAGE_PATHFINDING_REQUEST );
 		ListenToGlobal( MESSAGE_PATHFINDING_DELETE_ENTRY );
@@ -40,12 +50,17 @@ struct SystemPathfinding : public System<CpntPathfinding> {
 	struct Entry {
 		pathfindingID            id;
 		ng::DynamicArray< Cell > path;
+		// targetEntity will only be filled on certain tasks
+		// I don't know if it's a good idea, but it avoid a lot of recomputation when looking for a path to a storage
+		// house
+		Entity targetEntity = INVALID_ENTITY;
 	};
 	std::mutex              entriesMutex;
 	ng::LinkedList< Entry > entries;
 
-	void CopyPath( pathfindingID id, ng::DynamicArray< Cell > & out );
-	void CopyAndDeletePath( pathfindingID id, ng::DynamicArray< Cell > & out );
+	// CopyPath and CopyAndDeletePath returns the target entity (reminder: will be INVALID_ENTITY most of the time)
+	Entity CopyPath( pathfindingID id, ng::DynamicArray< Cell > & out );
+	Entity CopyAndDeletePath( pathfindingID id, ng::DynamicArray< Cell > & out );
 
 	moodycamel::ConcurrentQueue< PathfindingTask > taskQueue;
 	moodycamel::ConcurrentQueue< pathfindingID >   deleteQueue;

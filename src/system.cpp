@@ -1,9 +1,9 @@
 #include "system.h"
 #include "game_time.h"
+#include "pathfinding_job.h"
 #include "registery.h"
 #include <chrono>
 #include <tracy/Tracy.hpp>
-#include "pathfinding_job.h"
 
 std::atomic_bool jobsShouldRun = true;
 
@@ -24,6 +24,11 @@ void SystemManager::Update( Registery & reg, Duration ticks ) {
 	for ( auto [ type, system ] : systems ) {
 		system->Update( reg, ticks );
 	}
+
+	// Flush creation queues
+	reg.FlushCreationQueues();
+	
+	reg.FlushCreationQueues();
 
 	// Flush messages
 	bool messageQueuesAreEmpty = false;
@@ -53,6 +58,7 @@ void SystemManager::Update( Registery & reg, Duration ticks ) {
 	while ( reg.markedForDeleteEntityIds.try_dequeue( id ) ) {
 		if ( reg.DestroyEntity( id ) ) {
 			// Remove listeners listening to the destroyed entity
+			ng_assert( id != INVALID_ENTITY );
 			for ( auto [ type, system ] : systems ) {
 				for ( int64 i = ( int64 )system->eventListenerMask.Size() - 1; i >= 0; i-- ) {
 					const auto & tuple = system->eventListenerMask[ i ];

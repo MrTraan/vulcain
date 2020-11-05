@@ -20,10 +20,14 @@ MapTile Map::GetTile( u32 x, u32 z ) const { return tiles[ x * sizeZ + z ]; }
 void Map::SetTile( Cell coord, MapTile type ) { SetTile( coord.x, coord.z, type ); }
 void Map::SetTile( u32 x, u32 z, MapTile type ) {
 	if ( IsTileWalkable( x, z ) ) {
-		theGame->roadNetwork.RemoveRoadCellFromNetwork( Cell( x, z ), *this );
+		Cell cell(x, z);
+		theGame->roadNetwork.RemoveRoadCellFromNetwork( cell, *this );
+		PostMsgGlobal<Cell>( MESSAGE_ROAD_CELL_REMOVED, cell );
 	}
 	if ( IsTileWalkable( type ) ) {
-		theGame->roadNetwork.AddRoadCellToNetwork( Cell( x, z ), *this );
+		Cell cell(x, z);
+		theGame->roadNetwork.AddRoadCellToNetwork( cell, *this );
+		PostMsgGlobal<Cell>( MESSAGE_ROAD_CELL_ADDED, cell );
 	}
 	tiles[ x * sizeZ + z ] = type;
 }

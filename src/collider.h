@@ -11,10 +11,7 @@ struct Ray {
 
 struct CpntBoxCollider {
 	CpntBoxCollider() = default;
-	CpntBoxCollider( const glm::vec3 & inCenter, const glm::vec3 & inSize ) : center( inCenter ), size( inSize ) {
-		glm::vec3 foo = inCenter;
-		foo.x += 3;
-	}
+	CpntBoxCollider( const glm::vec3 & inCenter, const glm::vec3 & inSize ) : center( inCenter ), size( inSize ) {}
 
 	glm::vec3 center = { 0.0f, 0.0f, 0.0f };
 	glm::vec3 size = { 1.0f, 1.0f, 1.0f };

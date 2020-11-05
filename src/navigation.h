@@ -7,10 +7,11 @@
 
 struct CpntBuilding;
 
-enum AStarMovementAllowed {
+enum MovementAllowed {
+	ROAD_NETWORK,
+	ROAD_NETWORK_AND_ROAD_BLOCK,
 	ASTAR_ALLOW_DIAGONALS,
 	ASTAR_FORBID_DIAGONALS,
-	ASTAR_FREE_MOVEMENT,
 };
 
 enum CardinalDirection {
@@ -107,13 +108,14 @@ bool FindPathFromCellToBuilding( Cell                       start,
 bool CreateWandererRoutine(
     const Cell & start, Map & map, RoadNetwork & roadNetwork, ng::DynamicArray< Cell > & outPath, u32 maxDistance );
 
-bool AStar( Cell start, Cell goal, AStarMovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath );
-void GetNeighborsOfCell( Cell base, const Map & map, ng::StaticArray< Cell, 4 > & neighbors );
-glm::vec3         GetPointInMiddleOfCell( Cell cell );
-glm::vec3         GetPointInCornerOfCell( Cell cell );
-Cell              GetCellForPoint( glm::vec3 point );
-Cell              GetCellAfterMovement( Cell start, int movementX, int movementZ );
-Cell              GetCellAfterMovement( Cell start, CardinalDirection direction );
-Cell              GetAnyRoadConnectedToBuilding( const CpntBuilding & building, const Map & map );
+bool      AStar( Cell start, Cell goal, MovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath );
+void      GetNeighborsOfCell( Cell base, const Map & map, ng::StaticArray< Cell, 4 > & neighbors );
+glm::vec3 GetPointInMiddleOfCell( Cell cell );
+glm::vec3 GetPointInCornerOfCell( Cell cell );
+Cell      GetCellForPoint( glm::vec3 point );
+Cell      GetCellForTransform( const CpntTransform & transform );
+Cell      GetCellAfterMovement( Cell start, int movementX, int movementZ );
+Cell      GetCellAfterMovement( Cell start, CardinalDirection direction );
+Cell      GetAnyRoadConnectedToBuilding( const CpntBuilding & building, const Map & map );
 CardinalDirection GetDirectionFromCellTo( Cell from, Cell to );
 CardinalDirection OppositeDirection( CardinalDirection direction );

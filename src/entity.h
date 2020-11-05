@@ -39,6 +39,28 @@ struct CpntTransform {
 		ComputeMatrix();
 	}
 
+	void SetScale( float v ) {
+		scale.x = v;
+		scale.y = v;
+		scale.z = v;
+		ComputeMatrix();
+	}
+
+	void SetScaleX( float v ) {
+		scale.x = v;
+		ComputeMatrix();
+	}
+
+	void SetScaleY( float v ) {
+		scale.y = v;
+		ComputeMatrix();
+	}
+	
+	void SetScaleZ( float v ) {
+		scale.z = v;
+		ComputeMatrix();
+	}
+
 	void SetScale( const glm::vec3 & v ) {
 		scale = v;
 		ComputeMatrix();

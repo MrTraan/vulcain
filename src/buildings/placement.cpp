@@ -1,6 +1,9 @@
 #include "placement.h"
 #include "../mesh.h"
 #include "../packer_resource_list.h"
+#include "debug_dump.h"
+#include "storage_house.h"
+#include "woodworking.h"
 
 glm::i32vec2 GetBuildingSize( BuildingKind kind ) {
 	// TODO: Could we get these values from a data file?
@@ -15,7 +18,11 @@ glm::i32vec2 GetBuildingSize( BuildingKind kind ) {
 		return { 2, 2 };
 	case ( BuildingKind::MARKET ):
 		return { 3, 2 };
+	case ( BuildingKind::WOODSHOP ):
+		return { 3, 2 };
 	case ( BuildingKind::FOUNTAIN ):
+		return { 1, 1 };
+	case ( BuildingKind::DEBUG_DUMP ):
 		return { 1, 1 };
 	default:
 		ng_assert( false );
@@ -84,31 +91,43 @@ int DeleteBuildingsInsideArea( Registery & reg, const Area & area, Map & map ) {
 	return numDeletions;
 }
 
+const Model * GetGameResourceModel( GameResource kind ) {
+	switch ( kind ) {
+	case GameResource::WHEAT:
+		return g_modelAtlas.GetModel( PackerResources::STOREHOUSE_WHEAT_DAE );
+	case GameResource::WOOD:
+		return g_modelAtlas.GetModel( PackerResources::STOREHOUSE_PLANKS_DAE );
+	default:
+		ng_assert( false );
+		return nullptr;
+	}
+}
+
 const Model * GetBuildingModel( BuildingKind kind ) {
 	switch ( kind ) {
 	case BuildingKind::HOUSE:
 		return g_modelAtlas.GetModel( PackerResources::TENT_DAE );
-		break;
 
 	case BuildingKind::FARM:
 		return g_modelAtlas.GetModel( PackerResources::FUTURISTIC_FARM_DAE );
-		break;
 
 	case BuildingKind::STORAGE_HOUSE:
-		return g_modelAtlas.GetModel( PackerResources::STOREHOUSE_OBJ );
-		break;
+		return g_modelAtlas.GetModel( PackerResources::STOREHOUSE_DAE );
 
 	case BuildingKind::ROAD_BLOCK:
 		return g_modelAtlas.GetModel( PackerResources::ROAD_BLOCK_DAE );
-		return nullptr;
 
 	case BuildingKind::MARKET:
 		return g_modelAtlas.GetModel( PackerResources::MARKET_DAE );
-		return nullptr;
+
+	case BuildingKind::WOODSHOP:
+		return g_modelAtlas.GetModel( PackerResources::WOODSHOP_DAE );
 
 	case BuildingKind::FOUNTAIN:
 		return g_modelAtlas.GetModel( PackerResources::WELL_DAE );
-		return nullptr;
+
+	case BuildingKind::DEBUG_DUMP:
+		return g_modelAtlas.GetModel( PackerResources::CUBE_DAE );
 
 	default:
 		ng_assert( false );
@@ -149,22 +168,26 @@ Entity PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map &
 		housing.isServiceRequired[ ( int )GameService::WATER ] = true;
 
 		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
-		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 15 );
+		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 4 );
 		break;
 	}
 
 	case BuildingKind::FARM: {
 		auto & producer = reg.AssignComponent< CpntBuildingProducing >( e );
 		producer.batchSize = 4;
-		producer.timeToProduceBatch = DurationFromSeconds( 5 );
+		producer.timeToProduceBatch = DurationFromSeconds( 20 );
 		producer.resource = GameResource::WHEAT;
-		cpntBuilding.workersNeeded = 10;
+		cpntBuilding.workersNeeded = 4;
 		break;
 	}
 
 	case BuildingKind::STORAGE_HOUSE: {
+		reg.AssignComponent< CpntStorageHouse >( e );
 		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
-		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 100 );
+		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 8 );
+		inventory.SetResourceMaxCapacity( GameResource::WOOD, 8 );
+		inventory.hasMaxTotalAmount = true;
+		inventory.maxTotalAmount = CpntStorageHouse::MAX_RESOURCES;
 		cpntBuilding.workersNeeded = 4;
 		break;
 	}
@@ -172,7 +195,8 @@ Entity PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map &
 	case BuildingKind::MARKET: {
 		reg.AssignComponent< CpntMarket >( e );
 		auto & inventory = reg.AssignComponent< CpntResourceInventory >( e );
-		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 100 );
+		inventory.SetResourceMaxCapacity( GameResource::WHEAT, 16 );
+		inventory.SetResourceMaxCapacity( GameResource::WOOD, 16 );
 		cpntBuilding.workersNeeded = 4;
 		break;
 	}
@@ -181,6 +205,11 @@ Entity PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map &
 		auto & serviceBuilding = reg.AssignComponent< CpntServiceBuilding >( e );
 		serviceBuilding.service = GameService::WATER;
 		cpntBuilding.workersNeeded = 1;
+		break;
+	}
+
+	case BuildingKind::WOODSHOP: {
+		reg.AssignComponent< CpntWoodshop >( e );
 		break;
 	}
 
@@ -193,6 +222,11 @@ Entity PlaceBuilding( Registery & reg, const Cell cell, BuildingKind kind, Map &
 			}
 		}
 		break;
+
+	case BuildingKind::DEBUG_DUMP: {
+		reg.AssignComponent< CpntDebugDump >( e );
+		break;
+	}
 
 	default:
 		ng_assert( false );
