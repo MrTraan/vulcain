@@ -257,9 +257,6 @@ int main( int ac, char ** av ) {
 	ng_assert( cpntHousing.tier == 1 );
 #endif
 
-	Entity first_tree;
-	first_tree.id = -12;
-
 	{
 		std::uniform_real_distribution< float > randomFloats( 0.0, 1.0 ); // random floats between [0.0, 1.0]
 		std::default_random_engine              generator;
@@ -270,8 +267,6 @@ int main( int ac, char ** av ) {
 				float           simplex = ( glm::simplex( glm::vec2( x / 64.0f, z / 64.0f ) ) + 1.0f ) / 2.0f;
 				if ( simplex > treeGenerationThreshold ) {
 					auto pine = reg.CreateEntity();
-					if (first_tree.id == -12)
-						first_tree = pine;
 					Cell cell( x, z );
 					map.SetTile( cell, MapTile::TREE );
 					auto & transform = reg.AssignComponent< CpntTransform >( pine );

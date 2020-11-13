@@ -94,6 +94,8 @@ struct Renderer {
 	u32 shadowFramebufferID;
 	u32 shadowDepthMap;
 
+	Framebuffer										finalRender;
+
 	void InitRenderer( int width, int height );
 	void ShutdownRenderer();
 
