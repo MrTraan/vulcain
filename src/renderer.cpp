@@ -28,8 +28,8 @@ void Renderer::InitRenderer( int width, int height ) {
 
 #if OPENGL_COMPATIBILITY_VERSION
 		for ( auto & shader : g_shaderAtlas.shaders ) {
-			glUniformBlockBinding(shader.ID, glGetUniformBlockIndex(shader.ID, "Matrices"), viewProjUBOIndex);
-			glUniformBlockBinding(shader.ID, glGetUniformBlockIndex(shader.ID, "Lights"), lightUBOIndex);
+				glUniformBlockBinding(shader.ID, glGetUniformBlockIndex(shader.ID, "Matrices"), viewProjUBOIndex);
+				glUniformBlockBinding(shader.ID, glGetUniformBlockIndex(shader.ID, "Light"), lightUBOIndex);
 		}
 #endif
 
@@ -115,8 +115,6 @@ void Renderer::InitRenderer( int width, int height ) {
 	glDrawBuffer( GL_NONE );
 	glReadBuffer( GL_NONE );
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-
-	finalRender.Allocate(width, height);
 }
 
 void Renderer::ShutdownRenderer() {
@@ -135,8 +133,6 @@ void Renderer::ShutdownRenderer() {
 
 	glDeleteFramebuffers( 1, &shadowFramebufferID );
 	glDeleteTextures( 1, &shadowDepthMap );
-
-	finalRender.Destroy();
 }
 
 void Renderer::SetResolution( int width, int height ) {}
@@ -225,10 +221,8 @@ void Renderer::PostProcessPass() {
 	ZoneScoped;
 	TracyGpuZone( "PostProcessPass" );
 
-	// theGame->window.BindDefaultFramebuffer();
-	// theGame->window.Clear();
-	finalRender.Bind();
-	finalRender.Clear();
+	theGame->window.BindDefaultFramebuffer();
+	theGame->window.Clear();
 
 	g_shaderAtlas.postProcessShader.Use();
 	static float curvatureRidge = 0.0f;
@@ -271,15 +265,6 @@ void Renderer::FillLightUBO( const LightUBOData * data ) {
 }
 
 void Renderer::DebugDraw() {
-	if ( ImGui::Begin( "finalRender" ) ) {
-		static float height = 400.0f;
-		ImGui::SliderFloat( "finalRender height", &height, 1.0f, 1920.0f );
-		static float width = height * 16.0f / 9.0f;
-		ImGui::SliderFloat( "finalRender width", &width, 1.0f, 1920.0f );
-		ImGui::Image( ( ImTextureID )finalRender.textureID, ImVec2( width / 2.0f, height / 2.0f ), ImVec2( 0, 1 ),
-	              ImVec2( 1, 0 ) );
-	}
-	ImGui::End();
 	static float height = 400.0f;
 	ImGui::SliderFloat( "texture size", &height, 1.0f, 1920.0f );
 	float width = height * 16.0f / 9.0f;

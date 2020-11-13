@@ -224,25 +224,25 @@ struct Registery {
 		cpntRegistriesMap[ cpntTypeHashes[ 18 ] ] = new CpntRegistery< CpntWoodworker >( INITIAL_ENTITY_ALLOC );
 
 #ifdef DEBUG
-		cpntTypesToName[ HashComponent< CpntTransform >() ] = new std::string( std::type_index( typeid( CpntTransform ) ).name() );
-		cpntTypesToName[ HashComponent< CpntTree >() ] = new std::string( std::type_index( typeid(CpntTree ) ).name() );
-		cpntTypesToName[ HashComponent< CpntResourceInventory >() ] = new std::string( std::type_index( typeid(CpntResourceInventory ) ).name() );
-		cpntTypesToName[ HashComponent< CpntNavAgent >() ] = new std::string( std::type_index( typeid(CpntNavAgent ) ).name() );
-		cpntTypesToName[ HashComponent< CpntRenderModel >() ] = new std::string( std::type_index( typeid(CpntRenderModel ) ).name() );
-		cpntTypesToName[ HashComponent< CpntMigrant >() ] = new std::string( std::type_index( typeid( CpntMigrant) ).name() );
-		cpntTypesToName[ HashComponent< CpntDeliveryGuy >() ] = new std::string( std::type_index( typeid(CpntDeliveryGuy ) ).name() );
-		cpntTypesToName[ HashComponent< CpntSeller >() ] = new std::string( std::type_index( typeid( CpntSeller) ).name() );
-		cpntTypesToName[ HashComponent< CpntServiceWanderer >() ] = new std::string( std::type_index( typeid(CpntServiceWanderer ) ).name() );
-		cpntTypesToName[ HashComponent< CpntBuilding >() ] = new std::string( std::type_index( typeid( CpntBuilding) ).name() );
-		cpntTypesToName[ HashComponent< CpntHousing >() ] = new std::string( std::type_index( typeid( CpntHousing) ).name() );
-		cpntTypesToName[ HashComponent< CpntBuildingProducing >() ] = new std::string( std::type_index( typeid(CpntBuildingProducing ) ).name() );
-		cpntTypesToName[ HashComponent< CpntStorageHouse >() ] = new std::string( std::type_index( typeid(CpntStorageHouse ) ).name() );
-		cpntTypesToName[ HashComponent< CpntMarket >() ] = new std::string( std::type_index( typeid( CpntMarket) ).name() );
-		cpntTypesToName[ HashComponent< CpntServiceBuilding >() ] = new std::string( std::type_index( typeid(CpntServiceBuilding ) ).name() );
-		cpntTypesToName[ HashComponent< CpntWoodshop >() ] = new std::string( std::type_index( typeid( CpntWoodshop) ).name() );
-		cpntTypesToName[ HashComponent< CpntDebugDump >() ] = new std::string( std::type_index( typeid(CpntDebugDump ) ).name() );
-		cpntTypesToName[ HashComponent< CpntResourceFetcher >() ] = new std::string( std::type_index( typeid(CpntResourceFetcher ) ).name() );
-		cpntTypesToName[ HashComponent< CpntWoodworker >() ] = new std::string( std::type_index( typeid( CpntWoodworker) ).name() );
+		cpntTypesToName[ HashComponent< CpntTransform >() ] = std::string( std::type_index( typeid( CpntTransform ) ).name() );
+		cpntTypesToName[ HashComponent< CpntTree >() ] = std::string( std::type_index( typeid(CpntTree ) ).name() );
+		cpntTypesToName[ HashComponent< CpntResourceInventory >() ] = std::string( std::type_index( typeid(CpntResourceInventory ) ).name() );
+		cpntTypesToName[ HashComponent< CpntNavAgent >() ] = std::string( std::type_index( typeid(CpntNavAgent ) ).name() );
+		cpntTypesToName[ HashComponent< CpntRenderModel >() ] = std::string( std::type_index( typeid(CpntRenderModel ) ).name() );
+		cpntTypesToName[ HashComponent< CpntMigrant >() ] = std::string( std::type_index( typeid( CpntMigrant) ).name() );
+		cpntTypesToName[ HashComponent< CpntDeliveryGuy >() ] = std::string( std::type_index( typeid(CpntDeliveryGuy ) ).name() );
+		cpntTypesToName[ HashComponent< CpntSeller >() ] = std::string( std::type_index( typeid( CpntSeller) ).name() );
+		cpntTypesToName[ HashComponent< CpntServiceWanderer >() ] = std::string( std::type_index( typeid(CpntServiceWanderer ) ).name() );
+		cpntTypesToName[ HashComponent< CpntBuilding >() ] = std::string( std::type_index( typeid( CpntBuilding) ).name() );
+		cpntTypesToName[ HashComponent< CpntHousing >() ] = std::string( std::type_index( typeid( CpntHousing) ).name() );
+		cpntTypesToName[ HashComponent< CpntBuildingProducing >() ] = std::string( std::type_index( typeid(CpntBuildingProducing ) ).name() );
+		cpntTypesToName[ HashComponent< CpntStorageHouse >() ] = std::string( std::type_index( typeid(CpntStorageHouse ) ).name() );
+		cpntTypesToName[ HashComponent< CpntMarket >() ] = std::string( std::type_index( typeid( CpntMarket) ).name() );
+		cpntTypesToName[ HashComponent< CpntServiceBuilding >() ] = std::string( std::type_index( typeid(CpntServiceBuilding ) ).name() );
+		cpntTypesToName[ HashComponent< CpntWoodshop >() ] = std::string( std::type_index( typeid( CpntWoodshop) ).name() );
+		cpntTypesToName[ HashComponent< CpntDebugDump >() ] = std::string( std::type_index( typeid(CpntDebugDump ) ).name() );
+		cpntTypesToName[ HashComponent< CpntResourceFetcher >() ] = std::string( std::type_index( typeid(CpntResourceFetcher ) ).name() );
+		cpntTypesToName[ HashComponent< CpntWoodworker >() ] = std::string( std::type_index( typeid( CpntWoodworker) ).name() );
 #endif
 
 		// Enqueue ids from 0 to INITIAL_ENTITY_ALLOC
