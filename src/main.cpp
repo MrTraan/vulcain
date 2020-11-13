@@ -17,10 +17,15 @@
 #include <unordered_map>
 
 #include "buildings/building.h"
+#include "buildings/debug_dump.h"
+#include "buildings/delivery.h"
 #include "buildings/placement.h"
+#include "buildings/resource_fetcher.h"
+#include "buildings/storage_house.h"
 #include "buildings/woodworking.h"
 #include "collider.h"
 #include "entity.h"
+#include "environment/trees.h"
 #include "game.h"
 #include "guizmo.h"
 #include "mesh.h"
@@ -33,6 +38,7 @@
 #include "registery.h"
 #include "renderer.h"
 #include "shader.h"
+#include "shadows.h"
 #include "window.h"
 
 #if defined( ENABLE_TESTING )
@@ -55,11 +61,6 @@ NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #if defined( BENCHMARK_ENABLED )
 #include "../test/benchmarks.h"
 #endif
-#include "buildings/debug_dump.h"
-#include "buildings/delivery.h"
-#include "buildings/resource_fetcher.h"
-#include "buildings/storage_house.h"
-#include "environment/trees.h"
 
 void GLErrorCallback( GLenum         source,
                       GLenum         type,
@@ -84,8 +85,6 @@ Camera shadowCamera;
 static void Update( float dt ) {}
 
 static void FixedUpdate( Duration ticks ) { theGame->systemManager.Update( *theGame->registery, ticks ); }
-
-static void Render() {}
 
 InstancedModelBatch roadBatchedTiles;
 
@@ -228,8 +227,6 @@ int main( int ac, char ** av ) {
 	for ( u32 x = 0; x < 20; x++ ) {
 		SpawnRoadTile( registery, map, Cell( x, 0 ) );
 	}
-	PlaceBuilding( registery, Cell( 1, 3 ), BuildingKind::FOUNTAIN, map );
-	PlaceBuilding( registery, Cell( 1, 2 ), BuildingKind::FOUNTAIN, map );
 	PlaceBuilding( registery, Cell( 1, 1 ), BuildingKind::FOUNTAIN, map );
 	PlaceBuilding( registery, Cell( 2, 1 ), BuildingKind::MARKET, map );
 	PlaceBuilding( registery, Cell( 5, 1 ), BuildingKind::FARM, map );
@@ -403,8 +400,9 @@ int main( int ac, char ** av ) {
 			float           aspectRatio = ( float )window.width / window.height;
 			static float    fovY = 10.0f;
 			constexpr float nearPlane = 0.1f;
-			constexpr float farPlane = 1000.0f;
+			static float    farPlane = 1000.0f;
 			ImGui::SliderFloat( "fovy", &fovY, 0.0f, 90.0f );
+			ImGui::SliderFloat( "far plane", &farPlane, 0.0f, 1000.0f );
 			mainCamera.proj = glm::perspective( glm::radians( fovY ), aspectRatio, nearPlane, farPlane );
 
 			shadowCamera.position = mainCamera.position;
@@ -692,17 +690,6 @@ int main( int ac, char ** av ) {
 		}
 		{
 			ZoneScopedN( "Render" );
-			theGame->window.BindDefaultFramebuffer();
-			ViewProjUBOData uboData{};
-			uboData.view = mainCamera.view;
-			uboData.projection = mainCamera.proj;
-			uboData.viewProj = mainCamera.proj * mainCamera.view;
-			uboData.shadowViewProj = shadowCamera.proj * shadowCamera.view;
-			uboData.cameraPosition = glm::vec4( mainCamera.position, 1.0f );
-			uboData.cameraFront = glm::vec4( mainCamera.front, 1.0f );
-			theGame->renderer.FillViewProjUBO( &uboData );
-
-			Render();
 			static glm::vec3 lightDirection( 1.0f, -2.0f, 1.0f );
 			ImGui::DragFloat3( "lightDirection", &lightDirection[ 0 ] );
 
@@ -720,9 +707,23 @@ int main( int ac, char ** av ) {
 			lightUBOData.specular = glm::vec4( glm::vec3( lightSpecular ), 1.0f );
 			renderer.FillLightUBO( &lightUBOData );
 
+			static Frustrum cameraFrustum;
+			cameraFrustum.Update( mainCamera.view, mainCamera.proj );
+			auto shadowCameraViewProj = ComputeShadowCameraViewProj( registery, cameraFrustum, lightDirection );
+
+			theGame->window.BindDefaultFramebuffer();
+			ViewProjUBOData uboData{};
+			uboData.view = mainCamera.view;
+			uboData.projection = mainCamera.proj;
+			uboData.viewProj = mainCamera.proj * mainCamera.view;
+			uboData.shadowViewProj = shadowCameraViewProj;
+			uboData.cameraPosition = glm::vec4( mainCamera.position, 1.0f );
+			uboData.cameraFront = glm::vec4( mainCamera.front, 1.0f );
+			theGame->renderer.FillViewProjUBO( &uboData );
+
 			// Just push the ground a tiny below y to avoid clipping
 			CpntTransform groundTransform;
-			groundTransform.SetTranslation( { 0.0f, -0.2f, 0.0f } );
+			groundTransform.SetTranslation( { 0.0f, 0.0f, 0.0f } );
 
 			renderer.GeometryPass( registery, &groundModel, &groundTransform, 1, &roadBatchedTiles, 1 );
 			renderer.LigthningPass();

@@ -4,8 +4,13 @@
 #include "../registery.h"
 
 struct CpntStorageHouse {
+	CpntStorageHouse() {
+		for ( u32 i = 0; i < MAX_RESOURCES; i++ ) {
+			displayedResources[i] = INVALID_ENTITY;
+		}
+	}
 	static constexpr u32 MAX_RESOURCES = 8;
-	Entity displayedResources[ MAX_RESOURCES ] = { INVALID_ENTITY };
+	Entity displayedResources[ MAX_RESOURCES ];
 };
 
 struct SystemStorageHouse : public System<CpntStorageHouse> {

@@ -2,6 +2,7 @@
 layout (location = 0) in vec3 aPosition;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aTexCoord;
+layout (location = 3) in mat4 model;
 
 out vec3 fragPosition;
 out vec3 fragNormal;
@@ -16,13 +17,12 @@ layout (std140, binding = 0) uniform Matrices {
 	vec4 cameraFront;
 };
 
-uniform mat4 modelTransform;
-uniform mat3 normalTransform;
+uniform mat4 baseTransform;
 
 void main()
 {
-	fragPosition = vec3( modelTransform * vec4( aPosition, 1.0  ) );
-    gl_Position = viewProj * vec4( fragPosition, 1.0 );
-	fragTexCoord = aTexCoord;
-	fragNormal = normalTransform * aNormal;
+	mat4 transform = model * baseTransform;
+	vec4 fragPosition = transform * vec4( aPosition, 1.0 );
+    gl_Position = shadowViewProj * fragPosition;
 } 
+

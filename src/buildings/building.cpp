@@ -329,10 +329,11 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 					                                        g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
 					CpntNavAgent & navAgent = reg.AssignComponent< CpntNavAgent >( wanderer );
 					navAgent.pathfindingNextSteps = path;
+					navAgent.deleteAtDestination = true;
 					CpntTransform & transform = reg.AssignComponent< CpntTransform >( wanderer );
 					transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
 					reg.AssignComponent< CpntSeller >( wanderer, marketEntity );
-					ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, wanderer );
+					ListenTo( MESSAGE_ENTITY_DELETED, wanderer );
 				}
 			}
 		}
@@ -368,22 +369,14 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 
 void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
-	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
-		for ( auto & [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
-			if ( market.wanderer == msg.sender ) {
-				// Let's get back resources that were not distributed
-				PostMsg( MESSAGE_FULL_INVENTORY_TRANSACTION, marketEntity, msg.sender );
-				market.wanderer = INVALID_ENTITY;
-				market.timeSinceLastWandererSpawn = 0;
-			}
-		}
-		reg.MarkForDelete( msg.recipient );
-		break;
-	}
 	case MESSAGE_ENTITY_DELETED: {
 		for ( auto & [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
 			if ( market.fetcher == msg.recipient ) {
 				market.fetcher = INVALID_ENTITY;
+			}
+			if ( market.wanderer == msg.recipient ) {
+				market.wanderer = INVALID_ENTITY;
+				market.timeSinceLastWandererSpawn = 0;
 			}
 		}
 		break;

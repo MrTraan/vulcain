@@ -123,6 +123,8 @@ void ShaderAtlas::CompileAllShaders() {
 	ssaoBlurShader = LinkProgram( PackerResources::SHADERS_PASSTHROUGH_VERT, PackerResources::SHADERS_SSAO_BLUR_FRAG );
 	shadowPassShader =
 	    LinkProgram( PackerResources::SHADERS_SHADOW_PASS_VERT, PackerResources::SHADERS_SHADOW_PASS_FRAG );
+	shadowPassInstancedShader =
+	    LinkProgram( PackerResources::SHADERS_SHADOW_PASS_INSTANCED_VERT, PackerResources::SHADERS_SHADOW_PASS_FRAG );
 
 	for ( auto & [ id, shader ] : shadersCompiled ) {
 		glDeleteShader( shader );
@@ -139,4 +141,5 @@ void ShaderAtlas::FreeShaders() {
 	glDeleteProgram( ssaoShader.ID );
 	glDeleteProgram( ssaoBlurShader.ID );
 	glDeleteProgram( shadowPassShader.ID );
+	glDeleteProgram( shadowPassInstancedShader.ID );
 }
