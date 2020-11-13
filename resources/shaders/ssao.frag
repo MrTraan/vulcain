@@ -13,7 +13,11 @@ uniform vec2 noiseScale;
 uniform float radius = 0.5;
 uniform float bias = 0.025;
 
+#if OPENGL_COMPATIBILITY_VERSION
+uniform Matrices {
+#else
 layout (std140, binding = 0) uniform Matrices {
+#endif
 	mat4 projection;
 	mat4 view;
 	mat4 viewProj;

@@ -2,7 +2,6 @@
 
 #include "../entity.h"
 #include "../game_time.h"
-#include "../registery.h"
 #include "../system.h"
 
 struct CpntWoodshop {

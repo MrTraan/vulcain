@@ -9,6 +9,8 @@
 
 using ngString = std::string;
 
+#define NG_MAX_LOG_SIZE 1024
+
 namespace ng {
 enum LogSeverity {
 	LOG_DEBUG,

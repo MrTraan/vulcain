@@ -1,4 +1,4 @@
-#version 420 core
+#version 410 core
 out vec4 FragColor;  
 
 in vec3 fragPosition;
@@ -15,7 +15,11 @@ struct Material {
 }; 
 uniform Material material;
 
+#if OPENGL_COMPATIBILITY_VERSION
+uniform Matrices {
+#else
 layout (std140, binding = 0) uniform Matrices {
+#endif
 	mat4 projection;
 	mat4 view;
 	mat4 viewProj;
@@ -23,7 +27,11 @@ layout (std140, binding = 0) uniform Matrices {
 	vec4 cameraFront;
 };
 
-layout(std140, binding = 1) uniform Light {
+#if OPENGL_COMPATIBILITY_VERSION
+uniform Light {
+#else
+layout (std140, binding = 1) uniform Light {
+#endif
 	vec4 light_direction;
     vec4 light_ambient;
     vec4 light_diffuse;

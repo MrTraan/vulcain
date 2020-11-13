@@ -278,7 +278,7 @@ bool AStar(
 }
 
 void SystemNavAgent::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, agent ] : reg.IterateOver< CpntNavAgent >() ) {
+	for ( auto [ e, agent ] : reg.IterateOver< CpntNavAgent >() ) {
 		CpntTransform & transform = reg.GetComponent< CpntTransform >( e );
 		float           remainingSpeed = agent.movementSpeed * ticks;
 		while ( agent.pathfindingNextSteps.Empty() == false && remainingSpeed > 0.0f ) {
@@ -918,7 +918,7 @@ bool RoadNetwork::FindPath( Cell                       start,
 				Connection * connection = node->GetValidConnectionWithOffset( i );
 				int          totalCost = current->g + connection->distance;
 				if ( ( u32 )totalCost < maxDistance &&
-				     FindNodeInSet( findPathClosedSet, connection->connectedTo ) == false ) {
+				     FindNodeInSet( findPathClosedSet, connection->connectedTo ) == nullptr ) {
 					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, parent );
 				}
 			}

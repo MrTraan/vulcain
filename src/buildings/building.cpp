@@ -55,7 +55,7 @@ bool IsCellAdjacentToBuilding( const CpntBuilding & building, Cell cell, const M
 
 void SystemHousing::Update( Registery & reg, Duration ticks ) {
 	totalPopulation = 0;
-	for ( auto & [ e, housing ] : reg.IterateOver< CpntHousing >() ) {
+	for ( auto [ e, housing ] : reg.IterateOver< CpntHousing >() ) {
 		// Check if population should grow in house
 		if ( housing.numCurrentlyLiving + housing.numIncomingMigrants < housing.maxHabitants ) {
 			constexpr Cell migrantSpawnPosition( 0, 0 );
@@ -151,7 +151,7 @@ Entity LookForClosestBuildingKind( Registery &                reg,
 	Entity closestStorage = INVALID_ENTITY;
 	u32    closestStorageDistance = maxDistance;
 
-	for ( auto & [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
+	for ( auto [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
 		if ( building.kind != kind ) {
 			continue;
 		}
@@ -175,7 +175,7 @@ Entity LookForStorageContainingOneOfResourceList( Registery &                reg
 	Entity closestStorage = INVALID_ENTITY;
 	u32    closestStorageDistance = maxDistance;
 
-	for ( auto & [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
+	for ( auto [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
 		if ( building.kind != BuildingKind::STORAGE_HOUSE ) {
 			continue;
 		}
@@ -211,7 +211,7 @@ Entity LookForStorageAcceptingResource( Registery &                reg,
 	Entity closestStorage = INVALID_ENTITY;
 	u32    closestStorageDistance = maxDistance;
 
-	for ( auto & [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
+	for ( auto [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
 		if ( building.kind != BuildingKind::STORAGE_HOUSE ) {
 			continue;
 		}
@@ -231,7 +231,7 @@ Entity LookForStorageAcceptingResource( Registery &                reg,
 }
 
 void SystemBuildingProducing::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, producer ] : reg.IterateOver< CpntBuildingProducing >() ) {
+	for ( auto [ e, producer ] : reg.IterateOver< CpntBuildingProducing >() ) {
 		if ( producer.deliveryGuy != INVALID_ENTITY ) {
 			continue;
 		}
@@ -257,7 +257,7 @@ void SystemBuildingProducing::Update( Registery & reg, Duration ticks ) {
 void SystemBuildingProducing::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
 	case MESSAGE_ENTITY_DELETED: {
-		for ( auto & [ e, producer ] : reg.IterateOver< CpntBuildingProducing >() ) {
+		for ( auto [ e, producer ] : reg.IterateOver< CpntBuildingProducing >() ) {
 			if ( producer.deliveryGuy == msg.recipient ) {
 				producer.deliveryGuy = INVALID_ENTITY;
 			}
@@ -305,7 +305,7 @@ bool CpntResourceInventory::IsEmpty() const {
 }
 
 void SystemMarket::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
+	for ( auto [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
 		CpntResourceInventory & marketInventory = reg.GetComponent< CpntResourceInventory >( marketEntity );
 		CpntBuilding &          marketBuilding = reg.GetComponent< CpntBuilding >( marketEntity );
 		if ( market.wanderer == INVALID_ENTITY ) {
@@ -369,7 +369,7 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
 	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
-		for ( auto & [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
+		for ( auto [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
 			if ( market.wanderer == msg.sender ) {
 				// Let's get back resources that were not distributed
 				PostMsg( MESSAGE_FULL_INVENTORY_TRANSACTION, marketEntity, msg.sender );
@@ -381,7 +381,7 @@ void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 		break;
 	}
 	case MESSAGE_ENTITY_DELETED: {
-		for ( auto & [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
+		for ( auto [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
 			if ( market.fetcher == msg.recipient ) {
 				market.fetcher = INVALID_ENTITY;
 			}
@@ -403,7 +403,7 @@ void SystemMarket::OnCpntRemoved( Entity e, CpntMarket & t ) {
 }
 
 void SystemSeller::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, seller ] : reg.IterateOver< CpntSeller >() ) {
+	for ( auto [ e, seller ] : reg.IterateOver< CpntSeller >() ) {
 		auto & transform = reg.GetComponent< CpntTransform >( e );
 		Cell   currentCell = GetCellForPoint( transform.GetTranslation() );
 		if ( currentCell != seller.lastCellDistributed ) {
@@ -414,7 +414,7 @@ void SystemSeller::Update( Registery & reg, Duration ticks ) {
 			GetNeighborsOfCell( currentCell, theGame->map, neighbors );
 
 			// Look for houses adjacent to the seller
-			for ( auto & [ houseEntity, house ] : reg.IterateOver< CpntHousing >() ) {
+			for ( auto [ houseEntity, house ] : reg.IterateOver< CpntHousing >() ) {
 				auto const & building = reg.GetComponent< CpntBuilding >( houseEntity );
 				if ( IsCellAdjacentToBuilding( building, currentCell, theGame->map ) ) {
 					// distribute resources
@@ -432,7 +432,7 @@ void SystemSeller::Update( Registery & reg, Duration ticks ) {
 }
 
 void SystemServiceWanderer::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, wanderer ] : reg.IterateOver< CpntServiceWanderer >() ) {
+	for ( auto [ e, wanderer ] : reg.IterateOver< CpntServiceWanderer >() ) {
 		auto & transform = reg.GetComponent< CpntTransform >( e );
 		Cell   currentCell = GetCellForPoint( transform.GetTranslation() );
 		if ( currentCell != wanderer.lastCellDistributed ) {
@@ -443,7 +443,7 @@ void SystemServiceWanderer::Update( Registery & reg, Duration ticks ) {
 			GetNeighborsOfCell( currentCell, theGame->map, neighbors );
 
 			// Look for houses adjacent to the wanderer
-			for ( auto & [ houseEntity, house ] : reg.IterateOver< CpntHousing >() ) {
+			for ( auto [ houseEntity, house ] : reg.IterateOver< CpntHousing >() ) {
 				auto const & building = reg.GetComponent< CpntBuilding >( houseEntity );
 				for ( const Cell & neighborCell : neighbors ) {
 					if ( IsCellInsideBuilding( building, neighborCell ) ) {
@@ -458,7 +458,7 @@ void SystemServiceWanderer::Update( Registery & reg, Duration ticks ) {
 }
 
 void SystemServiceBuilding::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, serviceBuilding ] : reg.IterateOver< CpntServiceBuilding >() ) {
+	for ( auto [ e, serviceBuilding ] : reg.IterateOver< CpntServiceBuilding >() ) {
 		if ( serviceBuilding.wanderer == INVALID_ENTITY ) {
 			auto const & cpntBuilding = reg.GetComponent< CpntBuilding >( e );
 			double       invEfficiency = cpntBuilding.GetInvEfficiency();
@@ -501,7 +501,7 @@ void SystemServiceBuilding::Update( Registery & reg, Duration ticks ) {
 void SystemServiceBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 	switch ( msg.type ) {
 	case MESSAGE_NAVAGENT_DESTINATION_REACHED: {
-		for ( auto & [ serviceBuildingEntity, serviceBuilding ] : reg.IterateOver< CpntServiceBuilding >() ) {
+		for ( auto [ serviceBuildingEntity, serviceBuilding ] : reg.IterateOver< CpntServiceBuilding >() ) {
 			if ( serviceBuilding.wanderer == msg.sender ) {
 				serviceBuilding.wanderer = INVALID_ENTITY;
 				serviceBuilding.timeSinceLastWandererSpawn = 0;
@@ -610,7 +610,7 @@ void SystemMigrant::OnCpntAttached( Entity e, CpntMigrant & t ) {
 void SystemBuilding::Update( Registery & reg, Duration ticks ) {
 	totalEmployed = 0;
 	totalEmployeesNeeded = 0;
-	for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+	for ( auto [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
 		while ( building.workersEmployed < building.workersNeeded && totalUnemployed > 0 ) {
 			totalUnemployed--;
 			building.workersEmployed++;
@@ -625,7 +625,7 @@ void SystemBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 	case MESSAGE_WORKER_AVAILABLE: {
 		// we have a new worker to distribute
 		bool addedSomewhere = false;
-		for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+		for ( auto [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
 			if ( building.workersEmployed < building.workersNeeded ) {
 				addedSomewhere = true;
 				building.workersEmployed++;
@@ -641,7 +641,7 @@ void SystemBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 	case MESSAGE_WORKER_REMOVED: {
 		// We have to remove a worker somewhere
 		bool removedSomewhere = false;
-		for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+		for ( auto [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
 			if ( building.workersEmployed > 0 ) {
 				removedSomewhere = true;
 				building.workersEmployed--;
@@ -659,7 +659,7 @@ void SystemBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 	}
 	case MESSAGE_ROAD_CELL_ADDED: {
 		Cell cell = CastPayloadAs< Cell >( msg.payload );
-		for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+		for ( auto [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
 			if ( building.hasRoadConnection == false && IsCellAdjacentToBuilding( building, cell, theGame->map ) ) {
 				building.hasRoadConnection = true;
 			}
@@ -668,7 +668,7 @@ void SystemBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 	}
 	case MESSAGE_ROAD_CELL_REMOVED: {
 		Cell removedCell = CastPayloadAs< Cell >( msg.payload );
-		for ( auto & [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
+		for ( auto [ entity, building ] : reg.IterateOver< CpntBuilding >() ) {
 			if ( building.hasRoadConnection == true &&
 			     IsCellAdjacentToBuilding( building, removedCell, theGame->map ) ) {
 				building.hasRoadConnection = false;

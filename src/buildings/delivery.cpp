@@ -121,7 +121,7 @@ void SystemDeliveryGuy::HandleMessage( Registery & reg, const Message & msg ) {
 }
 
 void SystemDeliveryGuy::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, guy ] : reg.IterateOver< CpntDeliveryGuy >() ) {
+	for ( auto [ e, guy ] : reg.IterateOver< CpntDeliveryGuy >() ) {
 		if ( guy.isStuck == true &&
 		     theGame->clock - guy.lastPathfindingTry > CpntDeliveryGuy::durationBetweenTwoPathfindingTry ) {
 			guy.isStuck = false;

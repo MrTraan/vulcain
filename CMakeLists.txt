@@ -5,6 +5,14 @@ cmake_minimum_required (VERSION 3.8)
 project (vulcain)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
+if (UNIX)
+	set(SDL2_LINKER_FLAGS ${SDL2_LINKER_FLAGS} "-L/usr/local/lib -lSDL2")
+	set(LZ4_LINKER_FLAGS ${LZ4_LINKER_FLAGS} lz4)
+else()
+	set(SDL2_LINKER_FLAGS ${SDL2_LINKER_FLAGS} SDL2::SDL2main SDL2::SDL2-static)
+	set(LZ4_LINKER_FLAGS ${LZ4_LINKER_FLAGS} lz4::lz4)
+endif()
+
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 add_definitions(-DFS_BASE_PATH="${CMAKE_SOURCE_DIR}/resources/")
 add_compile_options("")
@@ -14,7 +22,9 @@ set(OpenGL_GL_PREFERENCE GLVND)
 
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
-find_package(lz4 REQUIRED)
+if (WIN32)
+	find_package(lz4 REQUIRED)
+endif()
 find_package(tinyxml2 CONFIG REQUIRED)
 
 if ( ENABLE_PROFILING )
@@ -96,8 +106,8 @@ SYSTEM
 
 target_link_libraries(vulcain PRIVATE
 	${OPENGL_gl_LIBRARY} # filled by "find_package(OpenGL REQUIRED)"
-	SDL2::SDL2main SDL2::SDL2-static
-	lz4::lz4
+	${SDL2_LINKER_FLAGS}
+	${LZ4_LINKER_FLAGS}
 	${TRACY_LIBRARY_PATH}
 	${BENCHMARK_LIBRARY}
     tinyxml2::tinyxml2

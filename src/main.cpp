@@ -48,6 +48,8 @@ _declspec( dllexport ) DWORD NvOptimusEnablement = 0x00000001;
 _declspec( dllexport ) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
 }
 
+#elif defined(__APPLE__)
+
 #else
 NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
 #endif
@@ -149,8 +151,11 @@ int main( int ac, char ** av ) {
 
 	window.Init();
 
-	glEnable( GL_DEBUG_OUTPUT );
-	glDebugMessageCallback( GLErrorCallback, 0 );
+	if (OPENGL_VERSION_MAJOR >= 4 && OPENGL_VERSION_MINOR >= 3)
+	{
+		glEnable( GL_DEBUG_OUTPUT );
+		glDebugMessageCallback( GLErrorCallback, 0 );
+	}
 
 	{
 		auto vendor = glGetString( GL_VENDOR );
@@ -252,6 +257,9 @@ int main( int ac, char ** av ) {
 	ng_assert( cpntHousing.tier == 1 );
 #endif
 
+	Entity first_tree;
+	first_tree.id = -12;
+
 	{
 		std::uniform_real_distribution< float > randomFloats( 0.0, 1.0 ); // random floats between [0.0, 1.0]
 		std::default_random_engine              generator;
@@ -262,6 +270,8 @@ int main( int ac, char ** av ) {
 				float           simplex = ( glm::simplex( glm::vec2( x / 64.0f, z / 64.0f ) ) + 1.0f ) / 2.0f;
 				if ( simplex > treeGenerationThreshold ) {
 					auto pine = reg.CreateEntity();
+					if (first_tree.id == -12)
+						first_tree = pine;
 					Cell cell( x, z );
 					map.SetTile( cell, MapTile::TREE );
 					auto & transform = reg.AssignComponent< CpntTransform >( pine );
@@ -324,6 +334,7 @@ int main( int ac, char ** av ) {
 			theGame->clock += numFixedSteps;
 			FixedUpdate( numFixedSteps );
 		}
+
 
 		Update( pauseSim ? 0.0f : dt );
 		{

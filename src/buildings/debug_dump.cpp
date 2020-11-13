@@ -11,7 +11,7 @@ void SystemDebugDump::OnCpntRemoved( Entity e, CpntDebugDump & t ) {
 }
 
 void SystemDebugDump::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, dump ] : reg.IterateOver< CpntDebugDump >() ) {
+	for ( auto [ e, dump ] : reg.IterateOver< CpntDebugDump >() ) {
 		if ( dump.fetcher == INVALID_ENTITY ) {
 			dump.fetcher = CreateResourceFetcher( reg, dump.resourceToDump, 100, e );
 			ListenTo(MESSAGE_ENTITY_DELETED, dump.fetcher);
@@ -30,7 +30,7 @@ void SystemDebugDump::HandleMessage( Registery & reg, const Message & msg ) {
 		break;
 	}
 	case MESSAGE_ENTITY_DELETED: {
-		for ( auto & [ e, dump ] : reg.IterateOver< CpntDebugDump >() ) {
+		for ( auto [ e, dump ] : reg.IterateOver< CpntDebugDump >() ) {
 			if ( dump.fetcher == msg.recipient ) {
 				dump.fetcher = INVALID_ENTITY;
 			}

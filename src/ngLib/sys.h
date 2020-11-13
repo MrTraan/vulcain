@@ -18,6 +18,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
+#include <fcntl.h>
+#include <unistd.h>
 #define SYS_LINUX
 #define SYS_UNIX
 #elif defined( __APPLE__ )
@@ -26,6 +29,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
+#include <fcntl.h>
+#include <unistd.h>
 #define SYS_OSX
 #define SYS_UNIX
 #else
@@ -44,23 +50,32 @@ using FileOffset = int64;
 #define INVALID_HANDLER INVALID_HANDLE_VALUE
 #elif defined( SYS_UNIX )
 using NativeFileHandler = int;
+#if defined(off64_t)
 using FileOffset = off64_t;
+#else
+using FileOffset = int64_t;
+#endif
 constexpr NativeFileHandler INVALID_HANDLER = -1;
+constexpr int INVALID_FD = -1;
 #endif
 
 struct File {
+#if defined( SYS_WIN )
 	NativeFileHandler handler = INVALID_HANDLER;
+#elif defined( SYS_UNIX )
+	int fd = INVALID_FD;
+#endif
 
 	bool Open( const char * path, int mode );
 	bool Close();
 
 	size_t Read( void * dst, size_t size );
 	size_t Write( const void * src, size_t size );
-	void   Truncate();
 
 	int64 GetSize() const;
 
 	int         mode = 0;
+	int					open_mode = 0;
 	std::string path;
 
 	static constexpr int MODE_READ = 1 << 1;
@@ -79,9 +94,6 @@ struct File {
 		CUR,
 		END,
 	};
-
-	FileOffset TellOffset() const;
-	bool       SeekOffset( FileOffset offset, SeekWhence whence );
 };
 
 enum class ListFileMode {
@@ -92,9 +104,5 @@ enum class ListFileMode {
 bool ListFilesInDirectory( const char *                 path,
                            std::vector< std::string > & results,
                            ListFileMode                 mode = ListFileMode::NORMAL );
-
-bool FileExists( const char * path );
-bool CreateDirectory( const char * path );
-bool IsDirectory( const char * path );
 
 }; // namespace ng

@@ -52,7 +52,7 @@ bool CanPlaceBuilding( const Cell cell, BuildingKind kind, const Map & map ) {
 }
 
 Entity FindBuildingByPosition( Registery & reg, const Cell cell ) {
-	for ( auto & [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
+	for ( auto [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
 		if ( IsCellInsideBuilding( building, cell ) ) {
 			return e;
 		}
@@ -61,7 +61,7 @@ Entity FindBuildingByPosition( Registery & reg, const Cell cell ) {
 }
 
 bool DeleteBuildingByPosition( Registery & reg, const Cell cell, Map & map ) {
-	for ( auto & [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
+	for ( auto [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
 		if ( IsCellInsideBuilding( building, cell ) ) {
 			reg.MarkForDelete( e );
 			for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {
@@ -77,7 +77,7 @@ bool DeleteBuildingByPosition( Registery & reg, const Cell cell, Map & map ) {
 
 int DeleteBuildingsInsideArea( Registery & reg, const Area & area, Map & map ) {
 	int numDeletions = 0;
-	for ( auto & [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
+	for ( auto [ e, building ] : reg.IterateOver< CpntBuilding >() ) {
 		if ( IsBuildingInsideArea( building, area ) ) {
 			reg.MarkForDelete( e );
 			for ( u32 x = building.cell.x; x < building.cell.x + building.tileSizeX; x++ ) {

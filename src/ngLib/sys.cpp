@@ -7,7 +7,7 @@
 
 #if defined( _WIN32 )
 #include <filesystem>
-#elif defined( __linux ) || defined( __APPLE__ )
+#elif defined( SYS_UNIX )
 #include <dirent.h>
 #include <sys/types.h>
 #else
@@ -18,6 +18,7 @@ namespace ng {
 
 static int64 clockTicksPerSecond = 0;
 static int64 clockTicksAtStartup = 0;
+static int64 timeMicroAtStartup = 0;
 
 void InitSys() {
 #if defined( _WIN32 )
@@ -26,10 +27,10 @@ void InitSys() {
 	clockTicksPerSecond = li.QuadPart;
 	QueryPerformanceCounter( &li );
 	clockTicksAtStartup = li.QuadPart;
-#elif defined( __linux )
-	NG_UNSUPPORTED_PLATFORM
-#elif defined( __APPLE__ )
-	NG_UNSUPPORTED_PLATFORM
+#elif defined( SYS_UNIX )
+	struct timespec tv;
+	clock_gettime(CLOCK_MONOTONIC_RAW, &tv);
+	timeMicroAtStartup = tv.tv_sec * 1000000 + tv.tv_nsec / 1000;
 #else
 	NG_UNSUPPORTED_PLATFORM
 #endif
@@ -41,53 +42,16 @@ int64 SysGetTimeInMicro() {
 	QueryPerformanceCounter( &li );
 	int64 ticks = li.QuadPart - clockTicksAtStartup;
 	return ticks * 1000000 * clockTicksPerSecond;
-#elif defined( __linux )
-	NG_UNSUPPORTED_PLATFORM
-#elif defined( __APPLE__ )
-	NG_UNSUPPORTED_PLATFORM
+#elif defined( SYS_UNIX )
+	struct timespec tv;
+	clock_gettime(CLOCK_MONOTONIC_RAW, &tv);
+	return (tv.tv_sec * 1000000 + tv.tv_nsec / 1000) - timeMicroAtStartup;
 #else
 	NG_UNSUPPORTED_PLATFORM
 #endif
 }
 
 float SysGetTimeInMs() { return ( float )SysGetTimeInMicro() / 1000.0f; }
-
-FileOffset File::TellOffset() const {
-#if defined( SYS_WIN )
-	LARGE_INTEGER offset;
-	LARGE_INTEGER liOffset;
-	liOffset.QuadPart = 0;
-	BOOL res = SetFilePointerEx( handler, liOffset, &offset, FILE_CURRENT );
-	ng_assert( res != 0 );
-	return offset.QuadPart;
-#else
-	NG_UNSUPPORTED_PLATFORM
-#endif
-}
-
-bool File::SeekOffset( FileOffset offset, SeekWhence whence ) {
-#if defined( _WIN32 )
-	DWORD moveMethod = 0;
-	switch ( whence ) {
-	case SeekWhence::START:
-		moveMethod = FILE_BEGIN;
-		break;
-	case SeekWhence::CUR:
-		moveMethod = FILE_CURRENT;
-		break;
-	case SeekWhence::END:
-		moveMethod = FILE_END;
-		break;
-	}
-	LARGE_INTEGER liOffset;
-	liOffset.QuadPart = offset;
-	BOOL res = SetFilePointerEx( handler, liOffset, nullptr, moveMethod );
-	ng_assert( res != 0 );
-	return res;
-#else
-	NG_UNSUPPORTED_PLATFORM
-#endif
-}
 
 bool File::Open( const char * path, int mode ) {
 	this->mode = mode;
@@ -115,41 +79,81 @@ bool File::Open( const char * path, int mode ) {
 	handler = CreateFileA( path, dwDesiredAccess, 0, nullptr, dwCreationDisposition, FILE_ATTRIBUTE_NORMAL, nullptr );
 	ng_assert_msg( handler != INVALID_HANDLE_VALUE, "CreateFileA failed with error code %lu", GetLastError() );
 	return handler != INVALID_HANDLE_VALUE;
+#elif defined( SYS_UNIX )
+	int open_mode = 0;
+	if ( ModeCanRead() && !ModeCanWrite() ) {
+		open_mode |= O_RDONLY;
+	}
+	if ( !ModeCanRead() && ModeCanWrite() ) {
+		open_mode |= O_WRONLY;
+	}
+	if ( ModeCanRead() && ModeCanWrite() ) {
+		open_mode |= O_RDWR;
+	}
+	if ( ModeCanCreate() ) {
+		open_mode |= O_CREAT;
+	}
+	if ( ModeCanTruncate() ) {
+		open_mode |= O_TRUNC;
+	}
+	this->open_mode = open_mode;
+	int fd = open( path, open_mode );
+	ng_assert_msg( fd != INVALID_FD, "open failed with error '%s'", strerror( errno ) );
+	return fd != INVALID_FD;
 #else
 	NG_UNSUPPORTED_PLATFORM
 #endif
 }
 
 bool File::Close() {
-	ng_assert( handler != INVALID_HANDLER );
 #if defined( SYS_WIN )
+	ng_assert( handler != INVALID_HANDLER );
 	return CloseHandle( handler );
+#elif defined( SYS_UNIX )
+	ng_assert( fd != INVALID_FD );
+	return close( fd ) != -1;
 #else
 	NG_UNSUPPORTED_PLATFORM
 #endif
 }
 
 size_t File::Read( void * dst, size_t size ) {
-	ng_assert( handler != INVALID_HANDLER );
 	ng_assert( ModeCanRead() );
 #if defined( SYS_WIN )
+	ng_assert( handler != INVALID_HANDLER );
 	DWORD bytesRead;
 	BOOL  success = ReadFile( handler, dst, ( DWORD )size, &bytesRead, nullptr );
 	ng_assert( success != 0 );
 	return ( size_t )bytesRead;
+#elif defined( SYS_UNIX )
+	// For some reason, '.GetSize' seems to make the file descriptor invalid. Just reopen the file for now, YOLO
+	close( fd );
+ 	fd = open( this->path.c_str(), this->open_mode );
+	ng_assert( fd != INVALID_FD );
+	size_t bytes_read = read( fd, dst, size );
+	ng_assert( bytes_read != -1 );
+	return bytes_read;
 #else
 	NG_UNSUPPORTED_PLATFORM
 #endif
 }
 
 size_t File::Write( const void * src, size_t size ) {
-	ng_assert( handler != INVALID_HANDLER );
 	ng_assert( ModeCanWrite() );
 #if defined( SYS_WIN )
+	ng_assert( handler != INVALID_HANDLER );
 	DWORD bytesRead;
 	BOOL  success = WriteFile( handler, src, ( DWORD )size, &bytesRead, nullptr );
 	ng_assert( success != 0 );
 	return ( size_t )bytesRead;
+#elif defined( SYS_UNIX )
+	// For some reason, the file descriptor invalid. Just reopen the file for now, YOLO
+	close( fd );
+ 	fd = open( this->path.c_str(), this->open_mode );
+	ng_assert( fd != INVALID_FD );
+	size_t bytesWritten = write( fd, src, size );
+	ng_assert( bytesWritten != -1 );
+	return bytesWritten;
 #else
 	NG_UNSUPPORTED_PLATFORM
 #endif
@@ -161,16 +165,11 @@ int64 File::GetSize() const {
 	BOOL          success = GetFileSizeEx( handler, &size );
 	ng_assert( success != 0 );
 	return size.QuadPart;
-#else
-	NG_UNSUPPORTED_PLATFORM
-#endif
-}
-
-void File::Truncate() {
-#if defined( SYS_WIN )
-	SeekOffset( 0, SeekWhence::START );
-	BOOL success = SetEndOfFile( handler );
-	ng_assert( success != 0 );
+#elif defined( SYS_UNIX )
+	struct stat st;
+	int success = stat(path.c_str(), &st);
+	ng_assert( success != -1 );
+	return st.st_size;
 #else
 	NG_UNSUPPORTED_PLATFORM
 #endif
@@ -191,7 +190,7 @@ bool ListFilesInDirectory( const char *                 path,
 #elif defined( SYS_UNIX )
 	DIR * dir = opendir( path );
 	if ( dir == nullptr ) {
-		return;
+		return false;
 	}
 
 	dirent * dirFiles;
@@ -199,7 +198,12 @@ bool ListFilesInDirectory( const char *                 path,
 		if ( strcmp( dirFiles->d_name, "." ) == 0 || strcmp( dirFiles->d_name, ".." ) == 0 )
 			continue;
 		if ( dirFiles->d_type == DT_DIR ) {
-			success &= ListFilesInDirectory( dirFiles->d_name, results, mode );
+			int ori_path_len = strlen( path );
+			char *full_dir_path = new char[ ori_path_len + strlen(dirFiles->d_name) + 1 ];
+			strcpy( full_dir_path, path );
+			strcpy( full_dir_path + sizeof(char) * ori_path_len, dirFiles->d_name );
+			full_dir_path[ ori_path_len + strlen(dirFiles->d_name) ] = '\0';
+			success &= ListFilesInDirectory( full_dir_path, results, mode );
 		} else {
 			std::string str = path;
 			str += "/";
@@ -212,35 +216,6 @@ bool ListFilesInDirectory( const char *                 path,
 	NG_UNSUPPORTED_PLATFORM
 #endif
 	return success;
-}
-
-bool FileExists( const char * path ) {
-#if defined( SYS_WIN )
-	DWORD attributes = GetFileAttributesA( path );
-	return attributes != INVALID_FILE_ATTRIBUTES;
-#else
-	NG_UNSUPPORTED_PLATFORM
-#endif
-}
-
-bool IsDirectory( const char * path ) {
-#if defined( SYS_WIN )
-	DWORD attributes = GetFileAttributesA( path );
-	ng_assert( attributes != INVALID_FILE_ATTRIBUTES );
-	return ( attributes & FILE_ATTRIBUTE_DIRECTORY ) != 0;
-#else
-	NG_UNSUPPORTED_PLATFORM
-#endif
-}
-
-bool CreateDirectory( const char * path ) {
-#if defined( SYS_WIN )
-	BOOL success = ::CreateDirectoryA( path, nullptr );
-	ng_assert( success != 0 );
-	return success != 0;
-#else
-	NG_UNSUPPORTED_PLATFORM
-#endif
 }
 
 }; // namespace ng
