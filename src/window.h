@@ -7,19 +7,8 @@
 #include <stdexcept>
 #include <tracy/Tracy.hpp>
 
-#if __APPLE__
-# define OPENGL_COMPATIBILITY_VERSION 1
-#else
-# define OPENGL_COMPATIBILITY_VERSION 0
-#endif
-
-#if OPENGL_COMPATIBILITY_VERSION
 constexpr int	OPENGL_VERSION_MAJOR = 4;
 constexpr int	OPENGL_VERSION_MINOR = 1;
-#else
-constexpr int	OPENGL_VERSION_MAJOR = 4;
-constexpr int	OPENGL_VERSION_MINOR = 5;
-#endif
 
 constexpr char WINDOW_TITLE[] = "Vulcain";
 constexpr int  WINDOW_WIDTH = 1280;

@@ -8,11 +8,7 @@ uniform sampler2D gNormal;
 uniform sampler2D gAlbedoSpec;
 uniform sampler2D ssao;
 
-#if OPENGL_COMPATIBILITY_VERSION
-uniform Matrices {
-#else
-layout (std140, binding = 0) uniform Matrices {
-#endif
+layout (std140) uniform Matrices {
 	mat4 projection;
 	mat4 view;
 	mat4 viewProj;
@@ -20,11 +16,7 @@ layout (std140, binding = 0) uniform Matrices {
 	vec4 cameraFront;
 };
 
-#if OPENGL_COMPATIBILITY_VERSION
-uniform Light {
-#else
-layout (std140, binding = 1) uniform Light {
-#endif
+layout (std140) uniform Light {
 	vec4 light_direction;
     vec4 light_ambient;
     vec4 light_diffuse;

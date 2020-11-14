@@ -52,28 +52,6 @@ PackerResource::Type GuessTypeFromExtension( const std::string & ext ) {
 	return PackerResource::Type::INVALID;
 }
 
-static void AdaptSourceToOpenglCompatibilityVersion( u8 *src, size_t srcLen )
-{
-#if !OPENGL_COMPATIBILITY_VERSION
-	return;
-#endif
-	char	*firstLine = "#version 4";
-	char	*firstLineEnd = " core\n";
-	char	*secondLine = "#define OPENGL_COMPATIBILITY_VERSION ";
-	int 	len1 = strlen( firstLine );
-	int		len1End = strlen( firstLineEnd );
-	int		len2 = strlen( secondLine );
-	if ( srcLen < len1 + 2 + len1End + len2 + 1 )
-		return;
-	if ( memcmp( firstLine, src, len1 ) == 0 && memcmp( secondLine, src + len1 + 2 + len1End, len2 ) == 0  ) {
-		// Change 4xx to 410 (max version supported by OSX)
-		src[ len1 ] = '1';
-		src[ len1 + 1 ] = '0';
-		// Set OPENGL_COMPATIBILITY_VERSION to 1
-		src[ len1 + 2 + len1End + len2 ] = '1';
-	}
-}
-
 bool PackerReadArchive( const char * path, PackerPackage * package ) {
 	ng::File archive;
 	bool     success = archive.Open( path, ng::File::MODE_READ );
@@ -144,11 +122,7 @@ bool PackerCreateRuntimeArchive( const char * resourcesPath, PackerPackage * pac
 		ng_assert( success == true );
 
 		u64 fileSize = file.GetSize();
-		u64 filePrefixSize = 0;
-		char *openGlShaderDefine = "#define OPENGL_COMPATIBILITY_VERSION 0\n";
-		if ( type == PackerResource::Type::VERTEX_SHADER || type == PackerResource::Type::FRAGMENT_SHADER )
-			filePrefixSize = strlen( openGlShaderDefine );
-		archiveData = ( u8 * )realloc( archiveData, archiveDataSize + sizeof( PackerResource ) + filePrefixSize + fileSize );
+		archiveData = ( u8 * )realloc( archiveData, archiveDataSize + sizeof( PackerResource ) + fileSize );
 		ng_assert( archiveData != nullptr );
 		u8 *fileData = archiveData + archiveDataSize + sizeof( PackerResource );
 
@@ -157,22 +131,12 @@ bool PackerCreateRuntimeArchive( const char * resourcesPath, PackerPackage * pac
 		strncpy( header->name, fileName.c_str(), 63 );
 		header->id = nextID++;
 		header->name[ 63 ] = 0;
-		header->size = filePrefixSize + fileSize;
+		header->size = fileSize;
 		header->offset = archiveDataSize + sizeof( PackerResource );
 
-		file.Read( fileData + filePrefixSize, fileSize );
+		file.Read( fileData , fileSize );
 
-		if ( type == PackerResource::Type::VERTEX_SHADER || type == PackerResource::Type::FRAGMENT_SHADER ) {
-			if ( memcmp( "#version ", fileData + filePrefixSize, strlen( "#version " ) ) == 0 &&
-					memcmp( " core\n", fileData + filePrefixSize + strlen( "#version " ) + 3, strlen( " core\n" ) ) == 0
-			) {
-				memcpy( fileData, fileData + filePrefixSize, strlen( "#version " ) + 3 + strlen( " core\n" ) );
-				memcpy( fileData + strlen( "#version " ) + 3 + strlen( " core\n" ), openGlShaderDefine, filePrefixSize );
-				AdaptSourceToOpenglCompatibilityVersion( archiveData + archiveDataSize + sizeof( PackerResource ), filePrefixSize + fileSize );
-			}
-		}
-
-		archiveDataSize += sizeof( PackerResource ) + filePrefixSize + fileSize;
+		archiveDataSize += sizeof( PackerResource ) + fileSize;
 	}
 	package->data = archiveData;
 	package->size = archiveDataSize;
@@ -222,11 +186,7 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 		ng_assert( success == true );
 
 		u64 fileSize = file.GetSize();
-		u64 filePrefixSize = 0;
-		char *openGlShaderDefine = "#define OPENGL_COMPATIBILITY_VERSION 0\n";
-		if ( type == PackerResource::Type::VERTEX_SHADER || type == PackerResource::Type::FRAGMENT_SHADER )
-			filePrefixSize = strlen( openGlShaderDefine );
-		archiveData = ( u8 * )realloc( archiveData, archiveDataSize + sizeof( PackerResource ) + filePrefixSize + fileSize );
+		archiveData = ( u8 * )realloc( archiveData, archiveDataSize + sizeof( PackerResource ) + fileSize );
 		ng_assert( archiveData != nullptr );
 		u8 *fileData = archiveData + archiveDataSize + sizeof( PackerResource );
 
@@ -235,7 +195,7 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 		strncpy( header->name, fileName.c_str(), 63 );
 		header->id = nextID++;
 		header->name[ 63 ] = 0;
-		header->size =  filePrefixSize + fileSize;
+		header->size =  fileSize;
 		header->offset = archiveDataSize + sizeof( PackerResource );
 
 		headerFileSource += "constexpr PackerResourceID ";
@@ -250,17 +210,7 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 
 		file.Read( archiveData + archiveDataSize + sizeof( PackerResource ), fileSize );
 
-		if ( type == PackerResource::Type::VERTEX_SHADER || type == PackerResource::Type::FRAGMENT_SHADER ) {
-			if ( memcmp( "#version ", fileData + filePrefixSize, strlen( "#version " ) ) == 0 &&
-					memcmp( " core\n", fileData + filePrefixSize + strlen( "#version " ) + 3, strlen( " core\n" ) ) == 0
-			) {
-				memcpy( fileData, fileData + filePrefixSize, strlen( "#version " ) + 3 + strlen( " core\n" ) );
-				memcpy( fileData + strlen( "#version " ) + 3 + strlen( " core\n" ), openGlShaderDefine, filePrefixSize );
-				AdaptSourceToOpenglCompatibilityVersion( archiveData + archiveDataSize + sizeof( PackerResource ), filePrefixSize + fileSize );
-			}
-		}
-
-		archiveDataSize += sizeof( PackerResource ) + filePrefixSize + fileSize;
+		archiveDataSize += sizeof( PackerResource ) + fileSize;
 	}
 	headerFileSource += "};\n";
 

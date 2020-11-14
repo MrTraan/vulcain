@@ -26,12 +26,10 @@ void Renderer::InitRenderer( int width, int height ) {
 		glBufferData( GL_UNIFORM_BUFFER, sizeof( LightUBOData ), nullptr, GL_STATIC_DRAW );
 		glBindBuffer( GL_UNIFORM_BUFFER, 0 );
 
-#if OPENGL_COMPATIBILITY_VERSION
 		for ( auto & shader : g_shaderAtlas.shaders ) {
-			glUniformBlockBinding(shader.ID, glGetUniformBlockIndex(shader.ID, "Matrices"), viewProjUBOIndex);
-			glUniformBlockBinding(shader.ID, glGetUniformBlockIndex(shader.ID, "Lights"), lightUBOIndex);
+			glUniformBlockBinding( shader.ID, glGetUniformBlockIndex( shader.ID, "Matrices" ), viewProjUBOIndex );
+			glUniformBlockBinding( shader.ID, glGetUniformBlockIndex( shader.ID, "Light" ), lightUBOIndex );
 		}
-#endif
 
 		glBindBufferRange( GL_UNIFORM_BUFFER, viewProjUBOIndex, viewProjUBO, 0, sizeof( ViewProjUBOData ) );
 		glBindBufferRange( GL_UNIFORM_BUFFER, lightUBOIndex, lightUBO, 0, sizeof( LightUBOData ) );
@@ -116,7 +114,7 @@ void Renderer::InitRenderer( int width, int height ) {
 	glReadBuffer( GL_NONE );
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
-	finalRender.Allocate(width, height);
+	finalRender.Allocate( width, height );
 }
 
 void Renderer::ShutdownRenderer() {
@@ -253,8 +251,7 @@ void Renderer::PostProcessPass() {
 	glBindVertexArray( 0 );
 }
 
-void Renderer::DebugPass() {
-}
+void Renderer::DebugPass() {}
 
 void Renderer::FillViewProjUBO( const ViewProjUBOData * data ) {
 	ZoneScoped;
@@ -277,7 +274,7 @@ void Renderer::DebugDraw() {
 		static float width = height * 16.0f / 9.0f;
 		ImGui::SliderFloat( "finalRender width", &width, 1.0f, 1920.0f );
 		ImGui::Image( ( ImTextureID )finalRender.textureID, ImVec2( width / 2.0f, height / 2.0f ), ImVec2( 0, 1 ),
-	              ImVec2( 1, 0 ) );
+		              ImVec2( 1, 0 ) );
 	}
 	ImGui::End();
 	static float height = 400.0f;
