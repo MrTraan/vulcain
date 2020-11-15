@@ -2,7 +2,6 @@
 #include <LZ4.h>
 #include <algorithm>
 #include <filesystem>
-#include "window.h"
 
 const char * ResourceTypeToString( PackerResource::Type type ) {
 	switch ( type ) {
@@ -70,8 +69,9 @@ bool PackerReadArchive( const char * path, PackerPackage * package ) {
 
 	u8 * uncompressedBuffer = new u8[ uncompressedBufferSize ];
 
-	int bytesDecompressed = LZ4_decompress_safe( ( char * )inBuffer + sizeof( u64 ), ( char * )uncompressedBuffer,
-	                                             (int)(archiveSize - sizeof( u64 )), (int)uncompressedBufferSize );
+	int bytesDecompressed =
+	    LZ4_decompress_safe( ( char * )inBuffer + sizeof( u64 ), ( char * )uncompressedBuffer,
+	                         ( int )( archiveSize - sizeof( u64 ) ), ( int )uncompressedBufferSize );
 
 	ng_assert( bytesDecompressed > 0 );
 
@@ -124,7 +124,7 @@ bool PackerCreateRuntimeArchive( const char * resourcesPath, PackerPackage * pac
 		u64 fileSize = file.GetSize();
 		archiveData = ( u8 * )realloc( archiveData, archiveDataSize + sizeof( PackerResource ) + fileSize );
 		ng_assert( archiveData != nullptr );
-		u8 *fileData = archiveData + archiveDataSize + sizeof( PackerResource );
+		u8 * fileData = archiveData + archiveDataSize + sizeof( PackerResource );
 
 		PackerResource * header = ( PackerResource * )( archiveData + archiveDataSize );
 		header->type = type;
@@ -134,7 +134,7 @@ bool PackerCreateRuntimeArchive( const char * resourcesPath, PackerPackage * pac
 		header->size = fileSize;
 		header->offset = archiveDataSize + sizeof( PackerResource );
 
-		file.Read( fileData , fileSize );
+		file.Read( fileData, fileSize );
 
 		archiveDataSize += sizeof( PackerResource ) + fileSize;
 	}
@@ -188,14 +188,14 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 		u64 fileSize = file.GetSize();
 		archiveData = ( u8 * )realloc( archiveData, archiveDataSize + sizeof( PackerResource ) + fileSize );
 		ng_assert( archiveData != nullptr );
-		u8 *fileData = archiveData + archiveDataSize + sizeof( PackerResource );
+		u8 * fileData = archiveData + archiveDataSize + sizeof( PackerResource );
 
 		PackerResource * header = ( PackerResource * )( archiveData + archiveDataSize );
 		header->type = type;
 		strncpy( header->name, fileName.c_str(), 63 );
 		header->id = nextID++;
 		header->name[ 63 ] = 0;
-		header->size =  fileSize;
+		header->size = fileSize;
 		header->offset = archiveDataSize + sizeof( PackerResource );
 
 		headerFileSource += "constexpr PackerResourceID ";
@@ -222,11 +222,11 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 	ng::Printf( "Generate header file at %s\n", headerFile.path.c_str() );
 	headerFile.Close();
 
-	int  maxCompressedSize = LZ4_compressBound( (int)archiveDataSize );
+	int  maxCompressedSize = LZ4_compressBound( ( int )archiveDataSize );
 	u8 * compressedData = ( u8 * )malloc( maxCompressedSize );
 	ng_assert( compressedData != nullptr );
-	int compressedDataSize =
-	    LZ4_compress_default( ( char * )archiveData, ( char * )compressedData, (int)archiveDataSize, (int)maxCompressedSize );
+	int compressedDataSize = LZ4_compress_default( ( char * )archiveData, ( char * )compressedData,
+	                                               ( int )archiveDataSize, ( int )maxCompressedSize );
 	ng_assert( compressedDataSize > 0 );
 	ng::Printf( "Successfully compressed resources archive. TotalSize %.2fmb, Ratio: %.2f\n",
 	            ( float )compressedDataSize / 1024.0f / 1024.0f, ( float )compressedDataSize / archiveDataSize );

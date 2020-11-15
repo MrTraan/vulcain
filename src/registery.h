@@ -171,98 +171,16 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 };
 
 constexpr u32 INITIAL_ENTITY_ALLOC = 4096u;
-constexpr u32 N_CPNT_TYPES = 19;
 
 struct Registery {
-	CpntTypeHash                               cpntTypeHashes[ N_CPNT_TYPES ];
-	std::map< CpntTypeHash, ICpntRegistery * > cpntRegistriesMap;
+	ng::DynamicArray< ng::Tuple< CpntTypeHash, ICpntRegistery * > > cpntRegistriesMap;
 #ifdef DEBUG
-	std::map< CpntTypeHash, std::string > cpntTypesToName;
+	ng::DynamicArray< ng::Tuple< CpntTypeHash, std::string > > cpntTypesToName;
 #endif
 
 	char * isEntityAlive = nullptr;
 
 	Registery( SystemManager * systemManager ) : systemManager( systemManager ) {
-		// Order matters, as it will determine in what order components are created (std::map is ordered)
-		cpntTypeHashes[ 0 ] = HashComponent< CpntTransform >();
-		cpntRegistriesMap[ cpntTypeHashes[ 0 ] ] = new CpntRegistery< CpntTransform >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 1 ] = HashComponent< CpntTree >();
-		cpntRegistriesMap[ cpntTypeHashes[ 1 ] ] = new CpntRegistery< CpntTree >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 2 ] = HashComponent< CpntResourceInventory >();
-		cpntRegistriesMap[ cpntTypeHashes[ 2 ] ] = new CpntRegistery< CpntResourceInventory >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 3 ] = HashComponent< CpntNavAgent >();
-		cpntRegistriesMap[ cpntTypeHashes[ 3 ] ] = new CpntRegistery< CpntNavAgent >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 4 ] = HashComponent< CpntRenderModel >();
-		cpntRegistriesMap[ cpntTypeHashes[ 4 ] ] = new CpntRegistery< CpntRenderModel >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 5 ] = HashComponent< CpntMigrant >();
-		cpntRegistriesMap[ cpntTypeHashes[ 5 ] ] = new CpntRegistery< CpntMigrant >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 6 ] = HashComponent< CpntDeliveryGuy >();
-		cpntRegistriesMap[ cpntTypeHashes[ 6 ] ] = new CpntRegistery< CpntDeliveryGuy >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 7 ] = HashComponent< CpntSeller >();
-		cpntRegistriesMap[ cpntTypeHashes[ 7 ] ] = new CpntRegistery< CpntSeller >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 8 ] = HashComponent< CpntServiceWanderer >();
-		cpntRegistriesMap[ cpntTypeHashes[ 8 ] ] = new CpntRegistery< CpntServiceWanderer >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 9 ] = HashComponent< CpntBuilding >();
-		cpntRegistriesMap[ cpntTypeHashes[ 9 ] ] = new CpntRegistery< CpntBuilding >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 10 ] = HashComponent< CpntHousing >();
-		cpntRegistriesMap[ cpntTypeHashes[ 10 ] ] = new CpntRegistery< CpntHousing >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 11 ] = HashComponent< CpntBuildingProducing >();
-		cpntRegistriesMap[ cpntTypeHashes[ 11 ] ] = new CpntRegistery< CpntBuildingProducing >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 12 ] = HashComponent< CpntStorageHouse >();
-		cpntRegistriesMap[ cpntTypeHashes[ 12 ] ] = new CpntRegistery< CpntStorageHouse >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 13 ] = HashComponent< CpntMarket >();
-		cpntRegistriesMap[ cpntTypeHashes[ 13 ] ] = new CpntRegistery< CpntMarket >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 14 ] = HashComponent< CpntServiceBuilding >();
-		cpntRegistriesMap[ cpntTypeHashes[ 14 ] ] = new CpntRegistery< CpntServiceBuilding >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 15 ] = HashComponent< CpntWoodshop >();
-		cpntRegistriesMap[ cpntTypeHashes[ 15 ] ] = new CpntRegistery< CpntWoodshop >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 16 ] = HashComponent< CpntDebugDump >();
-		cpntRegistriesMap[ cpntTypeHashes[ 16 ] ] = new CpntRegistery< CpntDebugDump >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 17 ] = HashComponent< CpntResourceFetcher >();
-		cpntRegistriesMap[ cpntTypeHashes[ 17 ] ] = new CpntRegistery< CpntResourceFetcher >( INITIAL_ENTITY_ALLOC );
-		cpntTypeHashes[ 18 ] = HashComponent< CpntWoodworker >();
-		cpntRegistriesMap[ cpntTypeHashes[ 18 ] ] = new CpntRegistery< CpntWoodworker >( INITIAL_ENTITY_ALLOC );
-
-#ifdef DEBUG
-		cpntTypesToName[ HashComponent< CpntTransform >() ] =
-		    std::string( std::type_index( typeid( CpntTransform ) ).name() );
-		cpntTypesToName[ HashComponent< CpntTree >() ] = std::string( std::type_index( typeid( CpntTree ) ).name() );
-		cpntTypesToName[ HashComponent< CpntResourceInventory >() ] =
-		    std::string( std::type_index( typeid( CpntResourceInventory ) ).name() );
-		cpntTypesToName[ HashComponent< CpntNavAgent >() ] =
-		    std::string( std::type_index( typeid( CpntNavAgent ) ).name() );
-		cpntTypesToName[ HashComponent< CpntRenderModel >() ] =
-		    std::string( std::type_index( typeid( CpntRenderModel ) ).name() );
-		cpntTypesToName[ HashComponent< CpntMigrant >() ] =
-		    std::string( std::type_index( typeid( CpntMigrant ) ).name() );
-		cpntTypesToName[ HashComponent< CpntDeliveryGuy >() ] =
-		    std::string( std::type_index( typeid( CpntDeliveryGuy ) ).name() );
-		cpntTypesToName[ HashComponent< CpntSeller >() ] =
-		    std::string( std::type_index( typeid( CpntSeller ) ).name() );
-		cpntTypesToName[ HashComponent< CpntServiceWanderer >() ] =
-		    std::string( std::type_index( typeid( CpntServiceWanderer ) ).name() );
-		cpntTypesToName[ HashComponent< CpntBuilding >() ] =
-		    std::string( std::type_index( typeid( CpntBuilding ) ).name() );
-		cpntTypesToName[ HashComponent< CpntHousing >() ] =
-		    std::string( std::type_index( typeid( CpntHousing ) ).name() );
-		cpntTypesToName[ HashComponent< CpntBuildingProducing >() ] =
-		    std::string( std::type_index( typeid( CpntBuildingProducing ) ).name() );
-		cpntTypesToName[ HashComponent< CpntStorageHouse >() ] =
-		    std::string( std::type_index( typeid( CpntStorageHouse ) ).name() );
-		cpntTypesToName[ HashComponent< CpntMarket >() ] =
-		    std::string( std::type_index( typeid( CpntMarket ) ).name() );
-		cpntTypesToName[ HashComponent< CpntServiceBuilding >() ] =
-		    std::string( std::type_index( typeid( CpntServiceBuilding ) ).name() );
-		cpntTypesToName[ HashComponent< CpntWoodshop >() ] =
-		    std::string( std::type_index( typeid( CpntWoodshop ) ).name() );
-		cpntTypesToName[ HashComponent< CpntDebugDump >() ] =
-		    std::string( std::type_index( typeid( CpntDebugDump ) ).name() );
-		cpntTypesToName[ HashComponent< CpntResourceFetcher >() ] =
-		    std::string( std::type_index( typeid( CpntResourceFetcher ) ).name() );
-		cpntTypesToName[ HashComponent< CpntWoodworker >() ] =
-		    std::string( std::type_index( typeid( CpntWoodworker ) ).name() );
-#endif
-
 		// Enqueue ids from 0 to INITIAL_ENTITY_ALLOC
 		Entity * intialEntitiesIds = new Entity[ INITIAL_ENTITY_ALLOC ];
 		isEntityAlive = new char[ INITIAL_ENTITY_ALLOC ];
@@ -276,8 +194,8 @@ struct Registery {
 	}
 
 	~Registery() {
-		for ( auto & typeHash : cpntTypeHashes ) {
-			delete cpntRegistriesMap.at( typeHash );
+		for ( auto [ hash, registery ] : cpntRegistriesMap ) {
+			delete registery;
 		}
 		delete isEntityAlive;
 	}
@@ -299,8 +217,7 @@ struct Registery {
 		// @TODO: We could clean the systems event queues if they listen to an entity that is now dead
 		if ( isEntityAlive[ e.id ] ) {
 			isEntityAlive[ e.id ] = 0;
-			for ( auto & typeHash : cpntTypeHashes ) {
-				auto registery = cpntRegistriesMap.at( typeHash );
+			for ( auto [ hash, registery ] : cpntRegistriesMap ) {
 				registery->RemoveComponent( systemManager, e );
 			}
 			e.version++;
@@ -319,8 +236,7 @@ struct Registery {
 	}
 
 	void FlushCreationQueues() {
-		for ( auto & typeHash : cpntTypeHashes ) {
-			auto registery = cpntRegistriesMap.at( typeHash );
+		for ( auto [ hash, registery ] : cpntRegistriesMap ) {
 			registery->FlushCreationQueue( systemManager );
 		}
 	}
@@ -339,23 +255,41 @@ struct Registery {
 	template < class T > const CpntRegistery< T > & IterateOver() const { return GetComponentRegistery< T >(); }
 
 	template < class T > CpntRegistery< T > & GetComponentRegistery() {
-		CpntTypeHash         typeHash = HashComponent< T >();
-		CpntRegistery< T > * returnValue = ( CpntRegistery< T > * )cpntRegistriesMap.at( typeHash );
-		return *returnValue;
+		CpntTypeHash typeHash = HashComponent< T >();
+		for ( auto [ hash, registery ] : cpntRegistriesMap ) {
+			if ( typeHash == hash )
+				return *( ( CpntRegistery< T > * )registery );
+		}
+		// TODO: This if must go away someday
+		auto & newRegistery =
+		    cpntRegistriesMap.PushBack( { typeHash, new CpntRegistery< T >( INITIAL_ENTITY_ALLOC ) } );
+#ifdef DEBUG
+		cpntTypesToName.PushBack( { typeHash, std::string( std::type_index( typeid( T ) ).name() ) } );
+#endif
+		return *( ( CpntRegistery< T > * )newRegistery.Second() );
 	}
+
 	template < class T > const CpntRegistery< T > & GetComponentRegistery() const {
-		auto                 typeHash = HashComponent< T >();
-		CpntRegistery< T > * returnValue = ( CpntRegistery< T > * )cpntRegistriesMap.at( typeHash );
-		return *returnValue;
+		CpntTypeHash typeHash = HashComponent< T >();
+		for ( auto [ hash, registery ] : cpntRegistriesMap ) {
+			if ( typeHash == hash )
+				return *( ( const CpntRegistery< T > * )registery );
+		}
+		// TODO: This if must go away someday
+		auto mutable_this = const_cast< Registery * >( this );
+		return mutable_this->GetComponentRegistery<T>();
 	}
 
 	void DebugDraw() {
 #ifdef DEBUG
 		u64 totalMemUsage = 0;
-		for ( auto [ type, registery ] : cpntRegistriesMap ) {
+		for ( int i = 0; i < cpntRegistriesMap.Size(); i++ ) {
+			auto hash = cpntRegistriesMap[ i ].First();
+			auto registery = cpntRegistriesMap[ i ].Second();
+			auto name = cpntTypesToName[ i ].Second();
 			totalMemUsage += registery->ComputeMemoryUsage();
-			if ( ImGui::TreeNode( cpntTypesToName[ type ].c_str() ) ) {
-				ImGui::Text( "Hash: %llu\n", type );
+			if ( ImGui::TreeNode( name.c_str() ) ) {
+				ImGui::Text( "Hash: %llu\n", hash );
 				ImGui::Text( "Num components: %d\n", registery->GetSize() );
 				ImGui::Text( "Memory used: %llukb\n", registery->ComputeMemoryUsage() / 1024 );
 				ImGui::TreePop();
