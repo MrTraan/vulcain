@@ -10,16 +10,15 @@
 #if defined( _WIN32 )
 #define DEBUG_BREAK __debugbreak()
 #define SYS_WIN
-#include <windows.h>
 #include <Fileapi.h>
 #include <Handleapi.h>
+#include <windows.h>
 #elif defined( __linux )
 #define DEBUG_BREAK __asm__ __volatile__( "int $0x03" )
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <fcntl.h>
 #include <unistd.h>
 #define SYS_LINUX
 #define SYS_UNIX
@@ -30,7 +29,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <fcntl.h>
 #include <unistd.h>
 #define SYS_OSX
 #define SYS_UNIX
@@ -50,21 +48,16 @@ using FileOffset = int64;
 #define INVALID_HANDLER INVALID_HANDLE_VALUE
 #elif defined( SYS_UNIX )
 using NativeFileHandler = int;
-#if defined(off64_t)
+#if defined( off64_t )
 using FileOffset = off64_t;
 #else
 using FileOffset = int64_t;
 #endif
 constexpr NativeFileHandler INVALID_HANDLER = -1;
-constexpr int INVALID_FD = -1;
 #endif
 
 struct File {
-#if defined( SYS_WIN )
 	NativeFileHandler handler = INVALID_HANDLER;
-#elif defined( SYS_UNIX )
-	int fd = INVALID_FD;
-#endif
 
 	bool Open( const char * path, int mode );
 	bool Close();
@@ -75,7 +68,7 @@ struct File {
 	int64 GetSize() const;
 
 	int         mode = 0;
-	int					open_mode = 0;
+	int         open_mode = 0;
 	std::string path;
 
 	static constexpr int MODE_READ = 1 << 1;
@@ -94,6 +87,9 @@ struct File {
 		CUR,
 		END,
 	};
+
+	FileOffset TellOffset() const;
+	bool       SeekOffset( FileOffset offset, SeekWhence whence );
 };
 
 enum class ListFileMode {
