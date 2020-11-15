@@ -48,7 +48,7 @@ _declspec( dllexport ) DWORD NvOptimusEnablement = 0x00000001;
 _declspec( dllexport ) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
 }
 
-#elif defined(__APPLE__)
+#elif defined( __APPLE__ )
 
 #else
 NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
@@ -151,8 +151,7 @@ int main( int ac, char ** av ) {
 
 	window.Init();
 
-	if (OPENGL_VERSION_MAJOR >= 4 && OPENGL_VERSION_MINOR >= 3)
-	{
+	if ( OPENGL_VERSION_MAJOR >= 4 && OPENGL_VERSION_MINOR >= 3 ) {
 		glEnable( GL_DEBUG_OUTPUT );
 		glDebugMessageCallback( GLErrorCallback, 0 );
 	}
@@ -329,7 +328,6 @@ int main( int ac, char ** av ) {
 			theGame->clock += numFixedSteps;
 			FixedUpdate( numFixedSteps );
 		}
-
 
 		Update( pauseSim ? 0.0f : dt );
 		{
@@ -572,9 +570,8 @@ int main( int ac, char ** av ) {
 							dump.resourceToDump = ( GameResource )currentIndex;
 						}
 					}
-
-					ImGui::End();
 				}
+				ImGui::End();
 			}
 
 			if ( currentMouseAction == MouseAction::SELECT ) {
@@ -832,40 +829,38 @@ int main( int ac, char ** av ) {
 }
 
 void DrawDebugWindow() {
-	static bool opened = true;
-	ImGui::ShowDemoWindow( &opened );
-	ImGui::Begin( "Debug" );
-
-	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
-	             ImGui::GetIO().Framerate );
-	ImGui::SliderFloat( "Game speed", &( theGame->speed ), 0.0f, 10.0f );
-	if ( ImGui::TreeNode( "Window" ) ) {
-		theGame->window.DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::TreeNode( "IO" ) ) {
-		theGame->io.DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::TreeNode( "Systems" ) ) {
-		theGame->systemManager.DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::TreeNode( "Components" ) ) {
-		theGame->registery->DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::Button( "Check road network integrity" ) ) {
-		bool ok = theGame->roadNetwork.CheckNetworkIntegrity();
-		if ( ok ) {
-			ng::Printf( "Road network looks fine!\n" );
+	// static bool opened = true;
+	// ImGui::ShowDemoWindow( &opened );
+	if ( ImGui::Begin( "Application" ) ) {
+		ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
+		             ImGui::GetIO().Framerate );
+		ImGui::SliderFloat( "Game speed", &( theGame->speed ), 0.0f, 10.0f );
+		if ( ImGui::TreeNode( "Window" ) ) {
+			theGame->window.DebugDraw();
+			ImGui::TreePop();
+		}
+		if ( ImGui::TreeNode( "IO" ) ) {
+			theGame->io.DebugDraw();
+			ImGui::TreePop();
+		}
+		if ( ImGui::TreeNode( "Systems" ) ) {
+			theGame->systemManager.DebugDraw();
+			ImGui::TreePop();
+		}
+		if ( ImGui::TreeNode( "Components" ) ) {
+			theGame->registery->DebugDraw();
+			ImGui::TreePop();
+		}
+		if ( ImGui::Button( "Check road network integrity" ) ) {
+			bool ok = theGame->roadNetwork.CheckNetworkIntegrity();
+			if ( ok ) {
+				ng::Printf( "Road network looks fine!\n" );
+			}
 		}
 	}
-
+	ImGui::End();
 	if ( ImGui::Begin( "Renderer" ) ) {
 		theGame->renderer.DebugDraw();
 	}
-	ImGui::End();
-
 	ImGui::End();
 }

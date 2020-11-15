@@ -7,8 +7,13 @@
 #include <stdexcept>
 #include <tracy/Tracy.hpp>
 
-constexpr int	OPENGL_VERSION_MAJOR = 4;
-constexpr int	OPENGL_VERSION_MINOR = 1;
+#if defined( SYS_OSX )
+constexpr int OPENGL_VERSION_MAJOR = 4;
+constexpr int OPENGL_VERSION_MINOR = 1;
+#else
+constexpr int OPENGL_VERSION_MAJOR = 4;
+constexpr int OPENGL_VERSION_MINOR = 3;
+#endif
 
 constexpr char WINDOW_TITLE[] = "Vulcain";
 constexpr int  WINDOW_WIDTH = 1280;
@@ -18,7 +23,7 @@ class Window {
   public:
 	int width;
 	int height;
-	
+
 	void Init( int width = WINDOW_WIDTH, int height = WINDOW_HEIGHT, char * title = ( char * )WINDOW_TITLE ) {
 		Resize( width, height );
 #if __APPLE__
