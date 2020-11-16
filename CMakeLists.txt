@@ -26,6 +26,7 @@ if (WIN32)
 	find_package(lz4 REQUIRED)
 endif()
 find_package(tinyxml2 CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
 
 if ( ENABLE_PROFILING )
 	add_compile_definitions( TRACY_ENABLE=1 )
@@ -59,8 +60,6 @@ else()
 	set( TEST_SOURCES "" )
 endif( ENABLE_TESTING)
 
-set(GLM_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/lib/glm/")
-
 add_executable(vulcain
 	"src/main.cpp"
 	${TEST_SOURCES}
@@ -85,12 +84,14 @@ add_executable(vulcain
  "src/buildings/building.h" "src/buildings/building.cpp"  "src/buildings/placement.h" "src/buildings/placement.cpp" "src/map.h" "src/map.cpp" "src/ui/ui.h" "src/ui/ui.cpp" "src/service.h" "src/service.cpp" "src/game_time.h" "src/message.cpp" "src/system.h" "src/system.cpp" "src/pathfinding_job.h" "src/pathfinding_job.cpp" "src/registery.cpp" "src/buildings/woodworking.h" "src/buildings/woodworking.cpp" "src/buildings/delivery.h" "src/buildings/delivery.cpp" "src/buildings/storage_house.h" "src/buildings/storage_house.cpp" "src/buildings/debug_dump.h" "src/buildings/debug_dump.cpp" "src/buildings/resource_fetcher.h" "src/buildings/resource_fetcher.cpp" "src/environment/trees.h" "src/environment/trees.cpp")
 
 
+target_compile_features(vulcain PRIVATE cxx_std_17)
+
 target_compile_options( vulcain PRIVATE
 	-DIMGUI_IMPL_OPENGL_LOADER_GL3W
 	-DNOMINMAX
 	$<$<CONFIG:DEBUG>:-DDEBUG -DNG_ASSERT_ENABLED>
 	$<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-		-Wall>
+		-Wno-c++98-compat -Wno-c++17-extensions -Wno-int-to-void-pointer-cast -Wno-deprecated-volatile >
 	$<$<CXX_COMPILER_ID:MSVC>:
 		/wd26812>
 )
@@ -99,7 +100,6 @@ target_include_directories(vulcain
 PRIVATE
 	"./src"
 SYSTEM
-	${GLM_INCLUDE_DIRS}
 	${SDL2_INCLUDE_DIRS}
 	"./lib"
 )
@@ -111,6 +111,7 @@ target_link_libraries(vulcain PRIVATE
 	${TRACY_LIBRARY_PATH}
 	${BENCHMARK_LIBRARY}
     tinyxml2::tinyxml2
+	glm
 )
 
 configure_file("${PROJECT_SOURCE_DIR}/resources/resources.lz4" "resources.lz4" COPYONLY)

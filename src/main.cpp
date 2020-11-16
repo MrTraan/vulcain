@@ -186,9 +186,6 @@ int main( int ac, char ** av ) {
 
 	g_modelAtlas.LoadAllModels();
 
-	Texture pinkTexture = CreatePlaceholderPinkTexture();
-	Texture whiteTexture = CreateDefaultWhiteTexture();
-
 	// Register system
 	theGame->systemManager.CreateSystem< SystemRenderModel >();
 	theGame->systemManager.CreateSystem< SystemTransform >();
@@ -251,7 +248,6 @@ int main( int ac, char ** av ) {
 	}
 
 	auto & cpntHousing = registery.GetComponent< CpntHousing >( house );
-	auto & cpntInventory = registery.GetComponent< CpntResourceInventory >( house );
 	ng_assert( cpntHousing.numCurrentlyLiving > 0 );
 	ng_assert( cpntHousing.tier == 1 );
 #endif
@@ -511,7 +507,7 @@ int main( int ac, char ** av ) {
 
 			if ( selectedEntity != INVALID_ENTITY ) {
 				if ( ImGui::Begin( "Entity selected" ) ) {
-					ImGui::Text( "ID: %llu, version: %llu\n", selectedEntity.id, selectedEntity.version );
+					ImGui::Text( "ID: %u, version: %u\n", selectedEntity.id, selectedEntity.version );
 					if ( registery.HasComponent< CpntBuilding >( selectedEntity ) ) {
 						auto & building = registery.GetComponent< CpntBuilding >( selectedEntity );
 						ImGui::Text( "Employees: %d/%d\n", building.workersEmployed, building.workersNeeded );
@@ -756,13 +752,13 @@ int main( int ac, char ** av ) {
 			{
 				// Game stats UI
 				if ( ImGui::Begin( "Game stats" ) ) {
-					ImGui::Text( "Total population: %lu\n",
+					ImGui::Text( "Total population: %u\n",
 					             theGame->systemManager.GetSystem< SystemHousing >().totalPopulation );
-					ImGui::Text( "Total employed: %lu\n",
+					ImGui::Text( "Total employed: %u\n",
 					             theGame->systemManager.GetSystem< SystemBuilding >().totalEmployed );
-					ImGui::Text( "Employees needed: %lu\n",
+					ImGui::Text( "Employees needed: %u\n",
 					             theGame->systemManager.GetSystem< SystemBuilding >().totalEmployeesNeeded );
-					ImGui::Text( "Chomeurs de la rue: %lu\n",
+					ImGui::Text( "Chomeurs de la rue: %u\n",
 					             theGame->systemManager.GetSystem< SystemBuilding >().totalUnemployed );
 				}
 				ImGui::End();

@@ -18,7 +18,6 @@ namespace ng {
 
 static int64 clockTicksPerSecond = 0;
 static int64 clockTicksAtStartup = 0;
-static int64 timeMicroAtStartup = 0;
 
 void InitSys() {
 #if defined( _WIN32 )
@@ -111,7 +110,6 @@ bool File::SeekOffset( FileOffset offset, SeekWhence whence ) {
 bool File::Open( const char * path, int mode ) {
 	this->mode = mode;
 	this->path = path;
-	char fopenStr[ 4 ] = { 'b', 0, 0, 0 };
 
 #if defined( SYS_WIN )
 	DWORD dwDesiredAccess = 0;

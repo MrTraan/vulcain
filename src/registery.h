@@ -290,7 +290,7 @@ struct Registery {
 			totalMemUsage += registery->ComputeMemoryUsage();
 			if ( ImGui::TreeNode( name.c_str() ) ) {
 				ImGui::Text( "Hash: %llu\n", hash );
-				ImGui::Text( "Num components: %d\n", registery->GetSize() );
+				ImGui::Text( "Num components: %llu\n", registery->GetSize() );
 				ImGui::Text( "Memory used: %llukb\n", registery->ComputeMemoryUsage() / 1024 );
 				ImGui::TreePop();
 			}

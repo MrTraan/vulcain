@@ -23,11 +23,7 @@ layout (std140) uniform Matrices {
 	vec4 cameraFront;
 };
 
-#if OPENGL_COMPATIBILITY_VERSION
-uniform Light {
-#else
-layout (std140, binding = 1) uniform Light {
-#endif
+layout (std140) uniform Light {
 	vec4 light_direction;
     vec4 light_ambient;
     vec4 light_diffuse;

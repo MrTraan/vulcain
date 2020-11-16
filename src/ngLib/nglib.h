@@ -6,6 +6,12 @@
 #include <stdlib.h>
 
 #ifdef NG_ASSERT_ENABLED
+#define ng_fatal_error( format, ... )                                                                                  \
+	do {                                                                                                               \
+		ng::Errorf( "FATAL ERROR: " format, __VA_ARGS__ );                                                             \
+		exit( 1 );                                                                                                     \
+	} while ( 0 );
+
 #define ng_assert( condition )                                                                                         \
 	if ( !( condition ) ) {                                                                                            \
 		ng::Errorf( "ASSERTION FAILED: " #condition "\n" );                                                            \
@@ -13,6 +19,7 @@
 	}
 #define ng_assert_msg( condition, format, ... )                                                                        \
 	if ( !( condition ) ) {                                                                                            \
+		ng::Errorf( "ASSERTION FAILED: " #condition ": " format, __VA_ARGS__ );                                        \
 		DEBUG_BREAK;                                                                                                   \
 	}
 #else

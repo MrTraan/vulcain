@@ -1,14 +1,16 @@
 #pragma once
 
-typedef unsigned long long u64;
-typedef unsigned int       u32;
-typedef unsigned short     u16;
-typedef unsigned char      u8;
+#include <cstdint>
 
-typedef long long int64;
-typedef int       int32;
-typedef short     int16;
-typedef char      int8;
+typedef uint64_t u64;
+typedef uint32_t u32;
+typedef uint16_t u16;
+typedef uint8_t  u8;
+
+typedef int64_t int64;
+typedef int32_t int32;
+typedef int16_t int16;
+typedef int8_t  int8;
 
 // Integer Multiplication overflow checking
 #ifndef SIZE_MAX

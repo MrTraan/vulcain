@@ -215,5 +215,7 @@ void SystemPathfinding::HandleMessage( Registery & reg, const Message & msg ) {
 		ng_assert( ok );
 		break;
 	}
+	default:
+		break;
 	}
 }

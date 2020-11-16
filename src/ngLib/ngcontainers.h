@@ -230,10 +230,10 @@ template < typename T, u32 N > struct StaticArray {
 	T &       operator[]( int index ) { return At( index ); }
 	const T & operator[]( int index ) const { return At( index ); }
 
-	T *       begin() { return data == nullptr || count == 0 ? nullptr : data; }
-	T *       end() { return data == nullptr || count == 0 ? nullptr : data + count; }
-	const T * begin() const { return data == nullptr || count == 0 ? nullptr : data; }
-	const T * end() const { return data == nullptr || count == 0 ? nullptr : data + count; }
+	T *       begin() { return data; }
+	T *       end() { return data + count; }
+	const T * begin() const { return data; }
+	const T * end() const { return data + count; }
 };
 
 constexpr u64 objectPoolBucketSize = 64;
@@ -317,7 +317,7 @@ template < class T > struct ObjectPool {
 			}
 		}
 		ng_assert_msg(
-		   false, "An item was pushed to an object pool but it wasn't created by this pool. This is FOR-BI-DDEN\n" );
+		    false, "An item was pushed to an object pool but it wasn't created by this pool. This is FOR-BI-DDEN\n" );
 	}
 
 	void Clear() {

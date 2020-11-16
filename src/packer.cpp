@@ -1,5 +1,5 @@
 #include "packer.h"
-#include <LZ4.h>
+#include <lz4.h>
 #include <algorithm>
 #include <filesystem>
 
@@ -188,7 +188,6 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 		u64 fileSize = file.GetSize();
 		archiveData = ( u8 * )realloc( archiveData, archiveDataSize + sizeof( PackerResource ) + fileSize );
 		ng_assert( archiveData != nullptr );
-		u8 * fileData = archiveData + archiveDataSize + sizeof( PackerResource );
 
 		PackerResource * header = ( PackerResource * )( archiveData + archiveDataSize );
 		header->type = type;

@@ -39,18 +39,18 @@ class Window {
 		glWindow =
 		    SDL_CreateWindow( title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, window_flags );
 		if ( !glWindow )
-			throw std::runtime_error( "Fatal Error: Could not create GLFW Window" );
+			ng_fatal_error( "Fatal Error: Could not create GLFW Window" );
 		glContext = SDL_GL_CreateContext( glWindow );
 		if ( !glContext )
-			throw std::runtime_error( "Failed to create OpenGL context\n" );
+			ng_fatal_error( "Failed to create OpenGL context\n" );
 		SDL_GL_MakeCurrent( glWindow, glContext );
 		SDL_GL_SetSwapInterval( 1 ); // Enable vsync
 
 		// gl3w: load all OpenGL function pointers
 		if ( gl3wInit() )
-			throw std::runtime_error( "Failed to initialize OpenGL\n" );
+			ng_fatal_error( "Failed to initialize OpenGL\n" );
 		if ( !gl3wIsSupported( OPENGL_VERSION_MAJOR, OPENGL_VERSION_MINOR ) )
-			throw std::runtime_error( "OpenGL 4.5 is not supported\n" );
+			ng_fatal_error( "OpenGL 4.5 is not supported\n" );
 		ng::Printf( "OpenGL %s, GLSL %s\n", glGetString( GL_VERSION ), glGetString( GL_SHADING_LANGUAGE_VERSION ) );
 
 		// configure global opengl state

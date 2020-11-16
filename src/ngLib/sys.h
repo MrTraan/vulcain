@@ -10,9 +10,10 @@
 #if defined( _WIN32 )
 #define DEBUG_BREAK __debugbreak()
 #define SYS_WIN
+#include <windows.h>
+
 #include <Fileapi.h>
 #include <Handleapi.h>
-#include <windows.h>
 #elif defined( __linux )
 #define DEBUG_BREAK __asm__ __volatile__( "int $0x03" )
 #include <fcntl.h>
