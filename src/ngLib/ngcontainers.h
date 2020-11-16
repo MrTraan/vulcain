@@ -317,7 +317,7 @@ template < class T > struct ObjectPool {
 			}
 		}
 		ng_assert_msg(
-		    false, "An item was pushed to an object pool but it wasn't created by this pool. This is FOR-BI-DDEN\n" );
+		   false, "An item was pushed to an object pool but it wasn't created by this pool. This is FOR-BI-DDEN\n" );
 	}
 
 	void Clear() {
@@ -414,7 +414,6 @@ template < typename T > struct LinkedList {
 	}
 
 	Node * GetNodeWithOffset( u64 offset ) {
-		ng_assert( offset < size );
 		Node * cursor = head;
 		for ( u64 i = 0; i < offset; i++ ) {
 			cursor = cursor->next;
@@ -431,7 +430,6 @@ template < typename T > struct LinkedList {
 	}
 
 	const T & operator[]( u64 index ) const {
-		ng_assert( index < size );
 		const Node * cursor = head;
 		for ( u64 i = 0; i < index; i++ ) {
 			cursor = cursor->next;

@@ -216,7 +216,7 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 
 	ng::File headerFile;
 	success = headerFile.Open( "packer_resource_list.h",
-	                           ng::File::MODE_TRUNCATE | ng::File::MODE_CREATE | ng::File::MODE_WRITE );
+	                           ng::File::MODE_TRUNCATE | ng::File::MODE_CREATE | ng::File::MODE_WRITE | ng::File::MODE_READ );
 	ng_assert( success == true );
 	headerFile.Write( headerFileSource.c_str(), headerFileSource.size() );
 	ng::Printf( "Generate header file at %s\n", headerFile.path.c_str() );
@@ -232,7 +232,7 @@ bool PackerCreateArchive( const char * resourcesPath, const char * outPath ) {
 	            ( float )compressedDataSize / 1024.0f / 1024.0f, ( float )compressedDataSize / archiveDataSize );
 
 	ng::File outFile;
-	success = outFile.Open( outPath, ng::File::MODE_CREATE | ng::File::MODE_TRUNCATE | ng::File::MODE_WRITE );
+	success = outFile.Open( outPath, ng::File::MODE_CREATE | ng::File::MODE_TRUNCATE | ng::File::MODE_WRITE | ng::File::MODE_READ );
 	ng_assert( success == true );
 	if ( success == false ) {
 		free( archiveData );

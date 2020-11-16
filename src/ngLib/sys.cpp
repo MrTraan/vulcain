@@ -152,7 +152,7 @@ bool File::Open( const char * path, int mode ) {
 		open_mode |= O_TRUNC;
 	}
 	this->open_mode = open_mode;
-	int handler = open( path, open_mode );
+	handler = open( path, open_mode, S_IROTH | S_IWOTH );
 	ng_assert_msg( handler != INVALID_HANDLER, "open failed with error '%s'", strerror( errno ) );
 	return handler != INVALID_HANDLER;
 #else
@@ -181,9 +181,6 @@ size_t File::Read( void * dst, size_t size ) {
 	ng_assert( success != 0 );
 	return ( size_t )bytesRead;
 #elif defined( SYS_UNIX )
-	// For some reason, '.GetSize' seems to make the file descriptor invalid. Just reopen the file for now, YOLO
-	close( handler );
-	handler = open( this->path.c_str(), this->open_mode );
 	ng_assert( handler != INVALID_HANDLER );
 	size_t bytes_read = read( handler, dst, size );
 	ng_assert( bytes_read != -1 );
@@ -203,8 +200,6 @@ size_t File::Write( const void * src, size_t size ) {
 	return ( size_t )bytesRead;
 #elif defined( SYS_UNIX )
 	// For some reason, the file descriptor invalid. Just reopen the file for now, YOLO
-	close( handler );
-	handler = open( this->path.c_str(), this->open_mode );
 	ng_assert( handler != INVALID_HANDLER );
 	size_t bytesWritten = write( handler, src, size );
 	ng_assert( bytesWritten != -1 );
@@ -255,7 +250,7 @@ bool ListFilesInDirectory( const char *                 path,
 		if ( dirFiles->d_type == DT_DIR ) {
 			std::string fullDirPath = path;
 			fullDirPath += dirFiles->d_name;
-			success &= ListFilesInDirectory( full_dir_path.c_str(), results, mode );
+			success &= ListFilesInDirectory( fullDirPath.c_str(), results, mode );
 		} else {
 			std::string str = path;
 			str += "/";

@@ -13,7 +13,6 @@
 	}
 #define ng_assert_msg( condition, format, ... )                                                                        \
 	if ( !( condition ) ) {                                                                                            \
-		ng::Errorf( "ASSERTION FAILED: " #condition ": " format, __VA_ARGS__ );                                        \
 		DEBUG_BREAK;                                                                                                   \
 	}
 #else
