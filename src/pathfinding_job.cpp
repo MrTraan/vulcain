@@ -156,7 +156,7 @@ void SystemPathfinding::ParallelJob() {
 			Entity closestStorage = INVALID_ENTITY;
 			u32    closestStorageDistance = UINT32_MAX;
 
-			for ( auto & [ e, building ] : theGame->registery->IterateOver< CpntBuilding >() ) {
+			for ( auto [ e, building ] : theGame->registery->IterateOver< CpntBuilding >() ) {
 				if ( building.kind != BuildingKind::STORAGE_HOUSE ) {
 					continue;
 				}
@@ -215,5 +215,7 @@ void SystemPathfinding::HandleMessage( Registery & reg, const Message & msg ) {
 		ng_assert( ok );
 		break;
 	}
+	default:
+		break;
 	}
 }

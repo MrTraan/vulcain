@@ -7,7 +7,7 @@
 #include "delivery.h"
 
 void SystemWoodshop::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ entity, woodshop ] : reg.IterateOver< CpntWoodshop >() ) {
+	for ( auto [ entity, woodshop ] : reg.IterateOver< CpntWoodshop >() ) {
 		auto & building = reg.GetComponent< CpntBuilding >( entity );
 		double invEfficiency = building.GetInvEfficiency();
 		if ( invEfficiency == 0.0f ) {
@@ -45,7 +45,7 @@ void SystemWoodshop::HandleMessage( Registery & reg, const Message & msg ) {
 		break;
 	}
 	case MESSAGE_ENTITY_DELETED: {
-		for ( auto & [ entity, woodshop ] : reg.IterateOver< CpntWoodshop >() ) {
+		for ( auto [ entity, woodshop ] : reg.IterateOver< CpntWoodshop >() ) {
 			if ( woodshop.worker == msg.recipient ) {
 				woodshop.worker = INVALID_ENTITY;
 				woodshop.timeSinceLastWorkerSpawned = 0;
@@ -56,6 +56,8 @@ void SystemWoodshop::HandleMessage( Registery & reg, const Message & msg ) {
 		}
 		break;
 	}
+	default:
+		break;
 	}
 }
 
@@ -68,7 +70,7 @@ void SystemWoodshop::OnCpntRemoved( Entity e, CpntWoodshop & t ) {
 }
 
 void SystemWoodworker::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, woodworker ] : reg.IterateOver< CpntWoodworker >() ) {
+	for ( auto [ e, woodworker ] : reg.IterateOver< CpntWoodworker >() ) {
 		if ( woodworker.choppingSince > 0 ) {
 			woodworker.choppingSince += ticks;
 			if ( woodworker.choppingSince >= woodworker.timeToChopOneTree ) {
@@ -136,5 +138,7 @@ void SystemWoodworker::HandleMessage( Registery & reg, const Message & msg ) {
 		}
 		break;
 	}
+	default:
+		break;
 	}
 }

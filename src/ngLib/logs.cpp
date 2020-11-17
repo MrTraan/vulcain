@@ -46,19 +46,13 @@ static constexpr const char * prefixBySeverity[] = {
 };
 
 void LogV( const char * fmt, va_list args, LogSeverity severity ) {
-	int logSize = vsnprintf( nullptr, 0, fmt, args );
+	static thread_local char buf[ NG_MAX_LOG_SIZE ];
+	const char *             prefix = prefixBySeverity[ severity ];
+	size_t                   prefixSize = strlen( prefix );
 
-	if ( logSize <= 0 ) {
-		return;
-	}
-
-	const char * prefix = prefixBySeverity[ severity ];
-	size_t       prefixSize = strlen( prefix );
-
-	char * buf = new char[ logSize + prefixSize + 1 ];
 	strcpy( buf, prefix );
 
-	if ( vsnprintf( buf + prefixSize, ( size_t )logSize + 1, fmt, args ) < 0 ) {
+	if ( vsnprintf( buf + prefixSize, ( size_t )NG_MAX_LOG_SIZE - prefixSize, fmt, args ) < 0 ) {
 		return;
 	}
 
@@ -71,8 +65,6 @@ void LogV( const char * fmt, va_list args, LogSeverity severity ) {
 	fprintf( fd, "%s", buf );
 
 	GetConsole().PrintLog( buf, severity );
-
-	delete[] buf;
 }
 
 }; // namespace ng

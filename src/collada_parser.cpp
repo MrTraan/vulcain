@@ -183,7 +183,7 @@ bool ImportColladaFile( PackerResourceID resourceID, Model & outModel ) {
 	for ( auto geometryNode = geometryRoot->FirstChildElement( "geometry" ); geometryNode != nullptr;
 	      geometryNode = geometryNode->NextSiblingElement( "geometry" ) ) {
 		const char * id = geometryNode->Attribute( "id" );
-		const char * name = geometryNode->Attribute( "name" );
+		//const char * name = geometryNode->Attribute( "name" );
 
 		Mesh & mesh = outModel.meshes[ meshIndex++ ];
 

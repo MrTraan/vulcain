@@ -3,15 +3,15 @@
 #include "packer.h"
 
 namespace PackerResources {
-constexpr PackerResourceID CUBE_DAE = 0u;
-constexpr PackerResourceID FARM_MTL = 1u;
-constexpr PackerResourceID FARM_OBJ = 2u;
-constexpr PackerResourceID FONTS_CONSOLAS_TTF = 3u;
-constexpr PackerResourceID FUTURISTIC_FARM_DAE = 4u;
-constexpr PackerResourceID GRASS_TEXTURE_PNG = 5u;
-constexpr PackerResourceID GROUND_TEXTURE_MONOCOLOR_PNG = 6u;
-constexpr PackerResourceID HOUSE_DAE = 7u;
-constexpr PackerResourceID IMPHENZIAPALETTE01_PNG = 8u;
+constexpr PackerResourceID IMPHENZIAPALETTE01_PNG = 0u;
+constexpr PackerResourceID CUBE_DAE = 1u;
+constexpr PackerResourceID FARM_MTL = 2u;
+constexpr PackerResourceID FARM_OBJ = 3u;
+constexpr PackerResourceID FONTS_CONSOLAS_TTF = 4u;
+constexpr PackerResourceID FUTURISTIC_FARM_DAE = 5u;
+constexpr PackerResourceID GRASS_TEXTURE_PNG = 6u;
+constexpr PackerResourceID GROUND_TEXTURE_MONOCOLOR_PNG = 7u;
+constexpr PackerResourceID HOUSE_DAE = 8u;
 constexpr PackerResourceID MARKET_DAE = 9u;
 constexpr PackerResourceID PINE_DAE = 10u;
 constexpr PackerResourceID ROAD_BLOCK_DAE = 11u;
