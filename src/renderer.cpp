@@ -60,8 +60,10 @@ void Renderer::InitRenderer( int width, int height ) {
 
 	g_shaderAtlas.ssaoShader.Use();
 	g_shaderAtlas.ssaoShader.SetInt( "gPosition", 0 );
-	g_shaderAtlas.ssaoShader.SetInt( "gNormal", 1 );
-	g_shaderAtlas.ssaoShader.SetInt( "ssaoNoise", 2 );
+	g_shaderAtlas.ssaoShader.SetInt( "gViewPosition", 1 );
+	g_shaderAtlas.ssaoShader.SetInt( "gNormal", 2 );
+	g_shaderAtlas.ssaoShader.SetInt( "gViewNormal", 3 );
+	g_shaderAtlas.ssaoShader.SetInt( "ssaoNoise", 4 );
 
 	glGenFramebuffers( 1, &SSAOFbo );
 	glBindFramebuffer( GL_FRAMEBUFFER, SSAOFbo );
@@ -195,12 +197,18 @@ void Renderer::LigthningPass() {
 	g_shaderAtlas.ssaoShader.SetFloat( "radius", radius );
 	g_shaderAtlas.ssaoShader.SetFloat( "bias", bias );
 
-	glActiveTexture( GL_TEXTURE0 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.positionTexture );
-	glActiveTexture( GL_TEXTURE1 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.normalTexture );
-	glActiveTexture( GL_TEXTURE2 );
-	glBindTexture( GL_TEXTURE_2D, SSAONoiseTexture );
+	std::pair< int, int > textures[] = {
+		{ GL_TEXTURE0, gbuffer.positionTexture },
+		{ GL_TEXTURE1, gbuffer.viewPositionTexture },
+		{ GL_TEXTURE2, gbuffer.normalTexture },
+		{ GL_TEXTURE3, gbuffer.viewNormalTexture },
+		{ GL_TEXTURE4, SSAONoiseTexture },
+	};
+
+	for ( auto & [ textureInd, texure ] : textures ) {
+		glActiveTexture( textureInd );
+		glBindTexture( GL_TEXTURE_2D, texure );
+	}
 
 	glBindVertexArray( fullScreenQuadVAO );
 	glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
@@ -231,14 +239,17 @@ void Renderer::PostProcessPass() {
 	g_shaderAtlas.postProcessShader.SetFloat( "curvature_valley",
 	                                          0.7f / MAX( curvatureValley * curvatureValley, 1e-4 ) );
 
-	glActiveTexture( GL_TEXTURE0 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.positionTexture );
-	glActiveTexture( GL_TEXTURE1 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.normalTexture );
-	glActiveTexture( GL_TEXTURE2 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.colorSpecularTexture );
-	glActiveTexture( GL_TEXTURE3 );
-	glBindTexture( GL_TEXTURE_2D, SSAOBlurColorBuffer );
+	std::pair< int, int > textures[] = {
+		{ GL_TEXTURE0, gbuffer.positionTexture },
+		{ GL_TEXTURE1, gbuffer.normalTexture },
+		{ GL_TEXTURE2, gbuffer.colorSpecularTexture },
+		{ GL_TEXTURE3, SSAOBlurColorBuffer },
+	};
+
+	for ( auto & [ textureInd, texure ] : textures ) {
+		glActiveTexture( textureInd );
+		glBindTexture( GL_TEXTURE_2D, texure );
+	}
 
 	glBindVertexArray( fullScreenQuadVAO );
 	glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
@@ -294,38 +305,27 @@ void GBuffer::Allocate( int width, int height ) {
 	glGenFramebuffers( 1, &framebufferID );
 	glBindFramebuffer( GL_FRAMEBUFFER, framebufferID );
 
-	// - position color buffer
-	glGenTextures( 1, &positionTexture );
-	glBindTexture( GL_TEXTURE_2D, positionTexture );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, positionTexture, 0 );
+	std::tuple< int, u32*, int > textures[] = {
+		{ GL_COLOR_ATTACHMENT0, &positionTexture, GL_RGBA16F },
+		{ GL_COLOR_ATTACHMENT1, &viewPositionTexture, GL_RGBA16F },
+		{ GL_COLOR_ATTACHMENT2, &normalTexture, GL_RGBA16F },
+		{ GL_COLOR_ATTACHMENT3, &viewNormalTexture, GL_RGBA16F },
+		{ GL_COLOR_ATTACHMENT4, &colorSpecularTexture, GL_RGBA }
+	};
 
-	// - normal color buffer
-	glGenTextures( 1, &normalTexture );
-	glBindTexture( GL_TEXTURE_2D, normalTexture );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, normalTexture, 0 );
+	for ( auto & [ glColorAttachment, texture, format ] : textures ) {
+		glGenTextures( 1, texture );
+		glBindTexture( GL_TEXTURE_2D, *texture );
+		glTexImage2D( GL_TEXTURE_2D, 0, format, width, height, 0, GL_RGBA, GL_FLOAT, NULL );
+		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+		glFramebufferTexture2D( GL_FRAMEBUFFER, glColorAttachment, GL_TEXTURE_2D, *texture, 0 );
+	}
 
-	// - color + specular color buffer
-	glGenTextures( 1, &colorSpecularTexture );
-	glBindTexture( GL_TEXTURE_2D, colorSpecularTexture );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, colorSpecularTexture, 0 );
-
-	u32 attachments[ 3 ] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
-	glDrawBuffers( 3, attachments );
+	u32 attachments[ 5 ] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3, GL_COLOR_ATTACHMENT4 };
+	glDrawBuffers( 5, attachments );
 
 	// Depth render buffer
 	glGenRenderbuffers( 1, &renderbufferID );
@@ -343,7 +343,9 @@ void GBuffer::Allocate( int width, int height ) {
 void GBuffer::Destroy() {
 	glDeleteRenderbuffers( 1, &renderbufferID );
 	glDeleteTextures( 1, &positionTexture );
+	glDeleteTextures( 1, &viewPositionTexture );
 	glDeleteTextures( 1, &normalTexture );
+	glDeleteTextures( 1, &viewNormalTexture );
 	glDeleteTextures( 1, &colorSpecularTexture );
 	glDeleteFramebuffers( 1, &framebufferID );
 }

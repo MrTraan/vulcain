@@ -39,8 +39,6 @@ if ( ENABLE_PROFILING )
 	if (MSVC)
 		string(REGEX REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 		string(REGEX REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-	else ()
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions")
 	endif ()
 	add_definitions(-D_HAS_EXCEPTIONS=0)
 else()
@@ -111,7 +109,6 @@ target_link_libraries(vulcain PRIVATE
 	${TRACY_LIBRARY_PATH}
 	${BENCHMARK_LIBRARY}
     tinyxml2::tinyxml2
-	glm
 )
 
 configure_file("${PROJECT_SOURCE_DIR}/resources/resources.lz4" "resources.lz4" COPYONLY)

@@ -9,11 +9,12 @@ uniform sampler2D gAlbedoSpec;
 uniform sampler2D ssao;
 
 layout (std140) uniform Matrices {
-	mat4 projection;
-	mat4 view;
-	mat4 viewProj;
-	vec4 cameraPosition;
-	vec4 cameraFront;
+    mat4 projection;
+    mat4 view;
+    mat4 viewProj;
+    mat4 shadowViewProj;
+    vec4 cameraPosition;
+    vec4 cameraFront;
 };
 
 layout (std140) uniform Light {

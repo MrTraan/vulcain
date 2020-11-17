@@ -60,7 +60,9 @@ struct GBuffer {
 	u32 framebufferID;
 	u32 renderbufferID;
 	u32 positionTexture;
+	u32 viewPositionTexture;
 	u32 normalTexture;
+	u32 viewNormalTexture;
 	u32 colorSpecularTexture;
 
 	void Allocate( int width, int height );

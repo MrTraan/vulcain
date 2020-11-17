@@ -18,6 +18,7 @@ namespace ng {
 
 static int64 clockTicksPerSecond = 0;
 static int64 clockTicksAtStartup = 0;
+static int64 timeMicroAtStartup = 0;
 
 void InitSys() {
 #if defined( _WIN32 )
