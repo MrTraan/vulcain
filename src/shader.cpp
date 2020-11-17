@@ -112,19 +112,29 @@ void ShaderAtlas::CompileAllShaders() {
 	};
 
 	defaultShader = LinkProgram( PackerResources::SHADERS_DEFAULT_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
+	shaders.push_back( defaultShader );
 	colorShader = LinkProgram( PackerResources::SHADERS_COLORED_VERT, PackerResources::SHADERS_COLORED_FRAG );
+	shaders.push_back( colorShader );
 	instancedShader = LinkProgram( PackerResources::SHADERS_INSTANCED_VERT, PackerResources::SHADERS_DEFAULT_FRAG );
+	shaders.push_back( instancedShader );
 	deferredShader = LinkProgram( PackerResources::SHADERS_DEFAULT_VERT, PackerResources::SHADERS_DEFERRED_FRAG );
+	shaders.push_back( deferredShader );
 	instancedDeferredShader =
 	    LinkProgram( PackerResources::SHADERS_INSTANCED_VERT, PackerResources::SHADERS_DEFERRED_FRAG );
+	shaders.push_back( instancedDeferredShader );
 	postProcessShader =
 	    LinkProgram( PackerResources::SHADERS_PASSTHROUGH_VERT, PackerResources::SHADERS_POSTPROCESS_FRAG );
+	shaders.push_back( postProcessShader );
 	ssaoShader = LinkProgram( PackerResources::SHADERS_PASSTHROUGH_VERT, PackerResources::SHADERS_SSAO_FRAG );
+	shaders.push_back( ssaoShader );
 	ssaoBlurShader = LinkProgram( PackerResources::SHADERS_PASSTHROUGH_VERT, PackerResources::SHADERS_SSAO_BLUR_FRAG );
+	shaders.push_back( ssaoBlurShader );
 	shadowPassShader =
 	    LinkProgram( PackerResources::SHADERS_SHADOW_PASS_VERT, PackerResources::SHADERS_SHADOW_PASS_FRAG );
+	shaders.push_back( shadowPassShader );
 	shadowPassInstancedShader =
 	    LinkProgram( PackerResources::SHADERS_SHADOW_PASS_INSTANCED_VERT, PackerResources::SHADERS_SHADOW_PASS_FRAG );
+	shaders.push_back( shadowPassInstancedShader );
 
 	for ( auto & [ id, shader ] : shadersCompiled ) {
 		glDeleteShader( shader );
@@ -132,14 +142,7 @@ void ShaderAtlas::CompileAllShaders() {
 }
 
 void ShaderAtlas::FreeShaders() {
-	glDeleteProgram( defaultShader.ID );
-	glDeleteProgram( colorShader.ID );
-	glDeleteProgram( instancedShader.ID );
-	glDeleteProgram( deferredShader.ID );
-	glDeleteProgram( instancedDeferredShader.ID );
-	glDeleteProgram( postProcessShader.ID );
-	glDeleteProgram( ssaoShader.ID );
-	glDeleteProgram( ssaoBlurShader.ID );
-	glDeleteProgram( shadowPassShader.ID );
-	glDeleteProgram( shadowPassInstancedShader.ID );
+	for ( auto & shader : shaders ) {
+		glDeleteProgram( shader.ID );
+	}
 }

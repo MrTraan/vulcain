@@ -40,6 +40,8 @@ struct ShaderAtlas {
 	void CompileAllShaders();
 	void FreeShaders();
 
+	std::vector< Shader > shaders;
+
 	Shader defaultShader;
 	Shader colorShader;
 	Shader instancedShader;

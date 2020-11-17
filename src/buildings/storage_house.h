@@ -1,7 +1,6 @@
 #pragma once
 #include "../entity.h"
 #include "../system.h"
-#include "../registery.h"
 
 struct CpntStorageHouse {
 	CpntStorageHouse() {

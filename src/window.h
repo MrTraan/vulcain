@@ -1,4 +1,12 @@
 #pragma once
+
+# define RETINA_SCALE_FACTOR 1
+// We need to find a way to detect whether the Apple device has a Retina display or not
+// (and even then maybe the specific resolution adjustements we need to make instead of just x2?)
+#if __APPLE__
+# define RETINA_SCALE_FACTOR 2
+#endif
+
 #include "ngLib/logs.h"
 #include "renderer.h"
 #include <GL/gl3w.h>
@@ -6,6 +14,14 @@
 #include <imgui/imgui.h>
 #include <stdexcept>
 #include <tracy/Tracy.hpp>
+
+#if defined( SYS_OSX )
+constexpr int OPENGL_VERSION_MAJOR = 4;
+constexpr int OPENGL_VERSION_MINOR = 1;
+#else
+constexpr int OPENGL_VERSION_MAJOR = 4;
+constexpr int OPENGL_VERSION_MINOR = 3;
+#endif
 
 constexpr char WINDOW_TITLE[] = "Vulcain";
 constexpr int  WINDOW_WIDTH = 1280;
@@ -24,24 +40,25 @@ class Window {
 		SDL_GL_SetAttribute( SDL_GL_CONTEXT_FLAGS, 0 );
 #endif
 		SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
-		SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 4 );
-		SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 5 );
+		SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, OPENGL_VERSION_MAJOR );
+		SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, OPENGL_VERSION_MINOR );
 		SDL_WindowFlags window_flags =
 		    ( SDL_WindowFlags )( SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI );
 		glWindow =
 		    SDL_CreateWindow( title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, window_flags );
-		if ( !this->glWindow ) {
-			throw std::runtime_error( "Fatal Error: Could not create GLFW Window" );
-		}
+		if ( !glWindow )
+			ng_fatal_error( "Fatal Error: Could not create GLFW Window" );
 		glContext = SDL_GL_CreateContext( glWindow );
+		if ( !glContext )
+			ng_fatal_error( "Failed to create OpenGL context\n" );
 		SDL_GL_MakeCurrent( glWindow, glContext );
 		SDL_GL_SetSwapInterval( 1 ); // Enable vsync
 
 		// gl3w: load all OpenGL function pointers
 		if ( gl3wInit() )
-			throw std::runtime_error( "Failed to initialize OpenGL\n" );
-		if ( !gl3wIsSupported( 4, 5 ) )
-			throw std::runtime_error( "OpenGL 4.5 is not supported\n" );
+			ng_fatal_error( "Failed to initialize OpenGL\n" );
+		if ( !gl3wIsSupported( OPENGL_VERSION_MAJOR, OPENGL_VERSION_MINOR ) )
+			ng_fatal_error( "OpenGL 4.5 is not supported\n" );
 		ng::Printf( "OpenGL %s, GLSL %s\n", glGetString( GL_VERSION ), glGetString( GL_SHADING_LANGUAGE_VERSION ) );
 
 		// configure global opengl state
@@ -85,7 +102,7 @@ class Window {
 	}
 
 	void BindDefaultFramebuffer() {
-		glViewport( 0, 0, width, height );
+		glViewport( 0, 0, width * RETINA_SCALE_FACTOR, height * RETINA_SCALE_FACTOR );
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 	}
 

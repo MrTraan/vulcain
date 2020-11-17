@@ -4,11 +4,18 @@
 #include "system.h"
 #include <concurrentqueue.h>
 #include <imgui/imgui.h>
+#include <map>
 #include <queue>
 #include <string>
 #include <typeindex>
 #include <typeinfo>
-#include <unordered_map>
+
+#include "buildings/debug_dump.h"
+#include "buildings/delivery.h"
+#include "buildings/resource_fetcher.h"
+#include "buildings/storage_house.h"
+#include "buildings/woodworking.h"
+#include "environment/trees.h"
 
 struct ICpntRegistery {
 	virtual ~ICpntRegistery() {}
@@ -68,7 +75,7 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 
 	template < class... Args > T & AssignComponent( Entity e, Args &&... args ) {
 		ng_assert( HasComponent( e ) == false );
-		//if ( e.version == 1 ) {
+		// if ( e.version == 1 ) {
 		//	Entity foo = e;
 		//	foo.version = 0;
 		//	if ( HasComponent( foo ) ) {
@@ -166,9 +173,9 @@ template < class T > struct CpntRegistery : public ICpntRegistery {
 constexpr u32 INITIAL_ENTITY_ALLOC = 4096u;
 
 struct Registery {
-	std::unordered_map< CpntTypeHash, ICpntRegistery * > cpntRegistriesMap;
+	ng::DynamicArray< ng::Tuple< CpntTypeHash, ICpntRegistery * > > cpntRegistriesMap;
 #ifdef DEBUG
-	std::unordered_map< CpntTypeHash, std::string > cpntTypesToName;
+	ng::DynamicArray< ng::Tuple< CpntTypeHash, std::string > > cpntTypesToName;
 #endif
 
 	char * isEntityAlive = nullptr;
@@ -187,7 +194,7 @@ struct Registery {
 	}
 
 	~Registery() {
-		for ( auto [ type, registery ] : cpntRegistriesMap ) {
+		for ( auto [ hash, registery ] : cpntRegistriesMap ) {
 			delete registery;
 		}
 		delete isEntityAlive;
@@ -210,7 +217,7 @@ struct Registery {
 		// @TODO: We could clean the systems event queues if they listen to an entity that is now dead
 		if ( isEntityAlive[ e.id ] ) {
 			isEntityAlive[ e.id ] = 0;
-			for ( auto [ type, registery ] : cpntRegistriesMap ) {
+			for ( auto [ hash, registery ] : cpntRegistriesMap ) {
 				registery->RemoveComponent( systemManager, e );
 			}
 			e.version++;
@@ -229,7 +236,7 @@ struct Registery {
 	}
 
 	void FlushCreationQueues() {
-		for ( auto [ type, registery ] : cpntRegistriesMap ) {
+		for ( auto [ hash, registery ] : cpntRegistriesMap ) {
 			registery->FlushCreationQueue( systemManager );
 		}
 	}
@@ -249,38 +256,41 @@ struct Registery {
 
 	template < class T > CpntRegistery< T > & GetComponentRegistery() {
 		CpntTypeHash typeHash = HashComponent< T >();
-		// TODO: This if must go away someday
-		if ( !cpntRegistriesMap.contains( typeHash ) ) {
-			cpntRegistriesMap[ typeHash ] = new CpntRegistery< T >( INITIAL_ENTITY_ALLOC );
-#ifdef DEBUG
-			cpntTypesToName[ typeHash ] = std::string( std::type_index( typeid( T ) ).name() );
-#endif
+		for ( auto [ hash, registery ] : cpntRegistriesMap ) {
+			if ( typeHash == hash )
+				return *( ( CpntRegistery< T > * )registery );
 		}
-		CpntRegistery< T > * returnValue = ( CpntRegistery< T > * )cpntRegistriesMap.at( typeHash );
-		return *returnValue;
+		// TODO: This if must go away someday
+		auto & newRegistery =
+		    cpntRegistriesMap.PushBack( { typeHash, new CpntRegistery< T >( INITIAL_ENTITY_ALLOC ) } );
+#ifdef DEBUG
+		cpntTypesToName.PushBack( { typeHash, std::string( std::type_index( typeid( T ) ).name() ) } );
+#endif
+		return *( ( CpntRegistery< T > * )newRegistery.Second() );
 	}
+
 	template < class T > const CpntRegistery< T > & GetComponentRegistery() const {
-		auto typeHash = HashComponent< T >();
+		CpntTypeHash typeHash = HashComponent< T >();
+		for ( auto [ hash, registery ] : cpntRegistriesMap ) {
+			if ( typeHash == hash )
+				return *( ( const CpntRegistery< T > * )registery );
+		}
 		// TODO: This if must go away someday
 		auto mutable_this = const_cast< Registery * >( this );
-		if ( !mutable_this->cpntRegistriesMap.contains( typeHash ) ) {
-			mutable_this->cpntRegistriesMap[ typeHash ] = new CpntRegistery< T >( INITIAL_ENTITY_ALLOC );
-#ifdef DEBUG
-			mutable_this->cpntTypesToName[ typeHash ] = std::string( std::type_index( typeid( T ) ).name() );
-#endif
-		}
-		CpntRegistery< T > * returnValue = ( CpntRegistery< T > * )cpntRegistriesMap.at( typeHash );
-		return *returnValue;
+		return mutable_this->GetComponentRegistery<T>();
 	}
 
 	void DebugDraw() {
 #ifdef DEBUG
 		u64 totalMemUsage = 0;
-		for ( auto [ type, registery ] : cpntRegistriesMap ) {
+		for ( int i = 0; i < cpntRegistriesMap.Size(); i++ ) {
+			auto hash = cpntRegistriesMap[ i ].First();
+			auto registery = cpntRegistriesMap[ i ].Second();
+			auto name = cpntTypesToName[ i ].Second();
 			totalMemUsage += registery->ComputeMemoryUsage();
-			if ( ImGui::TreeNode( cpntTypesToName[ type ].c_str() ) ) {
-				ImGui::Text( "Hash: %llu\n", type );
-				ImGui::Text( "Num components: %d\n", registery->GetSize() );
+			if ( ImGui::TreeNode( name.c_str() ) ) {
+				ImGui::Text( "Hash: %llu\n", hash );
+				ImGui::Text( "Num components: %llu\n", registery->GetSize() );
 				ImGui::Text( "Memory used: %llukb\n", registery->ComputeMemoryUsage() / 1024 );
 				ImGui::TreePop();
 			}
