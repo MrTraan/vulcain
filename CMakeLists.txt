@@ -109,7 +109,6 @@ target_link_libraries(vulcain PRIVATE
 	${TRACY_LIBRARY_PATH}
 	${BENCHMARK_LIBRARY}
     tinyxml2::tinyxml2
-	glm
 )
 
 configure_file("${PROJECT_SOURCE_DIR}/resources/resources.lz4" "resources.lz4" COPYONLY)
