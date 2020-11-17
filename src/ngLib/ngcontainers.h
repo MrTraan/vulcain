@@ -79,7 +79,7 @@ template < typename T > struct DynamicArray {
 	}
 
 	void Shrink() {
-		capacity = size;
+		capacity = this->size;
 		T * temp = new T[ capacity ];
 
 		for ( u32 i = 0; i < count; i++ ) {
@@ -230,10 +230,10 @@ template < typename T, u32 N > struct StaticArray {
 	T &       operator[]( int index ) { return At( index ); }
 	const T & operator[]( int index ) const { return At( index ); }
 
-	T *       begin() { return data == nullptr || count == 0 ? nullptr : data; }
-	T *       end() { return data == nullptr || count == 0 ? nullptr : data + count; }
-	const T * begin() const { return data == nullptr || count == 0 ? nullptr : data; }
-	const T * end() const { return data == nullptr || count == 0 ? nullptr : data + count; }
+	T *       begin() { return data; }
+	T *       end() { return data + count; }
+	const T * begin() const { return data; }
+	const T * end() const { return data + count; }
 };
 
 constexpr u64 objectPoolBucketSize = 64;
@@ -414,7 +414,6 @@ template < typename T > struct LinkedList {
 	}
 
 	Node * GetNodeWithOffset( u64 offset ) {
-		ng_assert( offset < size );
 		Node * cursor = head;
 		for ( u64 i = 0; i < offset; i++ ) {
 			cursor = cursor->next;
@@ -431,7 +430,6 @@ template < typename T > struct LinkedList {
 	}
 
 	const T & operator[]( u64 index ) const {
-		ng_assert( index < size );
 		const Node * cursor = head;
 		for ( u64 i = 0; i < index; i++ ) {
 			cursor = cursor->next;
@@ -477,47 +475,47 @@ template < typename T > struct LinkedList {
 		return next;
 	}
 
+	enum class SortOrder {
+		ASCENDING,
+		DESCENDING,
+	};
+
+	void LinkedListInsertSorted( const T & elem, SortOrder order ) {
+		if ( head == nullptr ) {
+			PushFront( elem );
+			return;
+		}
+
+		if ( ( order == SortOrder::ASCENDING && elem < head->data ) ||
+		     ( order == SortOrder::DESCENDING && elem > head->data ) ) {
+			PushFront( elem );
+			return;
+		}
+
+		Node * cursor = head;
+		while ( cursor->next != nullptr ) {
+			if ( ( order == SortOrder::ASCENDING && elem < cursor->next->data ) ||
+			     ( order == SortOrder::DESCENDING && elem > cursor->next->data ) ) {
+				break;
+			}
+			cursor = cursor->next;
+		}
+		Node * newNode = nodePool.Pop();
+		newNode->data = elem;
+		newNode->next = cursor->next;
+		newNode->previous = cursor;
+		if ( newNode->next != nullptr ) {
+			newNode->next->previous = newNode;
+		}
+		cursor->next = newNode;
+	}
+
 	// iterators
 	auto begin() { return Iterator( head ); }
 	auto begin() const { return Iterator( head ); }
 	auto end() { return Iterator( nullptr ); }
 	auto end() const { return Iterator( nullptr ); }
 };
-
-enum class SortOrder {
-	ASCENDING,
-	DESCENDING,
-};
-
-template < typename T > void LinkedListInsertSorted( LinkedList< T > & list, const T & elem, SortOrder order ) {
-	if ( list.head == nullptr ) {
-		list.PushFront( elem );
-		return;
-	}
-
-	if ( ( order == SortOrder::ASCENDING && elem < list.head->data ) ||
-	     ( order == SortOrder::DESCENDING && elem > list.head->data ) ) {
-		list.PushFront( elem );
-		return;
-	}
-
-	LinkedList< T >::Node * cursor = list.head;
-	while ( cursor->next != nullptr ) {
-		if ( ( order == SortOrder::ASCENDING && elem < cursor->next->data ) ||
-		     ( order == SortOrder::DESCENDING && elem > cursor->next->data ) ) {
-			break;
-		}
-		cursor = cursor->next;
-	}
-	LinkedList< T >::Node * newNode = list.nodePool.Pop();
-	newNode->data = elem;
-	newNode->next = cursor->next;
-	newNode->previous = cursor;
-	if ( newNode->next != nullptr ) {
-		newNode->next->previous = newNode;
-	}
-	cursor->next = newNode;
-}
 
 template < typename T1, typename T2 > struct Tuple {
 	Tuple() = default;

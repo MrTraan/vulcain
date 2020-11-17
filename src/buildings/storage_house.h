@@ -1,7 +1,6 @@
 #pragma once
 #include "../entity.h"
 #include "../system.h"
-#include "../registery.h"
 
 struct CpntStorageHouse {
 	static constexpr u32 MAX_RESOURCES = 8;

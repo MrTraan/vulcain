@@ -1,7 +1,7 @@
 #include <GL/gl3w.h>
 #include <stb_image.h>
 
-#include "Game.h"
+#include "game.h"
 #include "collada_parser.h"
 #include "mesh.h"
 #include "obj_parser.h"

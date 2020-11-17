@@ -47,7 +47,7 @@ TEST_CASE( "Linked list", "[linked lists]" ) {
 		list.PushFront( 5 );
 		list.PushFront( 1 );
 
-		LinkedListInsertSorted(list, 7, ng::SortOrder::ASCENDING );
+		list.LinkedListInsertSorted(7, ng::LinkedList::SortOrder::ASCENDING );
 
 		REQUIRE( list[0] == 1 );
 		REQUIRE( list[1] == 5 );

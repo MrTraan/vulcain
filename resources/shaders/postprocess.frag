@@ -1,4 +1,4 @@
-#version 420 core
+#version 410 core
 out vec4 FragColor;
 
 in vec2 fragTexCoord;
@@ -8,15 +8,16 @@ uniform sampler2D gNormal;
 uniform sampler2D gAlbedoSpec;
 uniform sampler2D ssao;
 
-layout (std140, binding = 0) uniform Matrices {
-	mat4 projection;
-	mat4 view;
-	mat4 viewProj;
-	vec4 cameraPosition;
-	vec4 cameraFront;
+layout (std140) uniform Matrices {
+    mat4 projection;
+    mat4 view;
+    mat4 viewProj;
+    mat4 shadowViewProj;
+    vec4 cameraPosition;
+    vec4 cameraFront;
 };
 
-layout(std140, binding = 1) uniform Light {
+layout (std140) uniform Light {
 	vec4 light_direction;
     vec4 light_ambient;
     vec4 light_diffuse;

@@ -1,7 +1,6 @@
 #pragma once
 #include "../entity.h"
 #include "../system.h"
-#include "../registery.h"
 #include "building.h"
 
 Entity CreateResourceFetcher( Registery & reg, GameResource resourceToFetch, u32 maxAmount, Entity parent );

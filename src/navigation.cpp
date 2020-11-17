@@ -61,38 +61,16 @@ static AStarStep * FindNodeInSet( ng::DynamicArray< AStarStep * > & set, Cell co
 	return nullptr;
 }
 
-static bool FindNodeInList( ng::LinkedList< AStarStep > & list, Cell coords ) {
-	for ( auto & node : list ) {
-		if ( node.coord == coords ) {
-			return true;
-		}
-	}
-	return false;
-}
-
-static bool PopNodeFromList( ng::LinkedList< AStarStep > & list, Cell coords, AStarStep & out ) {
-	for ( auto cursor = list.head; cursor != nullptr; cursor = cursor->next ) {
-		if ( cursor->data.coord == coords ) {
-			out = cursor->data;
-			if ( cursor == list.head ) {
-				list.head = nullptr;
-			}
-			list.DeleteNode( cursor );
-			return true;
-		}
-	}
-	return false;
-}
-
 static int Heuristic( Cell node, Cell goal, MovementAllowed movement ) {
 	switch ( movement ) {
 	case ASTAR_ALLOW_DIAGONALS:
 		return MAX( std::abs( ( int )node.x - ( int )goal.x ), std::abs( ( int )node.z - ( int )goal.z ) );
 	case ASTAR_FORBID_DIAGONALS:
 		return std::abs( ( int )node.x - ( int )goal.x ) + std::abs( ( int )node.z - ( int )goal.z );
+	default:
+		ng_assert( false );
+		return 0;
 	}
-	ng_assert( false );
-	return 0;
 }
 
 glm::vec3 GetPointInMiddleOfCell( Cell cell ) {
@@ -112,9 +90,7 @@ Cell GetCellForPoint( glm::vec3 point ) {
 	return cell;
 }
 
-Cell GetCellForTransform( const CpntTransform & transform ) {
-	return GetCellForPoint( transform.GetTranslation() ); 
-}
+Cell GetCellForTransform( const CpntTransform & transform ) { return GetCellForPoint( transform.GetTranslation() ); }
 
 Cell GetCellAfterMovement( Cell start, int movementX, int movementZ ) {
 	ng_assert( movementX >= 0 || start.x > 0 );
@@ -132,8 +108,10 @@ Cell GetCellAfterMovement( Cell start, CardinalDirection direction ) {
 		return GetCellAfterMovement( start, 0, -1 );
 	case WEST:
 		return GetCellAfterMovement( start, 0, 1 );
+	default:
+		ng_assert( false );
+		return INVALID_CELL;
 	}
-	return INVALID_CELL;
 }
 
 CardinalDirection GetDirectionFromCellTo( Cell from, Cell to ) {
@@ -168,11 +146,10 @@ CardinalDirection OppositeDirection( CardinalDirection direction ) {
 
 static thread_local ng::ObjectPool< AStarStep > aStarStepPool;
 
-bool AStar(
-    Cell start, Cell goal, MovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath ) {
+bool AStar( Cell start, Cell goal, MovementAllowed movement, const Map & map, ng::DynamicArray< Cell > & outPath ) {
 	ZoneScoped;
 
-	ng_assert(movement == ASTAR_ALLOW_DIAGONALS || movement == ASTAR_FORBID_DIAGONALS );
+	ng_assert( movement == ASTAR_ALLOW_DIAGONALS || movement == ASTAR_FORBID_DIAGONALS );
 	if ( !map.IsTileAStarNavigable( start ) || !map.IsTileAStarNavigable( goal ) ) {
 		return false;
 	}
@@ -278,7 +255,7 @@ bool AStar(
 }
 
 void SystemNavAgent::Update( Registery & reg, Duration ticks ) {
-	for ( auto & [ e, agent ] : reg.IterateOver< CpntNavAgent >() ) {
+	for ( auto [ e, agent ] : reg.IterateOver< CpntNavAgent >() ) {
 		CpntTransform & transform = reg.GetComponent< CpntTransform >( e );
 		float           remainingSpeed = agent.movementSpeed * ticks;
 		while ( agent.pathfindingNextSteps.Empty() == false && remainingSpeed > 0.0f ) {
@@ -337,33 +314,6 @@ static void GetWalkableNeighborsOfCell( Cell base, const Map & map, ng::StaticAr
 	if ( base.z < map.sizeZ - 1 ) {
 		Cell cell = GetCellAfterMovement( base, 0, 1 );
 		if ( map.IsTileWalkable( cell ) ) {
-			neighbors.PushBack( cell );
-		}
-	}
-}
-
-static void GetRoadNeighborsOfCell( Cell base, const Map & map, ng::StaticArray< Cell, 4 > & neighbors ) {
-	if ( base.x > 0 ) {
-		Cell cell = GetCellAfterMovement( base, -1, 0 );
-		if ( map.GetTile( cell ) == MapTile::ROAD ) {
-			neighbors.PushBack( cell );
-		}
-	}
-	if ( base.x < map.sizeX - 1 ) {
-		Cell cell = GetCellAfterMovement( base, 1, 0 );
-		if ( map.GetTile( cell ) == MapTile::ROAD ) {
-			neighbors.PushBack( cell );
-		}
-	}
-	if ( base.z > 0 ) {
-		Cell cell = GetCellAfterMovement( base, 0, -1 );
-		if ( map.GetTile( cell ) == MapTile::ROAD ) {
-			neighbors.PushBack( cell );
-		}
-	}
-	if ( base.z < map.sizeZ - 1 ) {
-		Cell cell = GetCellAfterMovement( base, 0, 1 );
-		if ( map.GetTile( cell ) == MapTile::ROAD ) {
 			neighbors.PushBack( cell );
 		}
 	}
@@ -444,7 +394,6 @@ void RoadNetwork::AddRoadCellToNetwork( Cell cellToAdd, const Map & map ) {
 
 	// Now that we have connected with the neighbors, let's see if we can simplify the mesh
 	for ( Cell & neighbor : roadNeighbors ) {
-		Node * buildingNode = FindNodeWithPosition( cellToAdd );
 		Node * nodeNeighbor = FindNodeWithPosition( neighbor );
 		if ( nodeNeighbor->NumSetConnections() == 2 && nodeNeighbor->IsConnectedToItself() == false ) {
 			DissolveNode( *nodeNeighbor );
@@ -555,8 +504,6 @@ void RoadNetwork::FindNearestRoadNodes( Cell               cell,
 	CardinalDirection previousDirection[ 2 ] = { GetDirectionFromCellTo( cell, roadNeighbors[ 0 ] ),
 	                                             GetDirectionFromCellTo( cell, roadNeighbors[ 1 ] ) };
 
-	bool nodeAFound = false;
-	bool nodeBFound = true;
 	for ( int i = 0; i < 2; i++ ) {
 		while ( true ) {
 			Node * node = FindNodeWithPosition( roadNeighbors[ i ] );
@@ -918,7 +865,7 @@ bool RoadNetwork::FindPath( Cell                       start,
 				Connection * connection = node->GetValidConnectionWithOffset( i );
 				int          totalCost = current->g + connection->distance;
 				if ( ( u32 )totalCost < maxDistance &&
-				     FindNodeInSet( findPathClosedSet, connection->connectedTo ) == false ) {
+				     FindNodeInSet( findPathClosedSet, connection->connectedTo ) == nullptr ) {
 					pushOrUpdateStep( connection->connectedTo, ResolveConnection( connection ), totalCost, parent );
 				}
 			}
@@ -1037,14 +984,14 @@ bool FindPathBetweenBuildings( const CpntBuilding &       start,
 		}
 	}
 
-	bool pathFound = false;
-	u32  shortestDistance = maxDistance;
-	ng::DynamicArray< Cell > path(32);
+	bool                     pathFound = false;
+	u32                      shortestDistance = maxDistance;
+	ng::DynamicArray< Cell > path( 32 );
 	for ( u32 i = 0; i < startingCells.Size(); i++ ) {
 		for ( u32 j = 0; j < goalCells.Size(); j++ ) {
 			path.Clear();
-			u32                      distance = 0;
-			bool                     subPathFound =
+			u32  distance = 0;
+			bool subPathFound =
 			    roadNetwork.FindPath( startingCells[ i ], goalCells[ j ], map, path, &distance, shortestDistance );
 			pathFound |= subPathFound;
 			if ( subPathFound && distance < shortestDistance ) {
