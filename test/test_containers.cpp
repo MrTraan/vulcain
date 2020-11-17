@@ -40,18 +40,4 @@ TEST_CASE( "Linked list", "[linked lists]" ) {
 		}
 		REQUIRE( index == 3 );
 	}
-	
-	SECTION( "handle sorted insert" ) {
-		ng::LinkedList< int > list;
-		list.PushFront( 10 );
-		list.PushFront( 5 );
-		list.PushFront( 1 );
-
-		list.LinkedListInsertSorted(7, ng::LinkedList::SortOrder::ASCENDING );
-
-		REQUIRE( list[0] == 1 );
-		REQUIRE( list[1] == 5 );
-		REQUIRE( list[2] == 7 );
-		REQUIRE( list[3] == 10 );
-	}
 }

@@ -306,10 +306,10 @@ void GBuffer::Allocate( int width, int height ) {
 	glBindFramebuffer( GL_FRAMEBUFFER, framebufferID );
 
 	std::tuple< int, u32*, int > textures[] = {
-		{ GL_COLOR_ATTACHMENT0, &positionTexture, GL_RGBA16F },
-		{ GL_COLOR_ATTACHMENT1, &viewPositionTexture, GL_RGBA16F },
-		{ GL_COLOR_ATTACHMENT2, &normalTexture, GL_RGBA16F },
-		{ GL_COLOR_ATTACHMENT3, &viewNormalTexture, GL_RGBA16F },
+		{ GL_COLOR_ATTACHMENT0, &positionTexture, GL_RGBA32F },
+		{ GL_COLOR_ATTACHMENT1, &viewPositionTexture, GL_RGBA32F },
+		{ GL_COLOR_ATTACHMENT2, &normalTexture, GL_RGBA32F },
+		{ GL_COLOR_ATTACHMENT3, &viewNormalTexture, GL_RGBA32F },
 		{ GL_COLOR_ATTACHMENT4, &colorSpecularTexture, GL_RGBA }
 	};
 
