@@ -54,8 +54,6 @@ void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 				return;
 			}
 			CpntResourceInventory & fetcherInventory = reg.GetComponent< CpntResourceInventory >( fetcher );
-			Cell fetcherCell = GetCellForPoint( reg.GetComponent< CpntTransform >( fetcher ).GetTranslation() );
-			CpntResourceInventory & targetInventory = reg.GetComponent< CpntResourceInventory >( cpntFetcher.target );
 
 			// Let's fill our inventory
 			u32 capacity = fetcherInventory.GetResourceCapacity( cpntFetcher.resourceToFetch );
@@ -81,7 +79,6 @@ void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 			// Let's empty our inventory
 			Entity                  fetcher = msg.recipient;
 			CpntResourceFetcher &   cpntFetcher = reg.GetComponent< CpntResourceFetcher >( fetcher );
-			CpntResourceInventory & fetcherInventory = reg.GetComponent< CpntResourceInventory >( fetcher );
 			for ( u32 i = 0; i < ( u32 )GameResource::NUM_RESOURCES; i++ ) {
 				PostMsg( MESSAGE_FULL_INVENTORY_TRANSACTION, cpntFetcher.parent, fetcher );
 			}
@@ -89,6 +86,8 @@ void SystemFetcher::HandleMessage( Registery & reg, const Message & msg ) {
 		}
 		break;
 	}
+	default:
+		break;
 	}
 }
 

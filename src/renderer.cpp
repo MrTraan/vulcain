@@ -26,12 +26,10 @@ void Renderer::InitRenderer( int width, int height ) {
 		glBufferData( GL_UNIFORM_BUFFER, sizeof( LightUBOData ), nullptr, GL_STATIC_DRAW );
 		glBindBuffer( GL_UNIFORM_BUFFER, 0 );
 
-#if OPENGL_COMPATIBILITY_VERSION
 		for ( auto & shader : g_shaderAtlas.shaders ) {
-				glUniformBlockBinding(shader.ID, glGetUniformBlockIndex(shader.ID, "Matrices"), viewProjUBOIndex);
-				glUniformBlockBinding(shader.ID, glGetUniformBlockIndex(shader.ID, "Light"), lightUBOIndex);
+			glUniformBlockBinding( shader.ID, glGetUniformBlockIndex( shader.ID, "Matrices" ), viewProjUBOIndex );
+			glUniformBlockBinding( shader.ID, glGetUniformBlockIndex( shader.ID, "Light" ), lightUBOIndex );
 		}
-#endif
 
 		glBindBufferRange( GL_UNIFORM_BUFFER, viewProjUBOIndex, viewProjUBO, 0, sizeof( ViewProjUBOData ) );
 		glBindBufferRange( GL_UNIFORM_BUFFER, lightUBOIndex, lightUBO, 0, sizeof( LightUBOData ) );
@@ -254,8 +252,7 @@ void Renderer::PostProcessPass() {
 	glBindVertexArray( 0 );
 }
 
-void Renderer::DebugPass() {
-}
+void Renderer::DebugPass() {}
 
 void Renderer::FillViewProjUBO( const ViewProjUBOData * data ) {
 	ZoneScoped;

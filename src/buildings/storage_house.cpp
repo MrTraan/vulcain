@@ -47,6 +47,8 @@ void SystemStorageHouse::HandleMessage( Registery & reg, const Message & msg ) {
 		}
 		break;
 	}
+	default:
+		break;
 	}
 }
 

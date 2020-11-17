@@ -230,10 +230,10 @@ template < typename T, u32 N > struct StaticArray {
 	T &       operator[]( int index ) { return At( index ); }
 	const T & operator[]( int index ) const { return At( index ); }
 
-	T *       begin() { return data == nullptr || count == 0 ? nullptr : data; }
-	T *       end() { return data == nullptr || count == 0 ? nullptr : data + count; }
-	const T * begin() const { return data == nullptr || count == 0 ? nullptr : data; }
-	const T * end() const { return data == nullptr || count == 0 ? nullptr : data + count; }
+	T *       begin() { return data; }
+	T *       end() { return data + count; }
+	const T * begin() const { return data; }
+	const T * end() const { return data + count; }
 };
 
 constexpr u64 objectPoolBucketSize = 64;
@@ -414,7 +414,6 @@ template < typename T > struct LinkedList {
 	}
 
 	Node * GetNodeWithOffset( u64 offset ) {
-		ng_assert( offset < size );
 		Node * cursor = head;
 		for ( u64 i = 0; i < offset; i++ ) {
 			cursor = cursor->next;
@@ -431,7 +430,6 @@ template < typename T > struct LinkedList {
 	}
 
 	const T & operator[]( u64 index ) const {
-		ng_assert( index < size );
 		const Node * cursor = head;
 		for ( u64 i = 0; i < index; i++ ) {
 			cursor = cursor->next;

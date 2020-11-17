@@ -1,4 +1,4 @@
-#version 420 core
+#version 410 core
 out float FragColor;
 
 in vec2 fragTexCoord;
@@ -15,11 +15,7 @@ uniform vec2 noiseScale;
 uniform float radius = 0.5;
 uniform float bias = 0.025;
 
-#if OPENGL_COMPATIBILITY_VERSION
 layout (std140) uniform Matrices {
-#else
-layout (std140, binding = 0) uniform Matrices {
-#endif
     mat4 projection;
     mat4 view;
     mat4 viewProj;

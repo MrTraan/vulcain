@@ -599,6 +599,8 @@ void SystemMigrant::HandleMessage( Registery & reg, const Message & msg ) {
 		reg.MarkForDelete( migrant );
 		break;
 	}
+	default:
+		break;
 	}
 }
 
@@ -683,6 +685,8 @@ void SystemBuilding::HandleMessage( Registery & reg, const Message & msg ) {
 		}
 		break;
 	}
+	default:
+		break;
 	}
 }
 

@@ -37,5 +37,7 @@ void SystemDebugDump::HandleMessage( Registery & reg, const Message & msg ) {
 		}
 		break;
 	}
+	default:
+		break;
 	}
 }

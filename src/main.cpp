@@ -48,7 +48,7 @@ _declspec( dllexport ) DWORD NvOptimusEnablement = 0x00000001;
 _declspec( dllexport ) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
 }
 
-#elif defined(__APPLE__)
+#elif defined( __APPLE__ )
 
 #else
 NG_UNSUPPORTED_PLATFORM // GOOD LUCK LOL
@@ -151,8 +151,7 @@ int main( int ac, char ** av ) {
 
 	window.Init();
 
-	if (OPENGL_VERSION_MAJOR >= 4 && OPENGL_VERSION_MINOR >= 3)
-	{
+	if ( OPENGL_VERSION_MAJOR >= 4 && OPENGL_VERSION_MINOR >= 3 ) {
 		glEnable( GL_DEBUG_OUTPUT );
 		glDebugMessageCallback( GLErrorCallback, 0 );
 	}
@@ -186,9 +185,6 @@ int main( int ac, char ** av ) {
 	TracyGpuContext;
 
 	g_modelAtlas.LoadAllModels();
-
-	Texture pinkTexture = CreatePlaceholderPinkTexture();
-	Texture whiteTexture = CreateDefaultWhiteTexture();
 
 	// Register system
 	theGame->systemManager.CreateSystem< SystemRenderModel >();
@@ -252,7 +248,6 @@ int main( int ac, char ** av ) {
 	}
 
 	auto & cpntHousing = registery.GetComponent< CpntHousing >( house );
-	auto & cpntInventory = registery.GetComponent< CpntResourceInventory >( house );
 	ng_assert( cpntHousing.numCurrentlyLiving > 0 );
 	ng_assert( cpntHousing.tier == 1 );
 #endif
@@ -329,7 +324,6 @@ int main( int ac, char ** av ) {
 			theGame->clock += numFixedSteps;
 			FixedUpdate( numFixedSteps );
 		}
-
 
 		Update( pauseSim ? 0.0f : dt );
 		{
@@ -513,7 +507,7 @@ int main( int ac, char ** av ) {
 
 			if ( selectedEntity != INVALID_ENTITY ) {
 				if ( ImGui::Begin( "Entity selected" ) ) {
-					ImGui::Text( "ID: %llu, version: %llu\n", selectedEntity.id, selectedEntity.version );
+					ImGui::Text( "ID: %u, version: %u\n", selectedEntity.id, selectedEntity.version );
 					if ( registery.HasComponent< CpntBuilding >( selectedEntity ) ) {
 						auto & building = registery.GetComponent< CpntBuilding >( selectedEntity );
 						ImGui::Text( "Employees: %d/%d\n", building.workersEmployed, building.workersNeeded );
@@ -572,9 +566,8 @@ int main( int ac, char ** av ) {
 							dump.resourceToDump = ( GameResource )currentIndex;
 						}
 					}
-
-					ImGui::End();
 				}
+				ImGui::End();
 			}
 
 			if ( currentMouseAction == MouseAction::SELECT ) {
@@ -759,13 +752,13 @@ int main( int ac, char ** av ) {
 			{
 				// Game stats UI
 				if ( ImGui::Begin( "Game stats" ) ) {
-					ImGui::Text( "Total population: %lu\n",
+					ImGui::Text( "Total population: %u\n",
 					             theGame->systemManager.GetSystem< SystemHousing >().totalPopulation );
-					ImGui::Text( "Total employed: %lu\n",
+					ImGui::Text( "Total employed: %u\n",
 					             theGame->systemManager.GetSystem< SystemBuilding >().totalEmployed );
-					ImGui::Text( "Employees needed: %lu\n",
+					ImGui::Text( "Employees needed: %u\n",
 					             theGame->systemManager.GetSystem< SystemBuilding >().totalEmployeesNeeded );
-					ImGui::Text( "Chomeurs de la rue: %lu\n",
+					ImGui::Text( "Chomeurs de la rue: %u\n",
 					             theGame->systemManager.GetSystem< SystemBuilding >().totalUnemployed );
 				}
 				ImGui::End();
@@ -832,40 +825,38 @@ int main( int ac, char ** av ) {
 }
 
 void DrawDebugWindow() {
-	static bool opened = true;
-	ImGui::ShowDemoWindow( &opened );
-	ImGui::Begin( "Debug" );
-
-	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
-	             ImGui::GetIO().Framerate );
-	ImGui::SliderFloat( "Game speed", &( theGame->speed ), 0.0f, 10.0f );
-	if ( ImGui::TreeNode( "Window" ) ) {
-		theGame->window.DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::TreeNode( "IO" ) ) {
-		theGame->io.DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::TreeNode( "Systems" ) ) {
-		theGame->systemManager.DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::TreeNode( "Components" ) ) {
-		theGame->registery->DebugDraw();
-		ImGui::TreePop();
-	}
-	if ( ImGui::Button( "Check road network integrity" ) ) {
-		bool ok = theGame->roadNetwork.CheckNetworkIntegrity();
-		if ( ok ) {
-			ng::Printf( "Road network looks fine!\n" );
+	// static bool opened = true;
+	// ImGui::ShowDemoWindow( &opened );
+	if ( ImGui::Begin( "Application" ) ) {
+		ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
+		             ImGui::GetIO().Framerate );
+		ImGui::SliderFloat( "Game speed", &( theGame->speed ), 0.0f, 10.0f );
+		if ( ImGui::TreeNode( "Window" ) ) {
+			theGame->window.DebugDraw();
+			ImGui::TreePop();
+		}
+		if ( ImGui::TreeNode( "IO" ) ) {
+			theGame->io.DebugDraw();
+			ImGui::TreePop();
+		}
+		if ( ImGui::TreeNode( "Systems" ) ) {
+			theGame->systemManager.DebugDraw();
+			ImGui::TreePop();
+		}
+		if ( ImGui::TreeNode( "Components" ) ) {
+			theGame->registery->DebugDraw();
+			ImGui::TreePop();
+		}
+		if ( ImGui::Button( "Check road network integrity" ) ) {
+			bool ok = theGame->roadNetwork.CheckNetworkIntegrity();
+			if ( ok ) {
+				ng::Printf( "Road network looks fine!\n" );
+			}
 		}
 	}
-
+	ImGui::End();
 	if ( ImGui::Begin( "Renderer" ) ) {
 		theGame->renderer.DebugDraw();
 	}
-	ImGui::End();
-
 	ImGui::End();
 }
