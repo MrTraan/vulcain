@@ -197,17 +197,18 @@ void Renderer::LigthningPass() {
 	g_shaderAtlas.ssaoShader.SetFloat( "radius", radius );
 	g_shaderAtlas.ssaoShader.SetFloat( "bias", bias );
 
-	glActiveTexture( GL_TEXTURE0 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.positionTexture );
-	glActiveTexture( GL_TEXTURE1 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.viewPositionTexture );
-	glActiveTexture( GL_TEXTURE2 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.normalTexture );
-	glActiveTexture( GL_TEXTURE3 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.viewNormalTexture );
-	glActiveTexture( GL_TEXTURE4 );
-	glBindTexture( GL_TEXTURE_2D, SSAONoiseTexture );
-	glActiveTexture( GL_TEXTURE5 );
+	std::pair< int, int > textures[] = {
+		{ GL_TEXTURE0, gbuffer.positionTexture },
+		{ GL_TEXTURE1, gbuffer.viewPositionTexture },
+		{ GL_TEXTURE2, gbuffer.normalTexture },
+		{ GL_TEXTURE3, gbuffer.viewNormalTexture },
+		{ GL_TEXTURE4, SSAONoiseTexture },
+	};
+
+	for ( auto & [ textureInd, texure ] : textures ) {
+		glActiveTexture( textureInd );
+		glBindTexture( GL_TEXTURE_2D, texure );
+	}
 
 	glBindVertexArray( fullScreenQuadVAO );
 	glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
@@ -238,14 +239,17 @@ void Renderer::PostProcessPass() {
 	g_shaderAtlas.postProcessShader.SetFloat( "curvature_valley",
 	                                          0.7f / MAX( curvatureValley * curvatureValley, 1e-4 ) );
 
-	glActiveTexture( GL_TEXTURE0 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.positionTexture );
-	glActiveTexture( GL_TEXTURE1 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.normalTexture );
-	glActiveTexture( GL_TEXTURE2 );
-	glBindTexture( GL_TEXTURE_2D, gbuffer.colorSpecularTexture );
-	glActiveTexture( GL_TEXTURE3 );
-	glBindTexture( GL_TEXTURE_2D, SSAOBlurColorBuffer );
+	std::pair< int, int > textures[] = {
+		{ GL_TEXTURE0, gbuffer.positionTexture },
+		{ GL_TEXTURE1, gbuffer.normalTexture },
+		{ GL_TEXTURE2, gbuffer.colorSpecularTexture },
+		{ GL_TEXTURE3, SSAOBlurColorBuffer },
+	};
+
+	for ( auto & [ textureInd, texure ] : textures ) {
+		glActiveTexture( textureInd );
+		glBindTexture( GL_TEXTURE_2D, texure );
+	}
 
 	glBindVertexArray( fullScreenQuadVAO );
 	glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
