@@ -4,7 +4,7 @@ layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aTexCoord;
 
 #if OPENGL_COMPATIBILITY_VERSION
-uniform Matrices {
+layout (std140) uniform Matrices {
 #else
 layout (std140, binding = 0) uniform Matrices {
 #endif

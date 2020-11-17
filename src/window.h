@@ -1,4 +1,12 @@
 #pragma once
+
+# define RETINA_SCALE_FACTOR 1
+// We need to find a way to detect whether the Apple device has a Retina display or not
+// (and even then maybe the specific resolution adjustements we need to make instead of just x2?)
+#if __APPLE__
+# define RETINA_SCALE_FACTOR 2
+#endif
+
 #include "ngLib/logs.h"
 #include "renderer.h"
 #include <GL/gl3w.h>
@@ -100,7 +108,7 @@ class Window {
 	}
 
 	void BindDefaultFramebuffer() {
-		glViewport( 0, 0, width, height );
+		glViewport( 0, 0, width * RETINA_SCALE_FACTOR, height * RETINA_SCALE_FACTOR );
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 	}
 
