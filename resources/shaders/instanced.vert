@@ -35,6 +35,6 @@ void main()
 	fragNormal = normalTransform * aNormal;
 	// TODO: Could be passed as uniform to save quite some time
 	mat3 viewNormalTransform = transpose( inverse( mat3( view * transform ) ) );
-  fragViewNormal = viewNormalTransform * aNormal;
+	fragViewNormal = viewNormalTransform * aNormal;
 	fragTexCoord = aTexCoord;
 }

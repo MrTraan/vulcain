@@ -96,6 +96,24 @@ void AllocateMeshGLBuffers( Mesh & mesh ) {
 	glBindVertexArray( 0 );
 }
 
+Aabb ComputeMeshAabb( const Model & model, const CpntTransform & parentTransform ) {
+	auto minWorldSpace = parentTransform.Transform( model.bounds.min );
+	auto maxWorldSpace = parentTransform.Transform( model.bounds.max );
+	Aabb bounds = {
+	    {
+	        MIN( minWorldSpace.x, maxWorldSpace.x ),
+	        MIN( minWorldSpace.y, maxWorldSpace.y ),
+	        MIN( minWorldSpace.z, maxWorldSpace.z ),
+	    },
+	    {
+	        MAX( minWorldSpace.x, maxWorldSpace.x ),
+	        MAX( minWorldSpace.y, maxWorldSpace.y ),
+	        MAX( minWorldSpace.z, maxWorldSpace.z ),
+	    },
+	};
+	return bounds;
+}
+
 void DrawModel( const Model &         model,
                 const CpntTransform & parentTransform,
                 Shader                shader,
@@ -208,9 +226,9 @@ void ComputeModelSize( Model & model ) {
 				maxZ = position.z;
 		}
 	}
-	model.minCoords = glm::vec3( minX, minY, minZ );
-	model.maxCoords = glm::vec3( maxX, maxY, maxZ );
-	model.size = model.maxCoords - model.minCoords;
+	model.bounds.min = glm::vec3( minX, minY, minZ );
+	model.bounds.max = glm::vec3( maxX, maxY, maxZ );
+	model.size = model.bounds.min - model.bounds.max;
 
 	model.roundedSize.x = ( int )ceilf( model.size.x );
 	model.roundedSize.y = ( int )ceilf( model.size.y );

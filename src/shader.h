@@ -51,6 +51,7 @@ struct ShaderAtlas {
 	Shader ssaoShader;
 	Shader ssaoBlurShader;
 	Shader shadowPassShader;
+	Shader shadowPassInstancedShader;
 };
 
 extern ShaderAtlas g_shaderAtlas;

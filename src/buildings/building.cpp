@@ -329,10 +329,11 @@ void SystemMarket::Update( Registery & reg, Duration ticks ) {
 					                                        g_modelAtlas.GetModel( PackerResources::CUBE_DAE ) );
 					CpntNavAgent & navAgent = reg.AssignComponent< CpntNavAgent >( wanderer );
 					navAgent.pathfindingNextSteps = path;
+					navAgent.deleteAtDestination = true;
 					CpntTransform & transform = reg.AssignComponent< CpntTransform >( wanderer );
 					transform.SetTranslation( GetPointInMiddleOfCell( navAgent.pathfindingNextSteps.Last() ) );
 					reg.AssignComponent< CpntSeller >( wanderer, marketEntity );
-					ListenTo( MESSAGE_NAVAGENT_DESTINATION_REACHED, wanderer );
+					ListenTo( MESSAGE_ENTITY_DELETED, wanderer );
 				}
 			}
 		}
@@ -384,6 +385,10 @@ void SystemMarket::HandleMessage( Registery & reg, const Message & msg ) {
 		for ( auto [ marketEntity, market ] : reg.IterateOver< CpntMarket >() ) {
 			if ( market.fetcher == msg.recipient ) {
 				market.fetcher = INVALID_ENTITY;
+			}
+			if ( market.wanderer == msg.recipient ) {
+				market.wanderer = INVALID_ENTITY;
+				market.timeSinceLastWandererSpawn = 0;
 			}
 		}
 		break;

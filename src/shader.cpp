@@ -132,6 +132,9 @@ void ShaderAtlas::CompileAllShaders() {
 	shadowPassShader =
 	    LinkProgram( PackerResources::SHADERS_SHADOW_PASS_VERT, PackerResources::SHADERS_SHADOW_PASS_FRAG );
 	shaders.push_back( shadowPassShader );
+	shadowPassInstancedShader =
+	    LinkProgram( PackerResources::SHADERS_SHADOW_PASS_INSTANCED_VERT, PackerResources::SHADERS_SHADOW_PASS_FRAG );
+	shaders.push_back( shadowPassInstancedShader );
 
 	for ( auto & [ id, shader ] : shadersCompiled ) {
 		glDeleteShader( shader );

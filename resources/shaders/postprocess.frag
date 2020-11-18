@@ -7,6 +7,7 @@ uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedoSpec;
 uniform sampler2D ssao;
+uniform sampler2DShadow shadowMap;
 
 layout (std140) uniform Matrices {
     mat4 projection;
@@ -54,6 +55,13 @@ float calculate_curvature(ivec2 texel, float ridge, float valley)
 	return 2.0 * curvature_soft_clamp(normal_diff, ridge);
 }
 
+float ShadowCalculation( float dotLightNormal, vec4 fragPosLightSpace ) {
+	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	projCoords = projCoords * 0.5 + 0.5;
+	float bias = 0.005;
+	return texture(shadowMap, vec3(projCoords.xy , projCoords.z - bias ) );
+}
+
 void main() {
     // retrieve data from gbuffer
     vec3 fragPosition = texture( gPosition, fragTexCoord ).rgb;
@@ -78,7 +86,11 @@ void main() {
 
 	// ambiant 
 	vec3 ambiant = vec3( light_ambient.r * fragDiffuse * ambiantOcclusion );
-	vec3 lighting = ambiant + diffuse + specular;
+
+	// shadow
+	float shadow = ShadowCalculation(dotLightNormal, shadowViewProj * vec4(fragPosition, 1.0) );
+
+	vec3 lighting = ambiant + (shadow * diffuse) + specular;
 
 	FragColor = vec4( lighting, 1.0 );
 }

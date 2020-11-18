@@ -29,6 +29,8 @@ struct CpntTransform {
 
 	const glm::mat4 & GetMatrix() const { return matrix; }
 
+	glm::vec3 Transform( const glm::vec3 source ) const { return matrix * glm::vec4( source, 1.0f ); }
+
 	void Translate( const glm::vec3 & v ) {
 		translation += v;
 		ComputeMatrix();
@@ -55,7 +57,7 @@ struct CpntTransform {
 		scale.y = v;
 		ComputeMatrix();
 	}
-	
+
 	void SetScaleZ( float v ) {
 		scale.z = v;
 		ComputeMatrix();

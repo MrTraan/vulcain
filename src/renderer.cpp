@@ -8,6 +8,9 @@
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyOpenGL.hpp>
 
+int SHADOW_MAP_WIDTH = 2048;
+int SHADOW_MAP_HEIGHT = 2048;
+
 constexpr int ssaoKernelSize = 32;
 
 ng::DynamicArray< glm::vec3 > CreateSSAOKernel();
@@ -57,6 +60,7 @@ void Renderer::InitRenderer( int width, int height ) {
 	g_shaderAtlas.postProcessShader.SetInt( "gNormal", 1 );
 	g_shaderAtlas.postProcessShader.SetInt( "gAlbedoSpec", 2 );
 	g_shaderAtlas.postProcessShader.SetInt( "ssao", 3 );
+	g_shaderAtlas.postProcessShader.SetInt( "shadowMap", 4 );
 
 	g_shaderAtlas.ssaoShader.Use();
 	g_shaderAtlas.ssaoShader.SetInt( "gPosition", 0 );
@@ -91,9 +95,6 @@ void Renderer::InitRenderer( int width, int height ) {
 	if ( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE ) {
 		ng::Errorf( "SSAO blur Framebuffer not complete!\n" );
 	}
-
-	int SHADOW_MAP_WIDTH = width;
-	int SHADOW_MAP_HEIGHT = height;
 
 	glGenFramebuffers( 1, &shadowFramebufferID );
 
@@ -153,9 +154,12 @@ void Renderer::GeometryPass( const Registery &     reg,
 		DrawModel( additionnalModels[ i ], additionnalModelsTransform[ i ], g_shaderAtlas.deferredShader );
 	}
 
+	// For now, let's disable depth test while drawing roads. This will avoid dealing with z-fighting with the road
+	glDisable( GL_DEPTH_TEST );
 	for ( u32 i = 0; i < numInstancesModels; i++ ) {
 		instancedModels[ i ].Render( g_shaderAtlas.instancedDeferredShader );
 	}
+	glEnable( GL_DEPTH_TEST );
 
 	theGame->systemManager.GetSystem< SystemTree >().instances.Render( g_shaderAtlas.instancedDeferredShader );
 
@@ -169,6 +173,7 @@ void Renderer::GeometryPass( const Registery &     reg,
 	glBindRenderbuffer( GL_RENDERBUFFER, 0 );
 	glBindFramebuffer( GL_FRAMEBUFFER, shadowFramebufferID );
 	glClear( GL_DEPTH_BUFFER_BIT );
+	glViewport( 0, 0, SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT );
 	g_shaderAtlas.shadowPassShader.Use();
 	for ( auto const & [ e, renderModel ] : reg.IterateOver< CpntRenderModel >() ) {
 		if ( renderModel.model != nullptr ) {
@@ -176,6 +181,7 @@ void Renderer::GeometryPass( const Registery &     reg,
 			           false );
 		}
 	}
+	theGame->systemManager.GetSystem< SystemTree >().instances.Render( g_shaderAtlas.shadowPassInstancedShader );
 
 	g_shaderAtlas.deferredShader.Use();
 }
@@ -244,6 +250,7 @@ void Renderer::PostProcessPass() {
 		{ GL_TEXTURE1, gbuffer.normalTexture },
 		{ GL_TEXTURE2, gbuffer.colorSpecularTexture },
 		{ GL_TEXTURE3, SSAOBlurColorBuffer },
+		{ GL_TEXTURE4, shadowDepthMap },
 	};
 
 	for ( auto & [ textureInd, texure ] : textures ) {

@@ -11,6 +11,11 @@
 #include "shader.h"
 #include "system.h"
 
+struct Aabb {
+	glm::vec3 min;
+	glm::vec3 max;
+};
+
 struct Vertex {
 	glm::vec3 position;
 	glm::vec3 normal;
@@ -52,8 +57,7 @@ struct Model {
 	std::map< std::string, Material > materials;
 	std::vector< Mesh >               meshes;
 	glm::vec3                         size;
-	glm::vec3                         minCoords;
-	glm::vec3                         maxCoords;
+	Aabb                              bounds;
 	glm::i32vec3                      roundedSize;
 };
 
@@ -100,6 +104,7 @@ Texture CreateTextureFromData( const u8 * data, int width, int height, int chann
 Texture CreatePlaceholderPinkTexture();
 Texture CreateDefaultWhiteTexture();
 void    AllocateMeshGLBuffers( Mesh & mesh );
+Aabb    ComputeMeshAabb( const Model & model, const CpntTransform & parentTransform );
 void    DrawModel( const Model & model, const CpntTransform & transform, Shader shader, bool bindMaterial = true );
 void    ComputeModelSize( Model & model );
 
